@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "158705608646",
+    "project_id": "yadu1-821e8",
+    "storage_bucket": "yadu1-821e8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:158705608646:android:b74d321cd8904c76f574c7",
+        "android_client_info": {
+          "package_name": "com.dairydelivery.dairy_delivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsKB02gsyQLFVF6IQSFa0iK9e0EojeQ3U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
