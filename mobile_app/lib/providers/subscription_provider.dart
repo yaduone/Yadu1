@@ -33,6 +33,7 @@ class SubscriptionProvider extends ChangeNotifier {
     required String milkType,
     required double quantity,
     required String startDate,
+    required String deliverySlot,
   }) async {
     _isLoading = true;
     _error = null;
@@ -42,6 +43,7 @@ class SubscriptionProvider extends ChangeNotifier {
         'milk_type': milkType,
         'quantity_litres': quantity,
         'start_date': startDate,
+        'delivery_slot': deliverySlot,
       });
       _subscription = res['data']?['subscription'];
       _isLoading = false;

@@ -16,6 +16,7 @@ class SubscriptionScreen extends StatefulWidget {
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _selectedMilkType = 'cow';
   double _quantity = 1.0;
+  String _selectedSlot = 'morning';
   DateTime _startDate = DateTime.now().add(const Duration(days: 1));
 
   @override
@@ -163,6 +164,74 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
           const SizedBox(height: 24),
 
+          // Delivery slot
+          const SectionLabel('Delivery Slot'),
+          const SizedBox(height: 12),
+          ...AppConstants.deliverySlots.map((slot) {
+            final selected = _selectedSlot == slot;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedSlot = slot),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.primaryLight : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: selected ? AppColors.primary : AppColors.border,
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: selected ? AppColors.primary.withAlpha(20) : AppColors.surfaceBg,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          slot == 'morning'
+                              ? Icons.wb_sunny_rounded
+                              : slot == 'evening'
+                                  ? Icons.nights_stay_rounded
+                                  : Icons.sync_rounded,
+                          color: selected ? AppColors.primary : AppColors.textHint,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppConstants.deliverySlotLabels[slot] ?? slot,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                              color: selected ? AppColors.primary : AppColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            AppConstants.deliverySlotSubtitles[slot] ?? '',
+                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      if (selected)
+                        const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          const SizedBox(height: 24),
+
           // Start date
           const SectionLabel('Start Date'),
           const SizedBox(height: 12),
@@ -235,6 +304,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       milkType: _selectedMilkType,
                       quantity: _quantity,
                       startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+                      deliverySlot: _selectedSlot,
                     );
                     if (ok && mounted) Navigator.pop(context);
                   },
@@ -326,6 +396,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 const SizedBox(height: 20),
                 _infoRow(Icons.local_drink_rounded, 'Daily', '${s['quantity_litres']}L'),
+                const SizedBox(height: 10),
+                _infoRow(
+                  s['delivery_slot'] == 'morning'
+                      ? Icons.wb_sunny_rounded
+                      : s['delivery_slot'] == 'evening'
+                          ? Icons.nights_stay_rounded
+                          : Icons.sync_rounded,
+                  'Slot',
+                  AppConstants.deliverySlotLabels[s['delivery_slot']] ?? '${s['delivery_slot']}',
+                ),
                 const SizedBox(height: 10),
                 _infoRow(Icons.currency_rupee_rounded, 'Price', 'Rs.${s['price_per_litre']}/litre'),
                 const SizedBox(height: 10),

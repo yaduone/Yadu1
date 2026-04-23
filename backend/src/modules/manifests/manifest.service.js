@@ -51,19 +51,34 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
       address: userData.address
         ? `${userData.address.line1 || ''}${userData.address.line2 ? ', ' + userData.address.line2 : ''}${userData.address.landmark ? ', ' + userData.address.landmark : ''}`
         : 'N/A',
+      deliverySlot: orderData.delivery_slot || 'morning',
       milk: orderData.milk,
       extraItems: orderData.extra_items || [],
       totalAmount: orderData.total_amount,
     });
   }
 
-  // 3. Calculate totals
+  // 3. Split orders into slot groups.
+  //    'both' subscribers appear in BOTH morning and evening sections.
+  const morningOrders = orders.filter((o) => o.deliverySlot === 'morning' || o.deliverySlot === 'both');
+  const eveningOrders = orders.filter((o) => o.deliverySlot === 'evening' || o.deliverySlot === 'both');
+
+  // 4. Calculate totals
   const totalUsers = orders.length;
-  const totalMilkLitres = orders.reduce((sum, o) => sum + (o.milk ? o.milk.quantity_litres : 0), 0);
+  const totalMilkLitres = orders.reduce((sum, o) => {
+    if (!o.milk) return sum;
+    // 'both' slot delivers quantity_litres per slot, so count twice
+    return sum + o.milk.quantity_litres * (o.deliverySlot === 'both' ? 2 : 1);
+  }, 0);
   const totalExtraItems = orders.reduce((sum, o) => sum + o.extraItems.length, 0);
   const totalAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
 
-  // 4. Generate PDF
+  const morningUsers = morningOrders.length;
+  const morningMilkLitres = morningOrders.reduce((sum, o) => sum + (o.milk ? o.milk.quantity_litres : 0), 0);
+  const eveningUsers = eveningOrders.length;
+  const eveningMilkLitres = eveningOrders.reduce((sum, o) => sum + (o.milk ? o.milk.quantity_litres : 0), 0);
+
+  // 5. Generate PDF
   const fileName = `${area.slug}_${date}.pdf`;
   const filePath = path.join(MANIFESTS_DIR, fileName);
 
@@ -75,14 +90,19 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
   await generatePDF(filePath, {
     area: area.name,
     date,
-    orders,
+    morningOrders,
+    eveningOrders,
     totalUsers,
     totalMilkLitres,
     totalExtraItems,
     totalAmount,
+    morningUsers,
+    morningMilkLitres,
+    eveningUsers,
+    eveningMilkLitres,
   });
 
-  // 5. Save/update manifest record
+  // 6. Save/update manifest record
   const existingSnap = await db
     .collection('manifests')
     .where('area_id', '==', areaId)
@@ -97,6 +117,10 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     total_milk_litres: totalMilkLitres,
     total_extra_items: totalExtraItems,
     total_amount: totalAmount,
+    morning_users: morningUsers,
+    morning_milk_litres: morningMilkLitres,
+    evening_users: eveningUsers,
+    evening_milk_litres: eveningMilkLitres,
     pdf_path: filePath,
     status: 'ready',
     generated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -123,7 +147,35 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
 }
 
 /**
- * Generate PDF document.
+ * Render a single order row in the PDF.
+ */
+function renderOrderRow(doc, order, idx) {
+  if (doc.y > 700) doc.addPage();
+
+  doc.fontSize(10).font('Helvetica-Bold');
+  doc.text(`${idx + 1}. ${order.userName}  |  ${order.phone}`);
+  doc.font('Helvetica').fontSize(9);
+  doc.text(`   Address: ${order.address}`);
+
+  if (order.milk) {
+    doc.text(
+      `   Milk: ${order.milk.milk_type} - ${order.milk.quantity_litres}L @ Rs.${order.milk.price_per_litre}/L = Rs.${order.milk.total.toFixed(2)}`
+    );
+  }
+
+  if (order.extraItems.length > 0) {
+    doc.text('   Extra Items:');
+    order.extraItems.forEach((item) => {
+      doc.text(`     - ${item.product_name} x${item.quantity} (${item.unit}) = Rs.${item.total.toFixed(2)}`);
+    });
+  }
+
+  doc.text(`   Order Total: Rs.${order.totalAmount.toFixed(2)}`);
+  doc.moveDown(0.5);
+}
+
+/**
+ * Generate PDF document with separate morning and evening sections.
  */
 function generatePDF(filePath, data) {
   return new Promise((resolve, reject) => {
@@ -145,41 +197,38 @@ function generatePDF(filePath, data) {
     doc.text(`Total Milk: ${data.totalMilkLitres} litres`);
     doc.text(`Total Extra Items: ${data.totalExtraItems}`);
     doc.text(`Total Amount: Rs. ${data.totalAmount.toFixed(2)}`);
-    doc.moveDown(1);
-
-    // Divider
-    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
     doc.moveDown(0.5);
 
-    // Orders
-    if (data.orders.length === 0) {
-      doc.fontSize(11).text('No orders for this date.', { align: 'center' });
+    // Slot summary table
+    doc.fontSize(10).font('Helvetica-Bold');
+    doc.text(`Morning Deliveries: ${data.morningUsers} customers  |  ${data.morningMilkLitres}L milk`);
+    doc.text(`Evening Deliveries: ${data.eveningUsers} customers  |  ${data.eveningMilkLitres}L milk`);
+    doc.moveDown(1);
+
+    // ── Morning Section ──────────────────────────────────────────────────
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(13).font('Helvetica-Bold').fillColor('#1a6faf').text('MORNING SLOT', { align: 'center' });
+    doc.fillColor('black').moveDown(0.5);
+
+    if (data.morningOrders.length === 0) {
+      doc.fontSize(10).font('Helvetica').text('No morning deliveries for this date.', { align: 'center' });
     } else {
-      data.orders.forEach((order, idx) => {
-        // Check page space
-        if (doc.y > 700) doc.addPage();
+      data.morningOrders.forEach((order, idx) => renderOrderRow(doc, order, idx));
+    }
 
-        doc.fontSize(10).font('Helvetica-Bold');
-        doc.text(`${idx + 1}. ${order.userName}  |  ${order.phone}`);
-        doc.font('Helvetica').fontSize(9);
-        doc.text(`   Address: ${order.address}`);
+    doc.moveDown(1);
 
-        if (order.milk) {
-          doc.text(
-            `   Milk: ${order.milk.milk_type} - ${order.milk.quantity_litres}L @ Rs.${order.milk.price_per_litre}/L = Rs.${order.milk.total.toFixed(2)}`
-          );
-        }
+    // ── Evening Section ──────────────────────────────────────────────────
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(13).font('Helvetica-Bold').fillColor('#af6f1a').text('EVENING SLOT', { align: 'center' });
+    doc.fillColor('black').moveDown(0.5);
 
-        if (order.extraItems.length > 0) {
-          doc.text('   Extra Items:');
-          order.extraItems.forEach((item) => {
-            doc.text(`     - ${item.product_name} x${item.quantity} (${item.unit}) = Rs.${item.total.toFixed(2)}`);
-          });
-        }
-
-        doc.text(`   Order Total: Rs.${order.totalAmount.toFixed(2)}`);
-        doc.moveDown(0.5);
-      });
+    if (data.eveningOrders.length === 0) {
+      doc.fontSize(10).font('Helvetica').text('No evening deliveries for this date.', { align: 'center' });
+    } else {
+      data.eveningOrders.forEach((order, idx) => renderOrderRow(doc, order, idx));
     }
 
     // Footer

@@ -130,6 +130,14 @@ export default function ManifestsPage() {
                       {' · '}{nextDay.manifest.total_milk_litres}L milk
                       {' · '}₹{nextDay.manifest.total_amount?.toFixed(2)}
                     </p>
+                    <div className="flex gap-4 mt-1">
+                      <span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded-md">
+                        ☀ Morning: {nextDay.manifest.morning_users ?? '—'} customers · {nextDay.manifest.morning_milk_litres ?? '—'}L
+                      </span>
+                      <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md">
+                        🌙 Evening: {nextDay.manifest.evening_users ?? '—'} customers · {nextDay.manifest.evening_milk_litres ?? '—'}L
+                      </span>
+                    </div>
                   </div>
                 ) : nextDay.is_ready && !nextDay.manifest ? (
                   <div className="mt-1">
@@ -224,7 +232,9 @@ export default function ManifestsPage() {
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Customers</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Milk (L)</th>
+                  <th className="text-left px-4 py-3 font-medium text-yellow-700">☀ Morning</th>
+                  <th className="text-left px-4 py-3 font-medium text-indigo-700">🌙 Evening</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Total Milk (L)</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Extras</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Generated</th>
@@ -237,6 +247,12 @@ export default function ManifestsPage() {
                   <tr key={m.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-800">{m.date}</td>
                     <td className="px-4 py-3 text-gray-600">{m.total_users}</td>
+                    <td className="px-4 py-3 text-yellow-700 text-xs">
+                      {m.morning_users ?? '—'} cust · {m.morning_milk_litres ?? '—'}L
+                    </td>
+                    <td className="px-4 py-3 text-indigo-700 text-xs">
+                      {m.evening_users ?? '—'} cust · {m.evening_milk_litres ?? '—'}L
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{m.total_milk_litres}</td>
                     <td className="px-4 py-3 text-gray-600">{m.total_extra_items}</td>
                     <td className="px-4 py-3 font-medium">₹{m.total_amount?.toFixed(2)}</td>
