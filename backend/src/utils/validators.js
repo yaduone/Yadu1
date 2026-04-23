@@ -12,6 +12,10 @@ function isValidQuantity(qty) {
   return typeof qty === 'number' && qty >= 0.5 && qty <= 10 && qty % 0.5 === 0;
 }
 
+function isValidSlot(slot) {
+  return ['morning', 'evening', 'both'].includes(slot);
+}
+
 function isValidYoutubeUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const patterns = [
@@ -23,4 +27,4 @@ function isValidYoutubeUrl(url) {
   return patterns.some((p) => p.test(url));
 }
 
-module.exports = { isValidMilkType, isValidProductCategory, isValidQuantity, isValidYoutubeUrl };
+module.exports = { isValidMilkType, isValidProductCategory, isValidQuantity, isValidSlot, isValidYoutubeUrl };

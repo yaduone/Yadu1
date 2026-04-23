@@ -1,16 +1,19 @@
 const { db, admin } = require('../../config/firebase');
-const { isValidMilkType, isValidQuantity } = require('../../utils/validators');
+const { isValidMilkType, isValidQuantity, isValidSlot } = require('../../utils/validators');
 const dateUtil = require('../../utils/date');
 
 /**
  * Create a new milk subscription for a user.
  */
-async function createSubscription(userId, areaId, { milk_type, quantity_litres, start_date }) {
+async function createSubscription(userId, areaId, { milk_type, quantity_litres, start_date, delivery_slot }) {
   if (!isValidMilkType(milk_type)) {
     throw Object.assign(new Error('Invalid milk type'), { statusCode: 400 });
   }
   if (!isValidQuantity(quantity_litres)) {
     throw Object.assign(new Error('Quantity must be 0.5-10 litres in 0.5L increments'), { statusCode: 400 });
+  }
+  if (!isValidSlot(delivery_slot)) {
+    throw Object.assign(new Error('delivery_slot must be morning, evening, or both'), { statusCode: 400 });
   }
 
   const tomorrow = dateUtil.tomorrow();
@@ -49,6 +52,7 @@ async function createSubscription(userId, areaId, { milk_type, quantity_litres, 
     area_id: areaId,
     milk_type,
     quantity_litres,
+    delivery_slot,
     price_per_litre: pricePerLitre,
     status: 'active',
     start_date,
@@ -67,7 +71,7 @@ async function createSubscription(userId, areaId, { milk_type, quantity_litres, 
     action: 'subscription.created',
     entity_type: 'subscriptions',
     entity_id: docRef.id,
-    details: { milk_type, quantity_litres, start_date },
+    details: { milk_type, quantity_litres, delivery_slot, start_date },
     created_at: admin.firestore.FieldValue.serverTimestamp(),
   });
 

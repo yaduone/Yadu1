@@ -4,11 +4,12 @@ const dueService = require('../dues/due.service');
 /**
  * Create an order from subscription + cart data (called by nightly job).
  */
-async function createOrder({ userId, areaId, date, milk, extraItems, totalAmount }) {
+async function createOrder({ userId, areaId, date, milk, deliverySlot, extraItems, totalAmount }) {
   const orderData = {
     user_id: userId,
     area_id: areaId,
     date,
+    delivery_slot: deliverySlot || 'morning',
     milk: milk || null,
     extra_items: extraItems || [],
     total_amount: totalAmount,

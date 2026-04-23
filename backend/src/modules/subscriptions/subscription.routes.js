@@ -7,14 +7,15 @@ const { success, badRequest, notFound, created } = require('../../utils/response
 // POST /api/subscriptions — Create subscription
 router.post('/', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
-    const { milk_type, quantity_litres, start_date } = req.body;
-    if (!milk_type || !quantity_litres || !start_date) {
-      return badRequest(res, 'milk_type, quantity_litres, and start_date are required');
+    const { milk_type, quantity_litres, start_date, delivery_slot } = req.body;
+    if (!milk_type || !quantity_litres || !start_date || !delivery_slot) {
+      return badRequest(res, 'milk_type, quantity_litres, start_date, and delivery_slot are required');
     }
     const subscription = await subscriptionService.createSubscription(req.user.userId, req.user.areaId, {
       milk_type,
       quantity_litres,
       start_date,
+      delivery_slot,
     });
     return created(res, { subscription });
   } catch (err) {

@@ -102,6 +102,9 @@ async function processArea(areaId, deliveryDate) {
       };
     }
 
+    // Attach slot from subscription (morning / evening / both)
+    const deliverySlot = sub.delivery_slot || 'morning';
+
     // 3. Get extra items from cart
     const cartSnap = await db
       .collection('carts')
@@ -129,6 +132,7 @@ async function processArea(areaId, deliveryDate) {
       areaId,
       date: deliveryDate,
       milk: isSkipped ? null : milk,
+      deliverySlot,
       extraItems,
       totalAmount,
     });
