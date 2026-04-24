@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/api_service.dart';
+import '../utils/error_handler.dart';
 
 class AppAuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -24,6 +25,11 @@ class AppAuthProvider extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> sendOtp(String phoneNumber) async {
     _isLoading = true;
     _error = null;
@@ -38,7 +44,7 @@ class AppAuthProvider extends ChangeNotifier {
           await _syncUser();
         },
         verificationFailed: (e) {
-          _error = e.message ?? 'Verification failed';
+          _error = ErrorHandler.message(e);
           _isLoading = false;
           notifyListeners();
         },
@@ -52,7 +58,7 @@ class AppAuthProvider extends ChangeNotifier {
         },
       );
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       _isLoading = false;
       notifyListeners();
     }
@@ -60,7 +66,7 @@ class AppAuthProvider extends ChangeNotifier {
 
   Future<bool> verifyOtp(String otp) async {
     if (_verificationId == null) {
-      _error = 'No verification ID. Send OTP first.';
+      _error = 'Session expired. Please go back and request a new OTP.';
       notifyListeners();
       return false;
     }
@@ -77,10 +83,15 @@ class AppAuthProvider extends ChangeNotifier {
       await _auth.signInWithCredential(credential);
       _isLoading = false;
       notifyListeners();
-      unawaited(_syncUser()); // fire-and-forget; loadProfile() will sync data on home load
+      unawaited(_syncUser());
       return true;
+    } on FirebaseAuthException catch (e) {
+      _error = ErrorHandler.message(e);
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
-      _error = 'Invalid OTP';
+      _error = ErrorHandler.message(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -91,12 +102,10 @@ class AppAuthProvider extends ChangeNotifier {
     try {
       final token = await _auth.currentUser?.getIdToken();
       if (token == null) return;
-
       final res = await _api.post('/auth/user/verify', {'firebase_token': token});
       _userData = res['data']?['user'];
     } catch (_) {
       // Silently ignore — Firebase sign-in already succeeded.
-      // loadProfile() will sync user data when the home screen loads.
     }
     notifyListeners();
   }
@@ -107,6 +116,7 @@ class AppAuthProvider extends ChangeNotifier {
     required Map<String, dynamic> address,
   }) async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
 
     try {
@@ -117,7 +127,7 @@ class AppAuthProvider extends ChangeNotifier {
       });
       _userData = res['data']?['user'];
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
     }
 
     _isLoading = false;
@@ -128,13 +138,10 @@ class AppAuthProvider extends ChangeNotifier {
     try {
       final res = await _api.get('/users/profile');
       final user = res['data']?['user'];
-      if (user != null) {
-        _userData = user;
-      }
+      if (user != null) _userData = user;
     } catch (e) {
       debugPrint('loadProfile failed: $e');
-      _error = e.toString();
-      // Keep existing _userData from _syncUser() if loadProfile fails
+      // Don't surface this error — the home screen handles it gracefully
     }
     _profileLoaded = true;
     notifyListeners();

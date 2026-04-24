@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/error_handler.dart';
 
 class CartProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -18,18 +19,24 @@ class CartProvider extends ChangeNotifier {
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+
   String? _error;
   String? get error => _error;
 
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> loadTomorrowStatus() async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
     try {
       final res = await _api.get('/tomorrow/status');
       _tomorrowStatus = res['data'];
-      _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
     }
     _isLoading = false;
     notifyListeners();
@@ -50,7 +57,7 @@ class CartProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
@@ -63,7 +70,7 @@ class CartProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
@@ -76,7 +83,7 @@ class CartProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
@@ -92,7 +99,7 @@ class CartProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
@@ -105,7 +112,7 @@ class CartProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }

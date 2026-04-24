@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../widgets/tappable.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../utils/transitions.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
@@ -29,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  bool? _backendOnline; // null = checking, true = online, false = offline
+  bool? _backendOnline;
 
   Future<void> _checkBackend() async {
     try {
@@ -50,10 +51,8 @@ class _LoginScreenState extends State<LoginScreen>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
+    _fadeAnimation =
+        CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.25),
       end: Offset.zero,
@@ -79,12 +78,12 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Image carousel — square images, height = screen width
+          // Image carousel
           AuthImageCarousel(
             height: MediaQuery.of(context).size.width,
           ),
 
-          // Login panel — scrollable so keyboard doesn't cover it
+          // Login panel
           Expanded(
             child: SingleChildScrollView(
               child: FadeTransition(
@@ -104,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen>
         ],
       ),
 
-      // Backend status dot — bottom right
+      // Server status indicator
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 4, right: 4),
         child: Tooltip(
@@ -113,7 +112,8 @@ class _LoginScreenState extends State<LoginScreen>
               : _backendOnline!
                   ? 'Server online'
                   : 'Server offline',
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
             width: 10,
             height: 10,
             decoration: BoxDecoration(
@@ -127,8 +127,8 @@ class _LoginScreenState extends State<LoginScreen>
                 BoxShadow(
                   color: (_backendOnline == true ? Colors.green : Colors.red)
                       .withValues(alpha: 0.5),
-                  blurRadius: 6,
-                  spreadRadius: 1,
+                  blurRadius: 8,
+                  spreadRadius: 2,
                 ),
               ],
             ),
@@ -141,31 +141,27 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _handleSendOtp() async {
     final auth = context.read<AppAuthProvider>();
-    if (_phoneController.text.trim().length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Enter a valid 10-digit number'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+    final phone = _phoneController.text.trim();
+
+    if (phone.isEmpty) {
+      AppSnackbar.warning(context, 'Please enter your phone number.');
+      return;
+    }
+    if (phone.length != 10 || !RegExp(r'^\d{10}$').hasMatch(phone)) {
+      AppSnackbar.warning(context, 'Enter a valid 10-digit mobile number.');
       return;
     }
 
-    final phone = '$_countryCode${_phoneController.text.trim()}';
-    await auth.sendOtp(phone);
+    await auth.sendOtp('$_countryCode$phone');
 
-    if (auth.error == null && mounted) {
-      Navigator.push(
-        context,
-        SlideUpRoute(page: const OtpScreen()),
-      );
+    if (!mounted) return;
+    if (auth.error == null) {
+      Navigator.push(context, SlideUpRoute(page: const OtpScreen()));
     }
   }
 }
+
+// ── Login Panel ───────────────────────────────────────────────────────────────
 
 class _LoginPanel extends StatelessWidget {
   final TextEditingController phoneController;
@@ -186,66 +182,28 @@ class _LoginPanel extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(26, 16, 26, 16),
+          padding: const EdgeInsets.fromLTRB(26, 20, 26, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Logo
-              Container(
-                width: 64,
-                height: 64,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.asset(
-                    'assets/images/image.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppColors.primary, AppColors.primaryDark],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.local_drink_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text('YaduONE', style: AppType.h1.copyWith(letterSpacing: -0.5)),
+              _LogoBadge(),
+              const SizedBox(height: 12),
+              Text('YaduONE',
+                  style: AppType.h1.copyWith(letterSpacing: -0.5)),
               const SizedBox(height: 2),
               Text(
                 'Soch nayi sanskaar wahi',
-                style: AppType.small.copyWith(color: AppColors.textSecondary),
+                style: AppType.small
+                    .copyWith(color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               // Phone label
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  'Phone Number',
-                  style: AppType.captionBold,
-                ),
+                child: Text('Phone Number', style: AppType.captionBold),
               ),
               const SizedBox(height: 10),
 
@@ -253,6 +211,7 @@ class _LoginPanel extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // Country code chip
                   Container(
                     height: 56,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -262,7 +221,8 @@ class _LoginPanel extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        const Text('🇮🇳', style: TextStyle(fontSize: 18)),
+                        const Text('🇮🇳',
+                            style: TextStyle(fontSize: 18)),
                         const SizedBox(width: 6),
                         Text('+91', style: AppType.bodyBold),
                       ],
@@ -276,16 +236,15 @@ class _LoginPanel extends StatelessWidget {
                         controller: phoneController,
                         keyboardType: TextInputType.phone,
                         maxLength: 10,
-                        style: AppType.bodyBold.copyWith(letterSpacing: 1.2),
+                        style: AppType.bodyBold
+                            .copyWith(letterSpacing: 1.5),
                         decoration: InputDecoration(
                           hintText: 'XXXXXXXXXX',
                           counterText: '',
                           filled: true,
                           fillColor: AppColors.surfaceBg,
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
+                              horizontal: 16, vertical: 16),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
@@ -297,9 +256,22 @@ class _LoginPanel extends StatelessWidget {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: const BorderSide(
-                              color: AppColors.primary,
-                              width: 1.5,
-                            ),
+                                color: AppColors.primary, width: 1.5),
+                          ),
+                          suffixIcon: ValueListenableBuilder(
+                            valueListenable: phoneController,
+                            builder: (_, value, __) {
+                              if (value.text.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return IconButton(
+                                icon: const Icon(Icons.clear_rounded,
+                                    size: 18,
+                                    color: AppColors.textHint),
+                                onPressed: () =>
+                                    phoneController.clear(),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -310,42 +282,10 @@ class _LoginPanel extends StatelessWidget {
 
               if (auth.error != null) ...[
                 const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 18,
-                        color: AppColors.error,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          auth.error!,
-                          style: AppType.micro.copyWith(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                InlineErrorBanner(message: auth.error!),
               ],
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
               // Send OTP button
               SizedBox(
@@ -358,22 +298,23 @@ class _LoginPanel extends StatelessWidget {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
+                              color: Colors.white, strokeWidth: 2.5),
                         )
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Send OTP', style: AppType.button.copyWith(color: Colors.white)),
+                            Text('Send OTP',
+                                style: AppType.button
+                                    .copyWith(color: Colors.white)),
                             const SizedBox(width: 8),
-                            const Icon(Icons.arrow_forward_rounded, size: 20),
+                            const Icon(Icons.arrow_forward_rounded,
+                                size: 20),
                           ],
                         ),
                 ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
 
               // Trust badge
               const TrustBadge(
@@ -394,10 +335,8 @@ class _LoginPanel extends StatelessWidget {
                         fontWeight: FontWeight.w500),
                   ),
                   Tappable(
-                    onTap: () => Navigator.push(
-                      context,
-                      SlideUpRoute(page: const TermsScreen()),
-                    ),
+                    onTap: () => Navigator.push(context,
+                        SlideUpRoute(page: const TermsScreen())),
                     haptic: HapticFeedbackType.selection,
                     child: Text(
                       'Terms',
@@ -413,10 +352,8 @@ class _LoginPanel extends StatelessWidget {
                         fontWeight: FontWeight.w500),
                   ),
                   Tappable(
-                    onTap: () => Navigator.push(
-                      context,
-                      SlideUpRoute(page: const PrivacyPolicyScreen()),
-                    ),
+                    onTap: () => Navigator.push(context,
+                        SlideUpRoute(page: const PrivacyPolicyScreen())),
                     haptic: HapticFeedbackType.selection,
                     child: Text(
                       'Privacy Policy',
@@ -429,6 +366,49 @@ class _LoginPanel extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Logo Badge ────────────────────────────────────────────────────────────────
+
+class _LogoBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 68,
+      height: 68,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.15),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.asset(
+          'assets/images/image.png',
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryDark],
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.local_drink_rounded,
+                  color: Colors.white, size: 28),
+            );
+          },
         ),
       ),
     );

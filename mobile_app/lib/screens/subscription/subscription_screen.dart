@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
@@ -172,7 +173,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 'Pause Subscription?',
                 'You can resume anytime. No deliveries will be made while paused.',
               );
-              if (confirm) await sub.pauseSubscription();
+              if (!confirm || !mounted) return;
+              final ok = await sub.pauseSubscription();
+              if (!mounted) return;
+              if (ok) {
+                AppSnackbar.success(context, 'Subscription paused successfully.');
+              } else {
+                AppSnackbar.error(context, sub.error ?? 'Failed to pause subscription.');
+              }
             },
             icon: const Icon(Icons.pause_circle_outline_rounded),
             label: const Text('Pause Subscription'),
@@ -181,7 +189,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ElevatedButton.icon(
             onPressed: () async {
               HapticFeedback.mediumImpact();
-              await sub.resumeSubscription();
+              final ok = await sub.resumeSubscription();
+              if (!mounted) return;
+              if (ok) {
+                AppSnackbar.success(context, 'Subscription resumed. Deliveries will restart.');
+              } else {
+                AppSnackbar.error(context, sub.error ?? 'Failed to resume subscription.');
+              }
             },
             icon: const Icon(Icons.play_circle_outline_rounded),
             label: const Text('Resume Subscription'),
@@ -196,9 +210,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               'Cancel Subscription?',
               'This action cannot be undone. You\'ll need to create a new subscription.',
             );
-            if (confirm) {
-              await sub.cancelSubscription();
-              if (mounted) Navigator.pop(context);
+            if (!confirm || !mounted) return;
+            final ok = await sub.cancelSubscription();
+            if (!mounted) return;
+            if (ok) {
+              Navigator.pop(context);
+            } else {
+              AppSnackbar.error(context, sub.error ?? 'Failed to cancel subscription.');
             }
           },
           child: Text(
@@ -432,24 +450,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               // Error
               if (sub.error != null) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline,
-                          size: 18, color: AppColors.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(sub.error!,
-                              style: AppType.small
-                                  .copyWith(color: AppColors.error))),
-                    ],
-                  ),
-                ),
+                InlineErrorBanner(message: sub.error!),
               ],
 
               const SizedBox(height: 120), // room for sticky bar

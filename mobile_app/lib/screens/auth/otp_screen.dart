@@ -6,6 +6,7 @@ import 'package:pinput/pinput.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
 import 'widgets/auth_image_carousel.dart';
 
@@ -143,12 +144,22 @@ class _OtpScreenState extends State<OtpScreen>
 
   Future<void> _handleVerify() async {
     final auth = context.read<AppAuthProvider>();
+    final otp = _pinController.text.trim();
+
+    if (otp.length < 6) {
+      AppSnackbar.warning(context, 'Please enter the complete 6-digit OTP.');
+      return;
+    }
+
     HapticFeedback.mediumImpact();
-    final success = await auth.verifyOtp(_pinController.text.trim());
-    if (success && mounted) {
+    final success = await auth.verifyOtp(otp);
+    if (!mounted) return;
+
+    if (success) {
       HapticFeedback.heavyImpact();
       Navigator.popUntil(context, (route) => route.isFirst);
     }
+    // error shown inline via InlineErrorBanner in _OtpPanel
   }
 }
 
@@ -288,35 +299,7 @@ class _OtpPanel extends StatelessWidget {
 
               if (auth.error != null) ...[
                 const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: AppColors.error.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline_rounded,
-                          size: 18, color: AppColors.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          auth.error!,
-                          style: AppType.micro.copyWith(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                InlineErrorBanner(message: auth.error!),
               ],
 
               const SizedBox(height: 22),

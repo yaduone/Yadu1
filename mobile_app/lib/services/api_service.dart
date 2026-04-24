@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/constants.dart';
@@ -23,54 +25,90 @@ class ApiService {
 
   static const _timeout = Duration(seconds: 15);
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final res = await http.get(
-      Uri.parse('${AppConstants.apiBaseUrl}$path'),
-      headers: await _headers(),
-    ).timeout(_timeout);
-    return _handleResponse(res);
-  }
+  Future<Map<String, dynamic>> get(String path) => _execute(
+        () async => http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+          headers: await _headers(),
+        ).timeout(_timeout),
+      );
 
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) async {
-    final res = await http.post(
-      Uri.parse('${AppConstants.apiBaseUrl}$path'),
-      headers: await _headers(),
-      body: jsonEncode(body),
-    ).timeout(_timeout);
-    return _handleResponse(res);
-  }
+  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
+      _execute(
+        () async => http.post(
+          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+          headers: await _headers(),
+          body: jsonEncode(body),
+        ).timeout(_timeout),
+      );
 
-  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) async {
-    final res = await http.put(
-      Uri.parse('${AppConstants.apiBaseUrl}$path'),
-      headers: await _headers(),
-      body: jsonEncode(body),
-    ).timeout(_timeout);
-    return _handleResponse(res);
-  }
+  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) =>
+      _execute(
+        () async => http.put(
+          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+          headers: await _headers(),
+          body: jsonEncode(body),
+        ).timeout(_timeout),
+      );
 
-  Future<Map<String, dynamic>> delete(String path) async {
-    final res = await http.delete(
-      Uri.parse('${AppConstants.apiBaseUrl}$path'),
-      headers: await _headers(),
-    ).timeout(_timeout);
-    return _handleResponse(res);
+  Future<Map<String, dynamic>> delete(String path) => _execute(
+        () async => http.delete(
+          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+          headers: await _headers(),
+        ).timeout(_timeout),
+      );
+
+  /// Wraps every HTTP call with consistent error translation.
+  Future<Map<String, dynamic>> _execute(
+      Future<http.Response> Function() call) async {
+    try {
+      final res = await call();
+      return _handleResponse(res);
+    } on SocketException {
+      throw const NetworkException();
+    } on TimeoutException {
+      throw const TimeoutApiException();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(e.toString(), 0);
+    }
   }
 
   Map<String, dynamic> _handleResponse(http.Response res) {
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw ApiException('Unexpected server response', res.statusCode);
+    }
+
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return body;
     }
-    throw ApiException(body['error'] ?? 'Request failed', res.statusCode);
+    throw ApiException(
+      (body['error'] as String?) ?? (body['message'] as String?) ?? 'Request failed',
+      res.statusCode,
+    );
   }
 }
 
 class ApiException implements Exception {
   final String message;
   final int statusCode;
-  ApiException(this.message, this.statusCode);
+  const ApiException(this.message, this.statusCode);
 
   @override
   String toString() => message;
+}
+
+/// Thrown when there is no internet / socket error.
+class NetworkException extends ApiException {
+  const NetworkException()
+      : super('No internet connection. Please check your network and try again.', 0);
+}
+
+/// Thrown when the request times out.
+class TimeoutApiException extends ApiException {
+  const TimeoutApiException()
+      : super('Request timed out. Please try again.', 0);
 }
