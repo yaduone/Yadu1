@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const errorHandler = require('./middleware/errorHandler');
 const limit = require('./middleware/rateLimiter');
+const config = require('./config');
 
 // Route imports
 const authRoutes = require('./modules/auth/auth.routes');
@@ -28,7 +29,19 @@ const app = express();
 
 // Global middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (config.allowedOrigins.length === 0 || config.allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 // Health check (no rate limit — used by load balancers)

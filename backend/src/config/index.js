@@ -11,6 +11,7 @@ const config = {
     secret: process.env.JWT_SECRET || 'dev-secret-change-me',
     expiresIn: '24h',
   },
+  allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean),
   timezone: process.env.TIMEZONE || 'Asia/Kolkata',
   manifestCutoffHour: parseInt(process.env.MANIFEST_CUTOFF_HOUR, 10) || 21,
   manifestCronHour: parseInt(process.env.MANIFEST_CRON_HOUR, 10) || 23,
