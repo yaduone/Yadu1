@@ -25,8 +25,10 @@ const upload = multer({
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// GET /api/products — active products (public)
-router.get('/', async (req, res, next) => {
+const { cache, invalidateOn } = require('../../middleware/cache');
+
+// GET /api/products — active products (public) — cached 300s
+router.get('/', cache.publicStatic, async (req, res, next) => {
   try {
     let query = db.collection('products').where('is_active', '==', true);
     if (req.query.category) {
@@ -38,8 +40,8 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/products/all — admin: all products including inactive
-router.get('/all', authenticateAdmin, async (req, res, next) => {
+// GET /api/products/all — admin: all products including inactive — cached 60s
+router.get('/all', authenticateAdmin, cache.adminData, async (req, res, next) => {
   try {
     const snap = await db.collection('products').get();
     return success(res, { products: snap.docs.map((d) => ({ id: d.id, ...d.data() })) });
@@ -47,7 +49,7 @@ router.get('/all', authenticateAdmin, async (req, res, next) => {
 });
 
 // POST /api/products — admin: create product  (multipart/form-data)
-router.post('/', authenticateAdmin, upload.array('images', 10), async (req, res, next) => {
+router.post('/', authenticateAdmin, upload.array('images', 10), invalidateOn(['products', 'public']), async (req, res, next) => {
   try {
     const { name, category, unit, price, description } = req.body;
 
@@ -88,7 +90,7 @@ router.post('/', authenticateAdmin, upload.array('images', 10), async (req, res,
 // File field  : images         — new files to upload (appended, or replaces if replace_images=true)
 // Text field  : replace_images — "true" → delete all existing images, replace with new uploads
 // Text field  : remove_images  — JSON array of existing image URLs to delete individually
-router.put('/:id', authenticateAdmin, upload.array('images', 10), async (req, res, next) => {
+router.put('/:id', authenticateAdmin, upload.array('images', 10), invalidateOn(['products', 'public']), async (req, res, next) => {
   try {
     const productRef = db.collection('products').doc(req.params.id);
     const productDoc = await productRef.get();
@@ -140,7 +142,7 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), async (req, re
 });
 
 // DELETE /api/products/:id — admin: permanently delete product + its images
-router.delete('/:id', authenticateAdmin, async (req, res, next) => {
+router.delete('/:id', authenticateAdmin, invalidateOn(['products', 'public']), async (req, res, next) => {
   try {
     const productRef = db.collection('products').doc(req.params.id);
     const productDoc = await productRef.get();
