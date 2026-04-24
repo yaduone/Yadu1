@@ -24,8 +24,27 @@ class AuthImageCarousel extends StatefulWidget {
   State<AuthImageCarousel> createState() => _AuthImageCarouselState();
 }
 
-class _AuthImageCarouselState extends State<AuthImageCarousel> {
+class _AuthImageCarouselState extends State<AuthImageCarousel>
+    with SingleTickerProviderStateMixin {
   int _current = 0;
+
+  // Slow-pan animation controller
+  late AnimationController _panCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _panCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _panCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +63,11 @@ class _AuthImageCarouselState extends State<AuthImageCarousel> {
               Container(
                 width: double.infinity,
                 height: h,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [AppColors.primaryLight, Color(0xFFB8DFF5)],
+                    colors: [AppColors.primaryLight, const Color(0xFFB8DFF5)],
                   ),
                 ),
               ),
@@ -58,24 +77,42 @@ class _AuthImageCarouselState extends State<AuthImageCarousel> {
                   height: h,
                   viewportFraction: 1.0,
                   autoPlay: true,
-                  autoPlayInterval: const Duration(seconds: 4),
-                  autoPlayAnimationDuration: const Duration(milliseconds: 700),
+                  autoPlayInterval: const Duration(seconds: 5),
+                  autoPlayAnimationDuration:
+                      const Duration(milliseconds: 800),
                   autoPlayCurve: Curves.easeInOut,
                   onPageChanged: (index, _) =>
                       setState(() => _current = index),
                 ),
                 items: AuthImageCarousel._images.map((path) {
                   return SizedBox.expand(
-                    child: Image.asset(
-                      path,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: AppColors.primaryLight,
-                        child: const Center(
-                          child: Icon(
-                            Icons.local_drink_rounded,
-                            size: 72,
-                            color: AppColors.primary,
+                    // Slow-pan animation: gently shifts the image
+                    child: AnimatedBuilder(
+                      animation: _panCtrl,
+                      builder: (context, child) {
+                        final offsetX = (_panCtrl.value - 0.5) * 30;
+                        final scale = 1.05 + (_panCtrl.value * 0.05);
+                        return Transform(
+                          alignment: Alignment.center,
+                          // ignore: deprecated_member_use
+                          transform: Matrix4.identity()
+                            ..translate(offsetX, 0.0)
+                            ..scale(scale),
+                          child: child,
+                        );
+                      },
+                      child: Image.asset(
+                        path,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Container(
+                          color: AppColors.primaryLight,
+                          child: const Center(
+                            child: Icon(
+                              Icons.local_drink_rounded,
+                              size: 72,
+                              color: AppColors.primary,
+                            ),
                           ),
                         ),
                       ),
@@ -84,18 +121,19 @@ class _AuthImageCarouselState extends State<AuthImageCarousel> {
                 }).toList(),
               ),
 
-              // Dot indicator
+              // Dot indicator — positioned higher so it doesn't conflict
+              // with the glassmorphism panel below
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 24,
+                bottom: h * 0.45, // Position dots near the center of visible image area
                 child: Center(
                   child: AnimatedSmoothIndicator(
                     activeIndex: _current,
                     count: AuthImageCarousel._images.length,
-                    effect: const ExpandingDotsEffect(
+                    effect: ExpandingDotsEffect(
                       activeDotColor: AppColors.primary,
-                      dotColor: Colors.white,
+                      dotColor: Colors.white.withValues(alpha: 0.7),
                       dotHeight: 8,
                       dotWidth: 8,
                       expansionFactor: 3,

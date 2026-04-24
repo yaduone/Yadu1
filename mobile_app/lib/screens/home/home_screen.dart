@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/cart_provider.dart';
@@ -13,6 +15,7 @@ import '../profile/profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../dues/due_screen.dart';
 import '../products/products_screen.dart';
+import '../auth/complete_profile_screen.dart';
 import 'widgets/curved_navbar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -65,20 +68,35 @@ class _HomeTab extends StatefulWidget {
   State<_HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<_HomeTab> {
+class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin {
   double? _dueAmount;
+  late AnimationController _fadeCtrl;
+  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
     _loadDue();
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadDue() async {
     try {
       final res = await ApiService().get('/dues/me');
       if (mounted) {
-        setState(() => _dueAmount = (res['data']?['due_amount'] as num?)?.toDouble() ?? 0);
+        setState(() =>
+            _dueAmount = (res['data']?['due_amount'] as num?)?.toDouble() ?? 0);
       }
     } catch (_) {}
   }
@@ -101,157 +119,203 @@ class _HomeTabState extends State<_HomeTab> {
             await cart.loadTomorrowStatus();
             await _loadDue();
           },
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            children: [
-              const SizedBox(height: 20),
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              children: [
+                const SizedBox(height: 20),
 
-              // Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Good ${_greeting()},',
-                          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          firstName,
-                          style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.3,
+                // ── Header ────────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Good ${_greeting()},',
+                            style: AppType.caption
+                                .copyWith(color: AppColors.textSecondary),
                           ),
+                          const SizedBox(height: 2),
+                          Text(firstName, style: AppType.h1),
+                        ],
+                      ),
+                    ),
+                    // Wallet pill
+                    if (_dueAmount != null)
+                      WalletPill(
+                        amount: _dueAmount!,
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const DueScreen())),
+                      ),
+                    const SizedBox(width: 10),
+                    _headerAction(
+                      Icons.notifications_none_rounded,
+                      () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen())),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Profile Incomplete Banner ─────────────────────────
+                if (!auth.isProfileComplete) ...[
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CompleteProfileScreen()),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primary,
+                            AppColors.primary.withValues(alpha: 0.85),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.person_add_rounded,
+                                color: Colors.white, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Complete your address to start receiving milk',
+                              style: AppType.small.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded,
+                              color: Colors.white70, size: 14),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── Tomorrow's Delivery (Hero Card) ───────────────────
+                const SectionLabel("Tomorrow's Delivery"),
+                const SizedBox(height: 12),
+                _buildDeliveryCard(context, cart),
+
+                const SizedBox(height: 24),
+
+                // ── My Subscription ────────────────────────────────────
+                const SectionLabel('My Subscription'),
+                const SizedBox(height: 12),
+                _buildSubscriptionCard(context, sub),
+
+                const SizedBox(height: 24),
+
+                // ── Shop Banner ────────────────────────────────────────
+                const SectionLabel('Shop'),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ProductsScreen())),
+                  child: Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary,
+                          AppColors.primaryDark,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
                         ),
                       ],
                     ),
-                  ),
-                  _headerAction(
-                    Icons.notifications_outlined,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-                  ),
-                  const SizedBox(width: 10),
-                  _headerAction(
-                    Icons.live_tv_rounded,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LivestreamScreen())),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 28),
-
-              // Due Amount Card
-              if (_dueAmount != null && _dueAmount! > 0) ...[
-                GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DueScreen())),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withAlpha(12),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.error.withAlpha(50)),
-                    ),
-                    child: Row(
+                    child: Stack(
                       children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withAlpha(18),
-                            borderRadius: BorderRadius.circular(11),
+                        // Background decoration
+                        Positioned(
+                          right: -20,
+                          bottom: -20,
+                          child: Icon(
+                            Icons.storefront_rounded,
+                            size: 120,
+                            color: Colors.white.withValues(alpha: 0.08),
                           ),
-                          child: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.error, size: 20),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
                             children: [
-                              const Text('Due Amount', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                              Text(
-                                'Rs.${_dueAmount!.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.error),
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(Icons.storefront_rounded,
+                                    color: Colors.white, size: 26),
                               ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Browse Products',
+                                      style: AppType.h3.copyWith(color: Colors.white),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Paneer, curd, ghee & more',
+                                      style: AppType.small.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward_ios_rounded,
+                                  color: Colors.white54, size: 16),
                             ],
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.error),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+
+                // Trust badges
+                const SizedBox(height: 24),
+                const TrustBadgeRow(),
+
+                const SizedBox(height: 100), // padding for bottom nav
               ],
-
-              // Subscription Card
-              const SectionLabel('My Subscription'),
-              const SizedBox(height: 12),
-              _buildSubscriptionCard(context, sub),
-
-              const SizedBox(height: 24),
-
-              // Tomorrow's Delivery
-              const SectionLabel("Tomorrow's Delivery"),
-              const SizedBox(height: 12),
-              _buildDeliveryCard(context, cart),
-
-              const SizedBox(height: 24),
-
-              // Shop Banner
-              const SectionLabel('Shop'),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductsScreen())),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryDark],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(30),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Browse Products',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Paneer, curd, ghee & more',
-                              style: TextStyle(fontSize: 13, color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 28),
-            ],
+            ),
           ),
         ),
       ),
@@ -269,9 +333,9 @@ class _HomeTabState extends State<_HomeTab> {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withAlpha(10),
-              blurRadius: 12,
-              offset: const Offset(0, 2),
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -280,7 +344,8 @@ class _HomeTabState extends State<_HomeTab> {
     );
   }
 
-  Widget _buildSubscriptionCard(BuildContext context, SubscriptionProvider sub) {
+  Widget _buildSubscriptionCard(
+      BuildContext context, SubscriptionProvider sub) {
     if (sub.subscription == null) {
       return PremiumCard(
         child: Column(
@@ -292,16 +357,18 @@ class _HomeTabState extends State<_HomeTab> {
                 color: AppColors.primaryLight,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.water_drop_outlined, color: AppColors.primary, size: 28),
+              child: const Icon(Icons.water_drop_outlined,
+                  color: AppColors.primary, size: 28),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No active subscription',
-              style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
+              style: AppType.caption.copyWith(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
               child: const Text('Start Subscription'),
             ),
           ],
@@ -311,6 +378,7 @@ class _HomeTabState extends State<_HomeTab> {
 
     final s = sub.subscription!;
     final isActive = s['status'] == 'active';
+    final statusColor = isActive ? AppColors.success : AppColors.warning;
 
     return PremiumCard(
       child: Column(
@@ -319,17 +387,14 @@ class _HomeTabState extends State<_HomeTab> {
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: isActive ? AppColors.success.withAlpha(20) : AppColors.warning.withAlpha(20),
-                  borderRadius: BorderRadius.circular(12),
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  Icons.water_drop_rounded,
-                  color: isActive ? AppColors.success : AppColors.warning,
-                  size: 22,
-                ),
+                child:
+                    Icon(Icons.water_drop_rounded, color: statusColor, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -338,29 +403,29 @@ class _HomeTabState extends State<_HomeTab> {
                   children: [
                     Text(
                       '${(s['milk_type'] as String).toUpperCase()} Milk',
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      style: AppType.h3,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${s['quantity_litres']}L daily @ Rs.${s['price_per_litre']}/L',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      '${s['quantity_litres']}L daily · ₹${s['price_per_litre']}/L',
+                      style: AppType.small
+                          .copyWith(color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isActive ? AppColors.success.withAlpha(20) : AppColors.warning.withAlpha(20),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   s['status'].toString().toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: AppType.micro.copyWith(
+                    color: statusColor,
                     fontWeight: FontWeight.w700,
-                    color: isActive ? AppColors.success : AppColors.warning,
-                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -370,8 +435,12 @@ class _HomeTabState extends State<_HomeTab> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const SubscriptionScreen())),
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48)),
               child: const Text('Manage Subscription'),
             ),
           ),
@@ -382,15 +451,7 @@ class _HomeTabState extends State<_HomeTab> {
 
   Widget _buildDeliveryCard(BuildContext context, CartProvider cart) {
     if (cart.tomorrowStatus == null) {
-      return PremiumCard(
-        child: Center(
-          child: SizedBox(
-            height: 24,
-            width: 24,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-          ),
-        ),
-      );
+      return const SkeletonCardLoader();
     }
 
     return PremiumCard(
@@ -400,13 +461,14 @@ class _HomeTabState extends State<_HomeTab> {
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.local_shipping_outlined, color: AppColors.primary, size: 22),
+                child: const Icon(Icons.local_shipping_outlined,
+                    color: AppColors.primary, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -415,34 +477,49 @@ class _HomeTabState extends State<_HomeTab> {
                   children: [
                     Text(
                       cart.tomorrowStatus!['date'] ?? '',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      style: AppType.bodyBold,
                     ),
                     if (cart.isSkipped)
-                      const Text('Delivery skipped', style: TextStyle(fontSize: 13, color: AppColors.error))
+                      Text('Delivery skipped',
+                          style: AppType.small
+                              .copyWith(color: AppColors.error))
                     else if (cart.effectiveMilk != null)
                       Text(
-                        '${(cart.effectiveMilk!['milk_type'] as String).toUpperCase()} - ${cart.effectiveMilk!['quantity_litres']}L',
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        '🟢 ${(cart.effectiveMilk!['milk_type'] as String).toUpperCase()} - ${cart.effectiveMilk!['quantity_litres']}L',
+                        style: AppType.small
+                            .copyWith(color: AppColors.textSecondary),
                       ),
                   ],
                 ),
               ),
+              // Quick actions
+              if (!cart.isSkipped) ...[
+                _ghostButton('Edit', Icons.edit_outlined, () {
+                  // Navigate to cart tab — find HomeScreen's setState
+                  final homeState =
+                      context.findAncestorStateOfType<_HomeScreenState>();
+                  homeState?.setState(() => homeState._currentIndex = 2);
+                }),
+              ],
             ],
           ),
           if (cart.isSkipped)
             Padding(
-              padding: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.only(top: 14),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withAlpha(10),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.error.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
                     'SKIPPED',
-                    style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 1),
+                    style: AppType.microUpper.copyWith(
+                      color: AppColors.error,
+                      letterSpacing: 1.5,
+                    ),
                   ),
                 ),
               ),
@@ -453,7 +530,8 @@ class _HomeTabState extends State<_HomeTab> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   '+ ${cart.extraItems.length} extra items',
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style:
+                      AppType.small.copyWith(color: AppColors.textSecondary),
                 ),
               ),
             const SizedBox(height: 14),
@@ -462,24 +540,52 @@ class _HomeTabState extends State<_HomeTab> {
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               decoration: BoxDecoration(
                 color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Total',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.primary),
+                    style: AppType.bodyBold.copyWith(color: AppColors.primary),
                   ),
                   Text(
-                    'Rs.${cart.totalAmount.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primary),
+                    '₹${cart.totalAmount.toStringAsFixed(2)}',
+                    style: AppType.h3.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _ghostButton(String label, IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppType.micro
+                  .copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
       ),
     );
   }

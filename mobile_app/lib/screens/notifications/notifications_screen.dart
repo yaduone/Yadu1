@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../services/api_service.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -42,24 +44,45 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: const Icon(Icons.arrow_back_ios_new, size: 16),
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Notifications'),
+        title: Text('Notifications', style: AppType.h2),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2.5))
+          ? Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: List.generate(
+                  5,
+                  (_) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: SkeletonLoader(height: 72, borderRadius: 20),
+                  ),
+                ),
+              ),
+            )
           : _notifications.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.notifications_off_outlined, size: 56, color: AppColors.textHint),
+                      Icon(Icons.notifications_off_outlined,
+                          size: 56, color: AppColors.textHint),
                       const SizedBox(height: 16),
-                      const Text('No notifications', style: TextStyle(fontSize: 16, color: AppColors.textSecondary)),
+                      Text('No notifications',
+                          style: AppType.caption
+                              .copyWith(color: AppColors.textSecondary)),
                     ],
                   ),
                 )
@@ -73,8 +96,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     final isRead = n['is_read'] == true;
 
                     return PremiumCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      color: isRead ? AppColors.cardBg : AppColors.primaryLight,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      color:
+                          isRead ? AppColors.cardBg : AppColors.primaryLight,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -82,12 +107,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: isAlert ? AppColors.error.withAlpha(15) : AppColors.primary.withAlpha(15),
-                              borderRadius: BorderRadius.circular(10),
+                              color: isAlert
+                                  ? AppColors.error.withValues(alpha: 0.1)
+                                  : AppColors.primary
+                                      .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Icon(
-                              isAlert ? Icons.warning_amber_rounded : Icons.info_outline_rounded,
-                              color: isAlert ? AppColors.error : AppColors.primary,
+                              isAlert
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.info_outline_rounded,
+                              color: isAlert
+                                  ? AppColors.error
+                                  : AppColors.primary,
                               size: 20,
                             ),
                           ),
@@ -98,16 +130,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               children: [
                                 Text(
                                   n['title'] ?? '',
-                                  style: TextStyle(
-                                    fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
-                                    fontSize: 14,
-                                    color: AppColors.textPrimary,
-                                  ),
+                                  style: (isRead
+                                          ? AppType.caption
+                                          : AppType.captionBold)
+                                      .copyWith(
+                                          color: AppColors.textPrimary),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   n['body'] ?? '',
-                                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4),
+                                  style: AppType.small.copyWith(
+                                      color: AppColors.textSecondary,
+                                      height: 1.4),
                                 ),
                               ],
                             ),

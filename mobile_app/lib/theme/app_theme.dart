@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// MilkFresh-inspired premium color palette.
-/// Clean whites, soft sky-blue accents, gentle shadows.
+/// Elevated Organic palette — clean, premium, trustworthy.
 class AppColors {
-  // Primary palette — sky blue inspired by MilkFresh
-  static const Color primary = Color(0xFF3B9BD9);
-  static const Color primaryDark = Color(0xFF2B7BB9);
+  AppColors._();
+
+  // Primary palette
+  static const Color primary = Color(0xFF2E8EEA);
+  static const Color primaryDark = Color(0xFF1B6FC2);
   static const Color primaryLight = Color(0xFFE8F4FD);
 
   // Backgrounds
-  static const Color scaffoldBg = Color(0xFFF8FBFF);
+  static const Color scaffoldBg = Color(0xFFFAFCFF);
   static const Color cardBg = Colors.white;
-  static const Color surfaceBg = Color(0xFFF0F6FF);
+  static const Color surfaceBg = Color(0xFFF3F6F8);
 
   // Text
-  static const Color textPrimary = Color(0xFF1A1D26);
+  static const Color textPrimary = Color(0xFF111827);
   static const Color textSecondary = Color(0xFF6B7280);
   static const Color textHint = Color(0xFF9CA3AF);
 
   // Status
-  static const Color success = Color(0xFF34C759);
+  static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFFF9500);
   static const Color error = Color(0xFFFF3B30);
 
@@ -30,6 +32,8 @@ class AppColors {
 
 class AppTheme {
   static ThemeData get lightTheme {
+    final fontFamily = GoogleFonts.plusJakartaSans().fontFamily;
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
@@ -41,64 +45,66 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
       ),
       scaffoldBackgroundColor: AppColors.scaffoldBg,
-      fontFamily: 'default',
+      fontFamily: fontFamily,
 
       // AppBar
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0.5,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: fontFamily,
           color: AppColors.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.3,
         ),
-        iconTheme: IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
 
-      // Cards
+      // Cards — zero borders, shadow-only elevation
       cardTheme: CardThemeData(
         color: AppColors.cardBg,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.border, width: 0.5),
+          borderRadius: BorderRadius.circular(24),
         ),
         margin: EdgeInsets.zero,
       ),
 
-      // Elevated buttons
+      // Primary CTA — 56px pill or 16px radius
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 0,
-          minimumSize: const Size(double.infinity, 54),
+          minimumSize: const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: const TextStyle(
+          textStyle: TextStyle(
+            fontFamily: fontFamily,
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             letterSpacing: 0.2,
           ),
         ),
       ),
 
-      // Outlined buttons
+      // Secondary buttons
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           elevation: 0,
-          minimumSize: const Size(double.infinity, 54),
+          minimumSize: const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
           ),
           side: const BorderSide(color: AppColors.primary, width: 1.5),
-          textStyle: const TextStyle(
+          textStyle: TextStyle(
+            fontFamily: fontFamily,
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -109,18 +115,20 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.primary,
-          textStyle: const TextStyle(
+          textStyle: TextStyle(
+            fontFamily: fontFamily,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
 
-      // Input fields
+      // Filled input fields — #F3F6F8 bg, no border until focused
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -131,31 +139,48 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide:
+              const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppColors.error, width: 1),
         ),
-        hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 15),
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        hintStyle: TextStyle(
+          fontFamily: fontFamily,
+          color: AppColors.textHint,
+          fontSize: 15,
+        ),
+        labelStyle: TextStyle(
+          fontFamily: fontFamily,
+          color: AppColors.textSecondary,
+          fontSize: 14,
+        ),
       ),
 
       // Bottom navigation
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textHint,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: TextStyle(fontSize: 12),
+        selectedLabelStyle: TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 12,
+        ),
       ),
 
       // Chips
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.primaryLight,
-        labelStyle: const TextStyle(
+        labelStyle: TextStyle(
+          fontFamily: fontFamily,
           color: AppColors.primary,
           fontWeight: FontWeight.w600,
           fontSize: 12,
@@ -176,8 +201,10 @@ class AppTheme {
 
       // Dialog
       dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titleTextStyle: const TextStyle(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: TextStyle(
+          fontFamily: fontFamily,
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
@@ -188,61 +215,8 @@ class AppTheme {
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-      ),
-    );
-  }
-}
-
-/// Reusable premium card with soft shadow.
-class PremiumCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-  final Color? color;
-
-  const PremiumCard({
-    super.key,
-    required this.child,
-    this.padding,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding ?? const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color ?? AppColors.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withAlpha(12),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-/// Section header label used across screens.
-class SectionLabel extends StatelessWidget {
-  final String text;
-
-  const SectionLabel(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textHint,
-        letterSpacing: 1.0,
       ),
     );
   }

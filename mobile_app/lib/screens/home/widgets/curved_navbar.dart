@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/app_theme.dart';
@@ -42,7 +43,7 @@ class BottomNavCurvePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Curved bottom navigation bar.
+/// Glass-effect curved bottom navigation bar.
 ///
 /// [currentIndex] maps to: 0=Home, 1=Reports, 2=Cart, 3=Profile.
 /// [onTap] is called with the same indices.
@@ -62,7 +63,7 @@ class CurvedNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    const height = 56.0;
+    const height = 62.0;
 
     return BottomAppBar(
       color: Colors.transparent,
@@ -71,32 +72,20 @@ class CurvedNavBar extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Curved white background
-          CustomPaint(
-            size: Size(size.width, height + 7),
-            painter: const BottomNavCurvePainter(backgroundColor: Colors.white),
-          ),
-
-          // Centre FAB — Home
-          Positioned(
-            left: 0,
-            right: 0,
-            top: -(38 / 2) + 4,
-            child: Center(
-              child: FloatingActionButton(
-                shape: const CircleBorder(),
-                backgroundColor: AppColors.primary,
-                elevation: 4,
-                onPressed: () => onTap(0),
-                child: const Icon(
-                  CupertinoIcons.home,
-                  color: Colors.white,
+          // Blurred background (ClipRect is required for BackdropFilter)
+          ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: CustomPaint(
+                size: Size(size.width, height + 7),
+                painter: BottomNavCurvePainter(
+                  backgroundColor: Colors.white.withValues(alpha: 0.92),
                 ),
               ),
             ),
           ),
 
-          // Nav icons
+          // Nav icons with labels (inside the bar area)
           SizedBox(
             height: height,
             child: Row(
@@ -130,6 +119,43 @@ class CurvedNavBar extends StatelessWidget {
               ],
             ),
           ),
+
+          // Centre FAB — Home (outside ClipRect so it never gets clipped)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: -(38 / 2) + 4,
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: FloatingActionButton(
+                  shape: const CircleBorder(),
+                  backgroundColor: AppColors.primary,
+                  elevation: 0,
+                  onPressed: () => onTap(0),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      currentIndex == 0
+                          ? CupertinoIcons.house_fill
+                          : CupertinoIcons.home,
+                      color: Colors.white,
+                      key: ValueKey(currentIndex == 0),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -151,18 +177,40 @@ class _NavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onPressed,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      tooltip: label,
-      icon: CircleAvatar(
-        backgroundColor:
-            selected ? AppColors.primary.withAlpha(20) : Colors.transparent,
-        child: Icon(
-          icon,
-          size: 22,
-          color: selected ? AppColors.primary : AppColors.textHint,
+    return GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 56,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                size: 22,
+                color: selected ? AppColors.primary : AppColors.textHint,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? AppColors.primary : AppColors.textHint,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -56,7 +56,7 @@ async function recordPayment(adminId, userId, areaId, { amount, method, notes, p
     const current = dueSnap.exists ? dueSnap.data() : { total_billed: 0, total_paid: 0, due_amount: 0 };
 
     const newPaid = (current.total_paid || 0) + amount;
-    const newDue = Math.max(0, (current.due_amount || 0) - amount); // never go below 0
+    const newDue = (current.due_amount || 0) - amount; // allow negative (prepaid balance)
 
     tx.set(paymentRef, {
       user_id: userId,

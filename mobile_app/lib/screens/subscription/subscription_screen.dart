@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../providers/subscription_provider.dart';
-import '../../providers/cart_provider.dart';
 import '../../utils/constants.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -14,7 +16,7 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  String _selectedMilkType = 'cow';
+  String _selectedMilk = 'cow';
   double _quantity = 1.0;
   String _selectedSlot = 'morning';
   DateTime _startDate = DateTime.now().add(const Duration(days: 1));
@@ -32,453 +34,432 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: const Icon(Icons.arrow_back_ios_new, size: 16),
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Subscription'),
+        title: Text('Subscription', style: AppType.h2),
       ),
-      body: sub.subscription != null ? _buildManageView(sub) : _buildCreateView(sub),
+      body: sub.hasActiveSubscription
+          ? _buildManageView(context, sub)
+          : _buildCreateView(context, sub),
     );
   }
 
-  Widget _buildCreateView(SubscriptionProvider sub) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.water_drop_rounded, size: 36, color: AppColors.primary),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              'Start Daily Milk Subscription',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Center(
-            child: Text(
-              'Choose your preferences below',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Milk type selection
-          const SectionLabel('Select Milk Type'),
-          const SizedBox(height: 12),
-          ...AppConstants.milkTypes.map((type) {
-            final selected = _selectedMilkType == type;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedMilkType = type),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.primaryLight : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: selected ? AppColors.primary : AppColors.border,
-                      width: selected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: selected ? AppColors.primary.withAlpha(20) : AppColors.surfaceBg,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.water_drop_rounded,
-                          color: selected ? AppColors.primary : AppColors.textHint,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Text(
-                        AppConstants.milkTypeLabels[type] ?? type,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                          color: selected ? AppColors.primary : AppColors.textPrimary,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (selected)
-                        const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-
-          const SizedBox(height: 24),
-
-          // Quantity
-          const SectionLabel('Daily Quantity'),
-          const SizedBox(height: 12),
-          PremiumCard(
-            child: Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _stepperBtn(
-                    Icons.remove_rounded,
-                    _quantity > 0.5 ? () => setState(() => _quantity -= 0.5) : null,
-                  ),
-                  Container(
-                    width: 90,
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${_quantity}L',
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                    ),
-                  ),
-                  _stepperBtn(
-                    Icons.add_rounded,
-                    _quantity < 10 ? () => setState(() => _quantity += 0.5) : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Delivery slot
-          const SectionLabel('Delivery Slot'),
-          const SizedBox(height: 12),
-          ...AppConstants.deliverySlots.map((slot) {
-            final selected = _selectedSlot == slot;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedSlot = slot),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.primaryLight : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: selected ? AppColors.primary : AppColors.border,
-                      width: selected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: selected ? AppColors.primary.withAlpha(20) : AppColors.surfaceBg,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          slot == 'morning'
-                              ? Icons.wb_sunny_rounded
-                              : slot == 'evening'
-                                  ? Icons.nights_stay_rounded
-                                  : Icons.sync_rounded,
-                          color: selected ? AppColors.primary : AppColors.textHint,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            AppConstants.deliverySlotLabels[slot] ?? slot,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                              color: selected ? AppColors.primary : AppColors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            AppConstants.deliverySlotSubtitles[slot] ?? '',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      if (selected)
-                        const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-
-          const SizedBox(height: 24),
-
-          // Start date
-          const SectionLabel('Start Date'),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: _startDate,
-                firstDate: DateTime.now().add(const Duration(days: 1)),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-                builder: (context, child) {
-                  return Theme(
-                    data: Theme.of(context).copyWith(
-                      colorScheme: Theme.of(context).colorScheme.copyWith(primary: AppColors.primary),
-                    ),
-                    child: child!,
-                  );
-                },
-              );
-              if (picked != null) setState(() => _startDate = picked);
-            },
-            child: PremiumCard(
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.calendar_today_rounded, color: AppColors.primary, size: 20),
-                  ),
-                  const SizedBox(width: 14),
-                  Text(
-                    DateFormat('dd MMM yyyy').format(_startDate),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right_rounded, color: AppColors.textHint),
-                ],
-              ),
-            ),
-          ),
-
-          if (sub.error != null) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.error.withAlpha(15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline, size: 18, color: AppColors.error),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(sub.error!, style: const TextStyle(color: AppColors.error, fontSize: 13))),
-                ],
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: sub.isLoading
-                ? null
-                : () async {
-                    final ok = await sub.createSubscription(
-                      milkType: _selectedMilkType,
-                      quantity: _quantity,
-                      startDate: DateFormat('yyyy-MM-dd').format(_startDate),
-                      deliverySlot: _selectedSlot,
-                    );
-                    if (ok && mounted) Navigator.pop(context);
-                  },
-            child: sub.isLoading
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                : const Text('Start Subscription'),
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
-  Widget _stepperBtn(IconData icon, VoidCallback? onPressed) {
-    final enabled = onPressed != null;
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: enabled ? AppColors.primary : AppColors.border,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(icon, color: enabled ? Colors.white : AppColors.textHint, size: 24),
-      ),
-    );
-  }
-
-  Widget _buildManageView(SubscriptionProvider sub) {
+  // ── Manage existing subscription ─────────────────────────────
+  Widget _buildManageView(BuildContext context, SubscriptionProvider sub) {
     final s = sub.subscription!;
     final isActive = s['status'] == 'active';
-    final isPaused = s['status'] == 'paused';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PremiumCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: isActive ? AppColors.success.withAlpha(20) : AppColors.warning.withAlpha(20),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.water_drop_rounded,
-                        color: isActive ? AppColors.success : AppColors.warning,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${(s['milk_type'] as String).toUpperCase()} Milk',
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isActive ? AppColors.success.withAlpha(20) : AppColors.warning.withAlpha(20),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              s['status'].toString().toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: isActive ? AppColors.success : AppColors.warning,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        PremiumCard(
+          child: Column(
+            children: [
+              StatefulAvatar(
+                name: (s['milk_type'] as String).toUpperCase(),
+                isSubscriptionActive: isActive,
+                size: 64,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '${(s['milk_type'] as String).toUpperCase()} Milk',
+                style: AppType.h2,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${s['quantity_litres']}L daily · ${s['delivery_slot']} delivery',
+                style: AppType.caption.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: (isActive ? AppColors.success : AppColors.warning)
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 20),
-                _infoRow(Icons.local_drink_rounded, 'Daily', '${s['quantity_litres']}L'),
-                const SizedBox(height: 10),
-                _infoRow(
-                  s['delivery_slot'] == 'morning'
-                      ? Icons.wb_sunny_rounded
-                      : s['delivery_slot'] == 'evening'
-                          ? Icons.nights_stay_rounded
-                          : Icons.sync_rounded,
-                  'Slot',
-                  AppConstants.deliverySlotLabels[s['delivery_slot']] ?? '${s['delivery_slot']}',
+                child: Text(
+                  isActive ? 'ACTIVE' : 'PAUSED',
+                  style: AppType.microUpper.copyWith(
+                    color: isActive ? AppColors.success : AppColors.warning,
+                  ),
                 ),
-                const SizedBox(height: 10),
-                _infoRow(Icons.currency_rupee_rounded, 'Price', 'Rs.${s['price_per_litre']}/litre'),
-                const SizedBox(height: 10),
-                _infoRow(Icons.calendar_today_rounded, 'Started', '${s['start_date']}'),
-              ],
-            ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Action buttons
+        if (isActive)
+          OutlinedButton.icon(
+            onPressed: () async {
+              HapticFeedback.mediumImpact();
+              final confirm = await _confirmDialog(
+                context,
+                'Pause Subscription?',
+                'You can resume anytime. No deliveries will be made while paused.',
+              );
+              if (confirm) await sub.pauseSubscription();
+            },
+            icon: const Icon(Icons.pause_circle_outline_rounded),
+            label: const Text('Pause Subscription'),
+          )
+        else
+          ElevatedButton.icon(
+            onPressed: () async {
+              HapticFeedback.mediumImpact();
+              await sub.resumeSubscription();
+            },
+            icon: const Icon(Icons.play_circle_outline_rounded),
+            label: const Text('Resume Subscription'),
           ),
 
-          const SizedBox(height: 28),
+        const SizedBox(height: 12),
 
-          if (isActive)
-            _actionButton('Pause Subscription', AppColors.warning, Icons.pause_circle_outline_rounded, () async {
-              await sub.pauseSubscription();
-              if (mounted) context.read<CartProvider>().loadTomorrowStatus();
-            }),
-          if (isPaused)
-            _actionButton('Resume Subscription', AppColors.success, Icons.play_circle_outline_rounded, () async {
-              await sub.resumeSubscription();
-              if (mounted) context.read<CartProvider>().loadTomorrowStatus();
-            }),
-          const SizedBox(height: 12),
-          _actionButton('Cancel Subscription', AppColors.error, Icons.cancel_outlined, () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Cancel Subscription?'),
-                content: const Text('This cannot be undone. You will need to create a new subscription.'),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Yes, Cancel', style: TextStyle(color: AppColors.error)),
-                  ),
-                ],
-              ),
+        TextButton(
+          onPressed: () async {
+            final confirm = await _confirmDialog(
+              context,
+              'Cancel Subscription?',
+              'This action cannot be undone. You\'ll need to create a new subscription.',
             );
-            if (confirm == true) {
+            if (confirm) {
               await sub.cancelSubscription();
               if (mounted) Navigator.pop(context);
             }
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.textHint),
-        const SizedBox(width: 10),
-        Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          },
+          child: Text(
+            'Cancel Subscription',
+            style: AppType.caption.copyWith(color: AppColors.error),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _actionButton(String label, Color color, IconData icon, VoidCallback onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 20),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  // ── Create new subscription ──────────────────────────────────
+  Widget _buildCreateView(BuildContext context, SubscriptionProvider sub) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              // Header
+              Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.primaryLight, AppColors.primary.withValues(alpha: 0.15)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.water_drop_outlined,
+                      color: AppColors.primary, size: 32),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text('Start Daily Milk Subscription',
+                    style: AppType.h2, textAlign: TextAlign.center),
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: Text(
+                  'Choose your preferences below',
+                  style: AppType.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Milk Type ─────────────────────────────────────
+              const SectionLabel('Select Milk Type'),
+              const SizedBox(height: 12),
+
+              Row(
+                children: AppConstants.milkTypes.map((type) {
+                  final isSelected =
+                      _selectedMilk == type.toLowerCase();
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: type != AppConstants.milkTypes.last ? 10 : 0,
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedMilk = type.toLowerCase());
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: isSelected
+                                ? null
+                                : Border.all(
+                                    color: AppColors.border, width: 1),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.25),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.water_drop_rounded,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                                size: 28,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                type,
+                                style: AppType.captionBold.copyWith(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Quantity ──────────────────────────────────────
+              const SectionLabel('Daily Quantity'),
+              const SizedBox(height: 16),
+              Center(
+                child: HapticStepper(
+                  value: _quantity,
+                  onChanged: (v) => setState(() => _quantity = v),
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Delivery Slot ─────────────────────────────────
+              const SectionLabel('Delivery Slot'),
+              const SizedBox(height: 12),
+
+              Row(
+                children: AppConstants.deliverySlots.map((slot) {
+                  final isSelected =
+                      _selectedSlot == slot.toLowerCase();
+                  return Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: slot != AppConstants.deliverySlots.last
+                            ? 10
+                            : 0,
+                      ),
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(
+                              () => _selectedSlot = slot.toLowerCase());
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primaryLight
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.border,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              slot,
+                              style: AppType.captionBold.copyWith(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Start Date ────────────────────────────────────
+              const SectionLabel('Start Date'),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _startDate,
+                    firstDate: DateTime.now().add(const Duration(days: 1)),
+                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                  );
+                  if (picked != null) {
+                    setState(() => _startDate = picked);
+                  }
+                },
+                child: PremiumCard(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.calendar_today_rounded,
+                            color: AppColors.primary, size: 20),
+                      ),
+                      const SizedBox(width: 14),
+                      Text(
+                        DateFormat('dd MMMM yyyy').format(_startDate),
+                        style: AppType.bodyBold,
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.chevron_right_rounded,
+                          color: AppColors.textHint),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Error
+              if (sub.error != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline,
+                          size: 18, color: AppColors.error),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: Text(sub.error!,
+                              style: AppType.small
+                                  .copyWith(color: AppColors.error))),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 120), // room for sticky bar
+            ],
+          ),
         ),
+
+        // Sticky bottom CTA
+        StickyBottomBar(
+          child: ElevatedButton(
+            onPressed: sub.isLoading ? null : _handleCreate,
+            child: sub.isLoading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2.5))
+                : Text(
+                    'Confirm · ₹${(_quantity * _getPricePerLitre()).toStringAsFixed(0)}/day',
+                    style: AppType.button.copyWith(color: Colors.white),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  double _getPricePerLitre() {
+    // rough estimation — your API may provide actual prices
+    return _selectedMilk == 'cow' ? 60 : _selectedMilk == 'buffalo' ? 70 : 65;
+  }
+
+  Future<void> _handleCreate() async {
+    HapticFeedback.mediumImpact();
+    final sub = context.read<SubscriptionProvider>();
+    final ok = await sub.createSubscription(
+      milkType: _selectedMilk,
+      quantity: _quantity,
+      startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+      deliverySlot: _selectedSlot,
+    );
+    if (ok && mounted) {
+      HapticFeedback.heavyImpact();
+      Navigator.pop(context);
+    }
+  }
+
+  Future<bool> _confirmDialog(
+      BuildContext context, String title, String body) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body,
+            style: AppType.caption.copyWith(color: AppColors.textSecondary)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Confirm',
+                style: TextStyle(color: AppColors.error)),
+          ),
+        ],
       ),
     );
+    return result ?? false;
   }
 }

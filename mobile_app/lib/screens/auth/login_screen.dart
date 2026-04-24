@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../providers/auth_provider.dart';
 import 'otp_screen.dart';
 import 'widgets/auth_image_carousel.dart';
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,24 +26,20 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-
     _fadeAnimation = CurvedAnimation(
       parent: _controller,
       curve: Curves.easeOut,
     );
-
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.25),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
-
     _controller.forward();
   }
 
@@ -67,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen>
             child: AuthImageCarousel(height: double.infinity),
           ),
 
-          // Bottom: green form panel — lifts with keyboard
+          // Bottom: glassmorphism form panel — lifts with keyboard
           AnimatedPositioned(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
@@ -135,26 +132,7 @@ class _LoginPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE8F5E9), // soft mint
-            Color(0xFFE3F2FD), // soft sky blue
-            Color(0xFFF1F8E9), // pale green
-          ],
-        ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(20),
-            blurRadius: 24,
-            offset: const Offset(0, -6),
-          ),
-        ],
-      ),
+    return GlassContainer(
       child: SafeArea(
         top: false,
         child: Padding(
@@ -173,9 +151,9 @@ class _LoginPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withAlpha(22),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
@@ -186,7 +164,12 @@ class _LoginPanel extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDark],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         child: const Icon(
                           Icons.local_drink_rounded,
                           color: Colors.white,
@@ -197,37 +180,21 @@ class _LoginPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'YaduONE',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
+              const SizedBox(height: 14),
+              Text('YaduONE', style: AppType.h1.copyWith(letterSpacing: -0.5)),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Soch nayi sanskaar wahi',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: AppType.small.copyWith(color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
 
               // Phone label
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Phone Number',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
+                  style: AppType.captionBold,
                 ),
               ),
               const SizedBox(height: 10),
@@ -237,49 +204,37 @@ class _LoginPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    height: 54,
+                    height: 56,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.surfaceBg,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Text('🇮🇳', style: TextStyle(fontSize: 18)),
-                        SizedBox(width: 6),
-                        Text(
-                          '+91',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
+                        const Text('🇮🇳', style: TextStyle(fontSize: 18)),
+                        const SizedBox(width: 6),
+                        Text('+91', style: AppType.bodyBold),
                       ],
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: SizedBox(
-                      height: 54,
+                      height: 56,
                       child: TextField(
                         controller: phoneController,
                         keyboardType: TextInputType.phone,
                         maxLength: 10,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
-                          color: AppColors.textPrimary,
-                        ),
+                        style: AppType.bodyBold.copyWith(letterSpacing: 1.2),
                         decoration: InputDecoration(
                           hintText: 'XXXXXXXXXX',
                           counterText: '',
                           filled: true,
-                          fillColor: Colors.white,
+                          fillColor: AppColors.surfaceBg,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 14,
+                            vertical: 16,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -312,10 +267,10 @@ class _LoginPanel extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withAlpha(18),
+                    color: AppColors.error.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.error.withAlpha(50),
+                      color: AppColors.error.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -329,9 +284,8 @@ class _LoginPanel extends StatelessWidget {
                       Expanded(
                         child: Text(
                           auth.error!,
-                          style: const TextStyle(
+                          style: AppType.micro.copyWith(
                             color: AppColors.error,
-                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -346,17 +300,9 @@ class _LoginPanel extends StatelessWidget {
               // Send OTP button
               SizedBox(
                 width: double.infinity,
-                height: 54,
+                height: 56,
                 child: ElevatedButton(
                   onPressed: auth.isLoading ? null : onSendOtp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                   child: auth.isLoading
                       ? const SizedBox(
                           width: 22,
@@ -366,22 +312,23 @@ class _LoginPanel extends StatelessWidget {
                             strokeWidth: 2.5,
                           ),
                         )
-                      : const Row(
+                      : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              'Send OTP',
-                              style: TextStyle(
-                                fontSize: 15.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward_rounded, size: 20),
+                            Text('Send OTP', style: AppType.button.copyWith(color: Colors.white)),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward_rounded, size: 20),
                           ],
                         ),
                 ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // Trust badge
+              const TrustBadge(
+                icon: Icons.lock_rounded,
+                label: 'Encrypted OTP',
               ),
             ],
           ),
