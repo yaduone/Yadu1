@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/tappable.dart';
 
 class BottomNavCurvePainter extends CustomPainter {
   final Color backgroundColor;
@@ -177,9 +178,10 @@ class _NavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Tappable(
       onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
+      scaleFactor: 0.88,
+      haptic: HapticFeedbackType.selection,
       child: SizedBox(
         width: 56,
         child: Column(
@@ -187,7 +189,8 @@ class _NavIcon extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: selected
@@ -195,20 +198,25 @@ class _NavIcon extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: selected ? AppColors.primary : AppColors.textHint,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  icon,
+                  key: ValueKey(selected),
+                  size: selected ? 23 : 22,
+                  color: selected ? AppColors.primary : AppColors.textHint,
+                ),
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              label,
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected ? AppColors.primary : AppColors.textHint,
               ),
+              child: Text(label),
             ),
           ],
         ),

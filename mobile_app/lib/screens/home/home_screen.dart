@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/tappable.dart';
+import '../../utils/transitions.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/cart_provider.dart';
@@ -30,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   // Index mapping: 0=Home, 1=Reports, 2=Cart, 3=Profile
-  final _screens = const [
+  static const _screens = [
     _HomeTab(),
     ReportsScreen(),
     CartScreen(),
@@ -49,13 +51,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      // FadeIndexedStack keeps all tabs alive and cross-fades between them
+      body: FadeIndexedStack(
+        index: _currentIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: CurvedNavBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
         onFabPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const LivestreamScreen()),
+          SlideUpRoute(page: const LivestreamScreen()),
         ),
       ),
     );
@@ -104,11 +110,16 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AppAuthProvider>();
+    // Use Selector to only rebuild when the specific fields we care about change
+    final name = context.select<AppAuthProvider, String>(
+      (a) => a.userData?['name'] ?? 'User',
+    );
+    final isProfileComplete = context.select<AppAuthProvider, bool>(
+      (a) => a.isProfileComplete,
+    );
     final sub = context.watch<SubscriptionProvider>();
     final cart = context.watch<CartProvider>();
-    final name = auth.userData?['name'] ?? 'User';
-    final firstName = (name as String).split(' ').first;
+    final firstName = (name).split(' ').first;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -149,7 +160,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                       WalletPill(
                         amount: _dueAmount!,
                         onTap: () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const DueScreen())),
+                            SlideUpRoute(page: const DueScreen())),
                       ),
                     const SizedBox(width: 10),
                     const CalendarIconButton(),
@@ -158,8 +169,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                       Icons.notifications_none_rounded,
                       () => Navigator.push(
                           context,
-                          MaterialPageRoute(
-                              builder: (_) => const NotificationsScreen())),
+                          SlideUpRoute(page: const NotificationsScreen())),
                     ),
                   ],
                 ),
@@ -167,13 +177,13 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 const SizedBox(height: 20),
 
                 // ── Profile Incomplete Banner ─────────────────────────
-                if (!auth.isProfileComplete) ...[
-                  GestureDetector(
+                if (!isProfileComplete) ...[
+                  Tappable(
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(
-                          builder: (_) => const CompleteProfileScreen()),
+                      SlideUpRoute(page: const CompleteProfileScreen()),
                     ),
+                    scaleFactor: 0.97,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
@@ -233,9 +243,10 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 // ── Shop Banner ────────────────────────────────────────
                 const SectionLabel('Shop'),
                 const SizedBox(height: 12),
-                GestureDetector(
+                Tappable(
                   onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const ProductsScreen())),
+                      SlideRightRoute(page: const ProductsScreen())),
+                  scaleFactor: 0.97,
                   child: Container(
                     height: 120,
                     decoration: BoxDecoration(
@@ -326,8 +337,9 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
   }
 
   Widget _headerAction(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
+    return Tappable(
       onTap: onTap,
+      scaleFactor: 0.92,
       child: Container(
         width: 44,
         height: 44,
@@ -372,13 +384,12 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
             ),
             const SizedBox(height: 16),
             if (!auth.isProfileComplete)
-              // Profile incomplete — show disabled button with hint
               Column(
                 children: [
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: null, // disabled
+                      onPressed: null,
                       style: ElevatedButton.styleFrom(
                         disabledBackgroundColor: AppColors.border,
                         disabledForegroundColor: AppColors.textHint,
@@ -405,7 +416,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
             else
               ElevatedButton(
                 onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
+                    SlideUpRoute(page: const SubscriptionScreen())),
                 child: const Text('Start Subscription'),
               ),
           ],
@@ -451,20 +462,9 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  s['status'].toString().toUpperCase(),
-                  style: AppType.micro.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              AnimatedStatusBadge(
+                label: s['status'].toString(),
+                color: statusColor,
               ),
             ],
           ),
@@ -474,8 +474,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
             child: OutlinedButton(
               onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const SubscriptionScreen())),
+                  SlideUpRoute(page: const SubscriptionScreen())),
               style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48)),
               child: const Text('Manage Subscription'),
@@ -603,8 +602,9 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
   }
 
   Widget _ghostButton(String label, IconData icon, VoidCallback onTap) {
-    return GestureDetector(
+    return Tappable(
       onTap: onTap,
+      scaleFactor: 0.93,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(

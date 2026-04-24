@@ -47,6 +47,14 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.scaffoldBg,
       fontFamily: fontFamily,
 
+      // Smooth page transitions across the whole app
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+
       // AppBar
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.white,
