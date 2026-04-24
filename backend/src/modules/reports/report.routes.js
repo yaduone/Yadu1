@@ -14,6 +14,20 @@ router.get('/user/summary', authenticateUser, requireCompleteProfile, async (req
   }
 });
 
+// GET /api/reports/user/calendar?month=YYYY-MM
+router.get('/user/calendar', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+  try {
+    const { month } = req.query;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return badRequest(res, 'month is required in YYYY-MM format');
+    }
+    const data = await reportService.getUserCalendar(req.user.userId, month);
+    return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/reports/admin/dashboard
 router.get('/admin/dashboard', authenticateAdmin, async (req, res, next) => {
   try {

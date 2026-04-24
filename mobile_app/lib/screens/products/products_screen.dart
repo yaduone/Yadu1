@@ -220,22 +220,7 @@ class _ProductCard extends StatelessWidget {
               child: ClipRRect(
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(20)),
-                child: product['image_url'] != null
-                    ? CachedNetworkImage(
-                        imageUrl: product['image_url'],
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        fadeInDuration: const Duration(milliseconds: 300),
-                        placeholder: (_, __) => Container(
-                          color: AppColors.surfaceBg,
-                          child: const Center(
-                            child: Icon(Icons.image_rounded,
-                                color: AppColors.textHint, size: 28),
-                          ),
-                        ),
-                        errorWidget: (_, __, ___) => _imageFallback(),
-                      )
-                    : _imageFallback(),
+                child: _buildImage(product),
               ),
             ),
 
@@ -288,6 +273,25 @@ class _ProductCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildImage(dynamic product) {
+    final images = product['images'];
+    final url = (images is List && images.isNotEmpty) ? images[0] as String : null;
+    if (url == null || url.isEmpty) return _imageFallback();
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      fadeInDuration: const Duration(milliseconds: 300),
+      placeholder: (_, __) => Container(
+        color: AppColors.surfaceBg,
+        child: const Center(
+          child: Icon(Icons.image_rounded, color: AppColors.textHint, size: 28),
+        ),
+      ),
+      errorWidget: (_, __, ___) => _imageFallback(),
     );
   }
 

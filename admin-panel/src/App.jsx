@@ -13,6 +13,7 @@ import ReportsPage from './pages/ReportsPage';
 import LivestreamsPage from './pages/LivestreamsPage';
 import PricesPage from './pages/PricesPage';
 import DuesPage from './pages/DuesPage';
+import ActivityPage from './pages/ActivityPage';
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="livestreams" element={<LivestreamsPage />} />
             <Route path="prices" element={<PricesPage />} />
             <Route path="dues" element={<DuesPage />} />
+            <Route path="activity" element={<ActivityPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -52,13 +52,46 @@ class _CartScreenState extends State<CartScreen> {
                         const SizedBox(height: 20),
 
                         // Header
-                        Text("Tomorrow's Cart", style: AppType.h1),
+                        Text(
+                          cart.isLocked ? 'Day After Tomorrow' : "Tomorrow's Cart",
+                          style: AppType.h1,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           cart.tomorrowStatus!['date'] ?? '',
                           style: AppType.caption
                               .copyWith(color: AppColors.textSecondary),
                         ),
+
+                        // Locked banner
+                        if (cart.isLocked) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: Colors.orange.withValues(alpha: 0.4)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.lock_clock_rounded,
+                                    size: 18, color: Colors.orange),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "Tomorrow's cart is locked. You're now editing the day after tomorrow.",
+                                    style: AppType.small
+                                        .copyWith(color: Colors.orange[800]),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
 
                         const SizedBox(height: 24),
 
@@ -112,8 +145,9 @@ class _CartScreenState extends State<CartScreen> {
                                 // Quantity stepper (mini)
                                 _MiniStepper(
                                   value: (cart.effectiveMilk!['quantity_litres']
-                                          as num)
-                                      .toDouble(),
+                                          as num?)
+                                      ?.toDouble() ?? 0.5,
+                                  disabled: cart.isLocked,
                                   onChanged: (v) async {
                                     HapticFeedback.lightImpact();
                                     final ok =
@@ -128,7 +162,7 @@ class _CartScreenState extends State<CartScreen> {
                         ],
 
                         // ── Skip / Revert ──────────────────────────
-                        if (!cart.isSkipped && cart.effectiveMilk != null)
+                        if (!cart.isLocked && !cart.isSkipped && cart.effectiveMilk != null)
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -254,7 +288,9 @@ class _CartScreenState extends State<CartScreen> {
                               padding: const EdgeInsets.only(bottom: 10),
                               child: Dismissible(
                                 key: Key(item['product_id'] ?? ''),
-                                direction: DismissDirection.endToStart,
+                                direction: cart.isLocked
+                                    ? DismissDirection.none
+                                    : DismissDirection.endToStart,
                                 background: Container(
                                   padding: const EdgeInsets.only(right: 20),
                                   alignment: Alignment.centerRight,
@@ -295,7 +331,7 @@ class _CartScreenState extends State<CartScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            Text(item['name'] ?? '',
+                                            Text(item['product_name'] ?? '',
                                                 style: AppType.captionBold),
                                             Text(
                                               'Qty: ${item['quantity']}',
@@ -307,10 +343,32 @@ class _CartScreenState extends State<CartScreen> {
                                         ),
                                       ),
                                       Text(
-                                        '₹${(item['total_price'] as num).toStringAsFixed(0)}',
+                                        '₹${((item['total'] as num?) ?? 0).toStringAsFixed(0)}',
                                         style: AppType.bodyBold.copyWith(
                                             color: AppColors.primary),
                                       ),
+                                      const SizedBox(width: 8),
+                                      if (!cart.isLocked)
+                                        GestureDetector(
+                                          onTap: () async {
+                                            HapticFeedback.mediumImpact();
+                                            await cart.removeItem(item['product_id']);
+                                            _showAutoSave();
+                                          },
+                                          child: Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: AppColors.error.withValues(alpha: 0.1),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.delete_outline_rounded,
+                                              size: 16,
+                                              color: AppColors.error,
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -500,42 +558,54 @@ class _CartScreenState extends State<CartScreen> {
 class _MiniStepper extends StatelessWidget {
   final double value;
   final ValueChanged<double> onChanged;
+  final bool disabled;
 
-  const _MiniStepper({required this.value, required this.onChanged});
+  const _MiniStepper({
+    required this.value,
+    required this.onChanged,
+    this.disabled = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _btn(Icons.remove, () {
+        _btn(Icons.remove, disabled ? null : () {
           if (value > 0.5) onChanged(value - 0.5);
         }),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             '${value % 1 == 0 ? value.toInt() : value}L',
-            style: AppType.h3.copyWith(color: AppColors.primary),
+            style: AppType.h3.copyWith(
+              color: disabled ? AppColors.textHint : AppColors.primary,
+            ),
           ),
         ),
-        _btn(Icons.add, () {
+        _btn(Icons.add, disabled ? null : () {
           if (value < 10) onChanged(value + 0.5);
         }),
       ],
     );
   }
 
-  Widget _btn(IconData icon, VoidCallback onTap) {
+  Widget _btn(IconData icon, VoidCallback? onTap) {
+    final isDisabled = onTap == null;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: AppColors.primaryLight,
+          color: isDisabled
+              ? AppColors.border
+              : AppColors.primaryLight,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, size: 16, color: AppColors.primary),
+        child: Icon(icon,
+            size: 16,
+            color: isDisabled ? AppColors.textHint : AppColors.primary),
       ),
     );
   }

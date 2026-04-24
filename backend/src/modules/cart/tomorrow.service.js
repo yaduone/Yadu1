@@ -3,11 +3,12 @@ const dateUtil = require('../../utils/date');
 const { isValidQuantity } = require('../../utils/validators');
 
 /**
- * Get the complete tomorrow status for a user.
+ * Get the complete cart status for a user for the given target date.
  * This is the CORE computed view: subscription + overrides + extra items.
  */
-async function getTomorrowStatus(userId) {
-  const tomorrow = dateUtil.tomorrow();
+async function getTomorrowStatus(userId, targetDate) {
+  const date = targetDate || dateUtil.cartTargetDate();
+  const isLocked = dateUtil.isPastCutoff() && date === dateUtil.tomorrow();
 
   // 1. Get active subscription
   const subSnap = await db
@@ -25,7 +26,7 @@ async function getTomorrowStatus(userId) {
     const subData = subDoc.data();
 
     // Only include milk if subscription has started
-    if (subData.start_date <= tomorrow) {
+    if (subData.start_date <= date) {
       subscription = { id: subDoc.id, ...subData };
       baseMilk = {
         milk_type: subData.milk_type,
@@ -45,7 +46,7 @@ async function getTomorrowStatus(userId) {
     const overrideSnap = await db
       .collection('next_day_overrides')
       .where('user_id', '==', userId)
-      .where('date', '==', tomorrow)
+      .where('date', '==', date)
       .limit(1)
       .get();
 
@@ -71,7 +72,7 @@ async function getTomorrowStatus(userId) {
   const cartSnap = await db
     .collection('carts')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', date)
     .limit(1)
     .get();
 
@@ -88,7 +89,8 @@ async function getTomorrowStatus(userId) {
   const extrasTotal = extraItems.reduce((sum, item) => sum + item.total, 0);
 
   return {
-    date: tomorrow,
+    date,
+    is_locked: isLocked,
     subscription: subscription
       ? { id: subscription.id, milk_type: subscription.milk_type, base_quantity: subscription.quantity_litres }
       : null,
@@ -102,23 +104,20 @@ async function getTomorrowStatus(userId) {
 }
 
 /**
- * Modify tomorrow's milk quantity.
+ * Modify a delivery's milk quantity (targets cartTargetDate — day-after-tomorrow if past cutoff).
  */
 async function modifyTomorrow(userId, subscriptionId, areaId, modifiedQuantity) {
   if (!isValidQuantity(modifiedQuantity)) {
     throw Object.assign(new Error('Quantity must be 0.5-10 litres in 0.5L increments'), { statusCode: 400 });
   }
-  if (dateUtil.isPastCutoff()) {
-    throw Object.assign(new Error('Cannot modify tomorrow\'s order after cutoff time'), { statusCode: 400 });
-  }
 
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = dateUtil.cartTargetDate();
 
   // Upsert override
   const existingSnap = await db
     .collection('next_day_overrides')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
 
@@ -127,7 +126,7 @@ async function modifyTomorrow(userId, subscriptionId, areaId, modifiedQuantity) 
       user_id: userId,
       subscription_id: subscriptionId,
       area_id: areaId,
-      date: tomorrow,
+      date: targetDate,
       override_type: 'modify',
       modified_quantity: modifiedQuantity,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -139,23 +138,19 @@ async function modifyTomorrow(userId, subscriptionId, areaId, modifiedQuantity) 
     });
   }
 
-  return getTomorrowStatus(userId);
+  return getTomorrowStatus(userId, targetDate);
 }
 
 /**
- * Skip tomorrow's delivery.
+ * Skip a delivery (targets cartTargetDate — day-after-tomorrow if past cutoff).
  */
 async function skipTomorrow(userId, subscriptionId, areaId) {
-  if (dateUtil.isPastCutoff()) {
-    throw Object.assign(new Error('Cannot skip tomorrow\'s order after cutoff time'), { statusCode: 400 });
-  }
-
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = dateUtil.cartTargetDate();
 
   const existingSnap = await db
     .collection('next_day_overrides')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
 
@@ -164,7 +159,7 @@ async function skipTomorrow(userId, subscriptionId, areaId) {
       user_id: userId,
       subscription_id: subscriptionId,
       area_id: areaId,
-      date: tomorrow,
+      date: targetDate,
       override_type: 'skip',
       modified_quantity: null,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -176,19 +171,19 @@ async function skipTomorrow(userId, subscriptionId, areaId) {
     });
   }
 
-  return getTomorrowStatus(userId);
+  return getTomorrowStatus(userId, targetDate);
 }
 
 /**
- * Revert tomorrow's override back to default subscription.
+ * Revert an override back to default subscription (targets cartTargetDate).
  */
 async function revertOverride(userId) {
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = dateUtil.cartTargetDate();
 
   const overrideSnap = await db
     .collection('next_day_overrides')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
 
@@ -196,7 +191,7 @@ async function revertOverride(userId) {
     await overrideSnap.docs[0].ref.delete();
   }
 
-  return getTomorrowStatus(userId);
+  return getTomorrowStatus(userId, targetDate);
 }
 
 module.exports = { getTomorrowStatus, modifyTomorrow, skipTomorrow, revertOverride };

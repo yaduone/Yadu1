@@ -6,6 +6,7 @@ import '../../widgets/premium_components.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/delivery_calendar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -51,7 +52,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 20),
 
             // Header
-            Text('Profile', style: AppType.h1),
+            Row(
+              children: [
+                Expanded(child: Text('Profile', style: AppType.h1)),
+                CalendarIconButton(),
+              ],
+            ),
 
             const SizedBox(height: 24),
 

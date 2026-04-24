@@ -21,6 +21,16 @@ async function createSubscription(userId, areaId, { milk_type, quantity_litres, 
     throw Object.assign(new Error('Start date must be tomorrow or later'), { statusCode: 400 });
   }
 
+  // Guard: verify the user's Firestore profile is fully complete before allowing subscription
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (!userDoc.exists) {
+    throw Object.assign(new Error('User profile not found. Please complete your profile first.'), { statusCode: 403 });
+  }
+  const userData = userDoc.data();
+  if (!userData.name || !userData.area_id || !userData.address) {
+    throw Object.assign(new Error('Please complete your profile before starting a subscription.'), { statusCode: 403 });
+  }
+
   // Check no active/paused subscription exists
   const existing = await db
     .collection('subscriptions')
