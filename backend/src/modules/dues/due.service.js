@@ -1,4 +1,5 @@
 const { db, admin } = require('../../config/firebase');
+const { logActivity } = require('../../utils/activityLog');
 
 /**
  * Get or initialise a user's due_amounts document.
@@ -138,6 +139,15 @@ async function raiseTicket(userId, areaId, { subject, description }) {
     admin_notes: null,
     created_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Log ticket creation
+  await logActivity({
+    type: 'due_ticket_raised',
+    title: 'Due Amount Ticket Raised',
+    message: `A user raised a due amount ticket: "${subject.trim()}"`,
+    areaId,
+    meta: { ticket_id: ref.id, user_id: userId, subject: subject.trim() },
   });
 
   return { id: ref.id };

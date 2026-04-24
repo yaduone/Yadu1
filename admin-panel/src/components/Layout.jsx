@@ -11,6 +11,7 @@ import {
   Radio,
   IndianRupee,
   Wallet,
+  Bell,
   LogOut,
 } from 'lucide-react';
 
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/livestreams', icon: Radio, label: 'Livestreams' },
   { to: '/prices', icon: IndianRupee, label: 'Prices' },
   { to: '/dues', icon: Wallet, label: 'Dues' },
+  { to: '/activity', icon: Bell, label: 'Activity' },
 ];
 
 export default function Layout() {

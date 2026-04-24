@@ -10,6 +10,7 @@ class CartProvider extends ChangeNotifier {
   List<dynamic> get extraItems => _tomorrowStatus?['extra_items'] ?? [];
   Map<String, dynamic>? get effectiveMilk => _tomorrowStatus?['effective_milk'];
   bool get isSkipped => _tomorrowStatus?['is_skipped'] == true;
+  bool get isLocked => _tomorrowStatus?['is_locked'] == true;
   double get totalAmount => (_tomorrowStatus?['total_amount'] ?? 0).toDouble();
 
   List<dynamic> _products = [];

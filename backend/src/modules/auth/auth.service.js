@@ -2,6 +2,7 @@ const { admin, db } = require('../../config/firebase');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const config = require('../../config');
+const { logActivity } = require('../../utils/activityLog');
 
 /**
  * Verify Firebase token and find/create user.
@@ -25,6 +26,15 @@ async function verifyUserToken(firebaseToken) {
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
     };
     const docRef = await db.collection('users').add(newUser);
+
+    // Log new user sign-up
+    await logActivity({
+      type: 'new_user',
+      title: 'New User Signed Up',
+      message: `A new user signed up with phone ${phone_number || 'unknown'}.`,
+      meta: { user_id: docRef.id, phone: phone_number || null },
+    });
+
     return {
       user: { id: docRef.id, ...newUser, is_profile_complete: false },
       is_new_user: true,
@@ -61,7 +71,18 @@ async function completeProfile(userId, { name, area_id, address }) {
   await db.collection('users').doc(userId).update(updateData);
 
   const updatedDoc = await db.collection('users').doc(userId).get();
-  return { id: updatedDoc.id, ...updatedDoc.data(), is_profile_complete: true };
+  const updatedData = updatedDoc.data();
+
+  // Log profile completion
+  await logActivity({
+    type: 'profile_completed',
+    title: 'User Profile Completed',
+    message: `${name} completed their profile and is now active in area ${area_id}.`,
+    areaId: area_id,
+    meta: { user_id: userId, name, area_id, phone: updatedData.phone || null },
+  });
+
+  return { id: updatedDoc.id, ...updatedData, is_profile_complete: true };
 }
 
 /**

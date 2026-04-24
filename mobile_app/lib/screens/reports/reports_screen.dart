@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/delivery_calendar.dart';
 import '../../services/api_service.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -102,12 +103,24 @@ class _ReportsScreenState extends State<ReportsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         children: [
                           const SizedBox(height: 20),
-                          Text('Reports & Insights', style: AppType.h1),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Your delivery analytics at a glance',
-                            style: AppType.caption
-                                .copyWith(color: AppColors.textSecondary),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Reports & Insights', style: AppType.h1),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Your delivery analytics at a glance',
+                                      style: AppType.caption
+                                          .copyWith(color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const CalendarIconButton(),
+                            ],
                           ),
 
                           const SizedBox(height: 24),

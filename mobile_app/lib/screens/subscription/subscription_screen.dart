@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../providers/subscription_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 
 class SubscriptionScreen extends StatefulWidget {
@@ -24,6 +25,65 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final sub = context.watch<SubscriptionProvider>();
+    final auth = context.watch<AppAuthProvider>();
+
+    // Guard: profile must be complete before a subscription can be created
+    if (!auth.isProfileComplete) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffoldBg,
+        appBar: AppBar(
+          backgroundColor: AppColors.scaffoldBg,
+          leading: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.arrow_back_ios_new, size: 16),
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text('Subscription', style: AppType.h2),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.person_off_outlined, size: 36, color: AppColors.warning),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Profile Incomplete',
+                  style: AppType.h2,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please complete your profile with your name, delivery area, and address before starting a subscription.',
+                  style: AppType.body.copyWith(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 28),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,

@@ -182,4 +182,69 @@ async function getDailyStats(areaId, from, to) {
   return Object.values(dailyMap).sort((a, b) => (a.date > b.date ? 1 : -1));
 }
 
-module.exports = { getUserSummary, getAdminDashboard, getDailyStats };
+/**
+ * Get user's delivery calendar for a given month.
+ * Returns a map of date -> { status, milk, extra_items, total_amount }
+ * status: 'delivered' | 'pending' | 'cancelled' | 'skipped'
+ */
+async function getUserCalendar(userId, month) {
+  // month format: YYYY-MM
+  const startDate = `${month}-01`;
+  const [year, mon] = month.split('-').map(Number);
+  const nextMon = mon === 12 ? 1 : mon + 1;
+  const nextYear = mon === 12 ? year + 1 : year;
+  const endDate = `${nextYear}-${String(nextMon).padStart(2, '0')}-01`;
+
+  // Fetch orders for the month
+  const ordersSnap = await db
+    .collection('orders')
+    .where('user_id', '==', userId)
+    .where('date', '>=', startDate)
+    .where('date', '<', endDate)
+    .get();
+
+  const calendar = {};
+
+  for (const doc of ordersSnap.docs) {
+    const o = doc.data();
+    calendar[o.date] = {
+      order_id: doc.id,
+      status: o.status,
+      milk: o.milk || null,
+      extra_items: o.extra_items || [],
+      total_amount: o.total_amount,
+    };
+  }
+
+  // Fetch skipped overrides — filter by user only, then filter date range in JS
+  // (avoids needing a composite index on user_id + override_type + date)
+  const skipsSnap = await db
+    .collection('next_day_overrides')
+    .where('user_id', '==', userId)
+    .where('override_type', '==', 'skip')
+    .get();
+
+  for (const doc of skipsSnap.docs) {
+    const d = doc.data().date;
+    if (d >= startDate && d < endDate && !calendar[d]) {
+      calendar[d] = { order_id: null, status: 'skipped', milk: null, extra_items: [], total_amount: 0 };
+    }
+  }
+
+  // Summary counts
+  let delivered = 0, pending = 0, skipped = 0, cancelled = 0;
+  for (const entry of Object.values(calendar)) {
+    if (entry.status === 'delivered') delivered++;
+    else if (entry.status === 'pending') pending++;
+    else if (entry.status === 'skipped') skipped++;
+    else if (entry.status === 'cancelled') cancelled++;
+  }
+
+  return {
+    month,
+    calendar,
+    summary: { delivered, pending, skipped, cancelled },
+  };
+}
+
+module.exports = { getUserSummary, getAdminDashboard, getDailyStats, getUserCalendar };

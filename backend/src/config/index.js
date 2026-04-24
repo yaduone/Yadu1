@@ -5,6 +5,7 @@ const config = {
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID,
     serviceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './service-account-key.json',
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'dev-secret-change-me',

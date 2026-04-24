@@ -2,7 +2,7 @@ const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 
 /**
- * Add an extra product to tomorrow's cart.
+ * Add an extra product to the target date cart (cartTargetDate — day-after-tomorrow if past cutoff).
  */
 async function addItem(userId, areaId, { product_id, quantity }) {
   if (!product_id || !quantity || quantity < 1) {
@@ -16,13 +16,12 @@ async function addItem(userId, areaId, { product_id, quantity }) {
   }
 
   const product = productDoc.data();
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = dateUtil.cartTargetDate();
 
-  // Find or create cart for tomorrow
   const cartSnap = await db
     .collection('carts')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
 
@@ -36,11 +35,10 @@ async function addItem(userId, areaId, { product_id, quantity }) {
   };
 
   if (cartSnap.empty) {
-    // Create new cart
     await db.collection('carts').add({
       user_id: userId,
       area_id: areaId,
-      date: tomorrow,
+      date: targetDate,
       items: [newItem],
       created_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -49,7 +47,6 @@ async function addItem(userId, areaId, { product_id, quantity }) {
     const cartDoc = cartSnap.docs[0];
     const items = cartDoc.data().items || [];
 
-    // Check if product already in cart
     const existingIdx = items.findIndex((i) => i.product_id === product_id);
     if (existingIdx >= 0) {
       items[existingIdx].quantity += quantity;
@@ -64,28 +61,28 @@ async function addItem(userId, areaId, { product_id, quantity }) {
     });
   }
 
-  return { message: 'Item added to tomorrow\'s cart' };
+  return { message: 'Item added to cart' };
 }
 
 /**
- * Update quantity of an extra product in tomorrow's cart.
+ * Update quantity of an extra product in the target date cart.
  */
 async function updateItem(userId, { product_id, quantity }) {
   if (!product_id || quantity === undefined) {
     throw Object.assign(new Error('product_id and quantity are required'), { statusCode: 400 });
   }
 
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = dateUtil.cartTargetDate();
 
   const cartSnap = await db
     .collection('carts')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
 
   if (cartSnap.empty) {
-    throw Object.assign(new Error('No cart found for tomorrow'), { statusCode: 404 });
+    throw Object.assign(new Error('No cart found for target date'), { statusCode: 404 });
   }
 
   const cartDoc = cartSnap.docs[0];
@@ -97,7 +94,6 @@ async function updateItem(userId, { product_id, quantity }) {
   }
 
   if (quantity <= 0) {
-    // Remove item
     items.splice(idx, 1);
   } else {
     items[idx].quantity = quantity;
@@ -113,20 +109,20 @@ async function updateItem(userId, { product_id, quantity }) {
 }
 
 /**
- * Remove an extra product from tomorrow's cart.
+ * Remove an extra product from the target date cart.
  */
 async function removeItem(userId, productId) {
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = dateUtil.cartTargetDate();
 
   const cartSnap = await db
     .collection('carts')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
 
   if (cartSnap.empty) {
-    throw Object.assign(new Error('No cart found for tomorrow'), { statusCode: 404 });
+    throw Object.assign(new Error('No cart found for target date'), { statusCode: 404 });
   }
 
   const cartDoc = cartSnap.docs[0];

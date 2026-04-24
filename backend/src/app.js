@@ -18,6 +18,7 @@ const notificationRoutes = require('./modules/notifications/notification.routes'
 const priceRoutes = require('./modules/prices/price.routes');
 const userRoutes = require('./modules/users/user.routes');
 const dueRoutes = require('./modules/dues/due.routes');
+const adminRoutes = require('./modules/admins/admin.routes');
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/prices', priceRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dues', dueRoutes);
+app.use('/api/admins', adminRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

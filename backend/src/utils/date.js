@@ -23,6 +23,21 @@ function tomorrow() {
 }
 
 /**
+ * Get day-after-tomorrow's date string (YYYY-MM-DD) in configured timezone.
+ */
+function dayAfterTomorrow() {
+  return now().add(2, 'days').format('YYYY-MM-DD');
+}
+
+/**
+ * Return the target delivery date for cart modifications.
+ * Before cutoff → tomorrow; after cutoff → day after tomorrow.
+ */
+function cartTargetDate() {
+  return isPastCutoff() ? dayAfterTomorrow() : tomorrow();
+}
+
+/**
  * Check if current time is past the cutoff hour for tomorrow's modifications.
  */
 function isPastCutoff() {
@@ -68,4 +83,4 @@ function formatTimestamp(timestamp) {
   return moment(timestamp.toDate()).tz(config.timezone).format('YYYY-MM-DD HH:mm:ss');
 }
 
-module.exports = { now, today, tomorrow, isPastCutoff, isPastCronHour, nextDayManifestWindow, parseDate, formatTimestamp };
+module.exports = { now, today, tomorrow, dayAfterTomorrow, cartTargetDate, isPastCutoff, isPastCronHour, nextDayManifestWindow, parseDate, formatTimestamp };

@@ -17,6 +17,7 @@ import '../dues/due_screen.dart';
 import '../products/products_screen.dart';
 import '../auth/complete_profile_screen.dart';
 import 'widgets/curved_navbar.dart';
+import '../../widgets/delivery_calendar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -150,6 +151,8 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         onTap: () => Navigator.push(context,
                             MaterialPageRoute(builder: (_) => const DueScreen())),
                       ),
+                    const SizedBox(width: 10),
+                    const CalendarIconButton(),
                     const SizedBox(width: 10),
                     _headerAction(
                       Icons.notifications_none_rounded,
@@ -346,6 +349,8 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
 
   Widget _buildSubscriptionCard(
       BuildContext context, SubscriptionProvider sub) {
+    final auth = context.read<AppAuthProvider>();
+
     if (sub.subscription == null) {
       return PremiumCard(
         child: Column(
@@ -366,11 +371,43 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
               style: AppType.caption.copyWith(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
-              child: const Text('Start Subscription'),
-            ),
+            if (!auth.isProfileComplete)
+              // Profile incomplete — show disabled button with hint
+              Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: null, // disabled
+                      style: ElevatedButton.styleFrom(
+                        disabledBackgroundColor: AppColors.border,
+                        disabledForegroundColor: AppColors.textHint,
+                      ),
+                      child: const Text('Start Subscription'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.info_outline_rounded,
+                          size: 13, color: AppColors.warning),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Complete your profile first',
+                        style: AppType.micro
+                            .copyWith(color: AppColors.warning),
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              ElevatedButton(
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
+                child: const Text('Start Subscription'),
+              ),
           ],
         ),
       );

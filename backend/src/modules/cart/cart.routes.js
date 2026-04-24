@@ -5,7 +5,7 @@ const tomorrowService = require('./tomorrow.service');
 const { authenticateUser, requireCompleteProfile } = require('../../middleware/auth');
 const { success, badRequest } = require('../../utils/response');
 
-// GET /api/cart/tomorrow — Get complete tomorrow cart
+// GET /api/cart/tomorrow — Get complete cart for the active target date
 router.get('/tomorrow', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
     const status = await tomorrowService.getTomorrowStatus(req.user.userId);

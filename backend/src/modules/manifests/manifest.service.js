@@ -3,6 +3,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const dateUtil = require('../../utils/date');
+const { logActivity } = require('../../utils/activityLog');
 
 function serializeManifest(doc) {
   const d = doc.data ? doc.data() : doc;
@@ -136,7 +137,7 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     await existingSnap.docs[0].ref.update(manifestData);
   }
 
-  return {
+  const result = {
     id: manifestId,
     ...manifestData,
     generated_at: new Date().toISOString(),
@@ -144,6 +145,26 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     pdf_filename: fileName,
     status: 'ready',
   };
+
+  // Log manifest generation
+  await logActivity({
+    type: 'manifest_generated',
+    title: 'Manifest Generated',
+    message: `Delivery manifest generated for ${area.name} on ${date}. ${totalUsers} customers, ${totalMilkLitres}L milk.`,
+    areaId,
+    meta: {
+      manifest_id: manifestId,
+      date,
+      area_name: area.name,
+      total_users: totalUsers,
+      total_milk_litres: totalMilkLitres,
+      generated_by: generatedBy,
+    },
+  });
+
+  return result;
+
+  // Log manifest generation (fire-and-forget after return is unreachable, so log before)
 }
 
 /**

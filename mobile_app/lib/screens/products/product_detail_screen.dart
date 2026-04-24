@@ -58,9 +58,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     StretchMode.zoomBackground,
                     StretchMode.blurBackground,
                   ],
-                  background: p['image_url'] != null
+                  background: _firstImageUrl(p) != null
                       ? CachedNetworkImage(
-                          imageUrl: p['image_url'],
+                          imageUrl: _firstImageUrl(p)!,
                           fit: BoxFit.cover,
                           fadeInDuration: const Duration(milliseconds: 300),
                           placeholder: (_, __) => Container(
@@ -215,6 +215,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ],
       ),
     );
+  }
+
+  String? _firstImageUrl(dynamic p) {
+    final images = p['images'];
+    if (images is List && images.isNotEmpty) return images[0] as String;
+    return null;
   }
 
   Future<void> _addToCart() async {
