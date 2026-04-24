@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
@@ -36,13 +37,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       setState(() {
         _areas = list.cast<Map<String, dynamic>>();
         _loadingAreas = false;
-        // Smart default: auto-select if only one area
         if (_areas.length == 1) {
           _selectedAreaId = _areas.first['id'] as String;
         }
       });
-    } catch (_) {
+    } catch (e) {
       setState(() => _loadingAreas = false);
+      if (mounted) {
+        AppSnackbar.error(
+          context,
+          'Could not load delivery areas. Please check your connection and try again.',
+          actionLabel: 'Retry',
+          onAction: _loadAreas,
+        );
+      }
     }
   }
 
@@ -158,24 +166,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
                   if (auth.error != null) ...[
                     const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline,
-                              size: 18, color: AppColors.error),
-                          const SizedBox(width: 8),
-                          Expanded(
-                              child: Text(auth.error!,
-                                  style: AppType.small
-                                      .copyWith(color: AppColors.error))),
-                        ],
-                      ),
-                    ),
+                    InlineErrorBanner(message: auth.error!),
                   ],
 
                   const SizedBox(height: 100),
@@ -205,20 +196,28 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
   Future<void> _handleSave() async {
     final auth = context.read<AppAuthProvider>();
-    if (_nameController.text.isEmpty ||
-        _selectedAreaId == null ||
-        _line1Controller.text.isEmpty ||
-        _pincodeController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Fill all required fields'),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+
+    if (_nameController.text.trim().isEmpty) {
+      AppSnackbar.warning(context, 'Please enter your full name.');
       return;
     }
+    if (_selectedAreaId == null) {
+      AppSnackbar.warning(context, 'Please select your delivery area.');
+      return;
+    }
+    if (_line1Controller.text.trim().isEmpty) {
+      AppSnackbar.warning(context, 'Please enter your address.');
+      return;
+    }
+    if (_pincodeController.text.trim().isEmpty) {
+      AppSnackbar.warning(context, 'Please enter your pincode.');
+      return;
+    }
+    if (_pincodeController.text.trim().length != 6) {
+      AppSnackbar.warning(context, 'Please enter a valid 6-digit pincode.');
+      return;
+    }
+
     await auth.completeProfile(
       name: _nameController.text.trim(),
       areaId: _selectedAreaId!,
@@ -229,9 +228,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'pincode': _pincodeController.text.trim(),
       },
     );
-    if (auth.isProfileComplete && mounted) {
+    if (!mounted) return;
+    if (auth.isProfileComplete) {
       Navigator.pop(context);
     }
+    // error shown inline via InlineErrorBanner
   }
 
   Widget _buildField(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/error_handler.dart';
 
 class SubscriptionProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -7,7 +8,9 @@ class SubscriptionProvider extends ChangeNotifier {
   Map<String, dynamic>? _subscription;
   Map<String, dynamic>? get subscription => _subscription;
   bool get hasActiveSubscription =>
-      _subscription != null && (_subscription!['status'] == 'active' || _subscription!['status'] == 'paused');
+      _subscription != null &&
+      (_subscription!['status'] == 'active' ||
+          _subscription!['status'] == 'paused');
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -15,15 +18,20 @@ class SubscriptionProvider extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+
   Future<void> loadSubscription() async {
     _isLoading = true;
+    _error = null;
     notifyListeners();
     try {
       final res = await _api.get('/subscriptions/active');
       _subscription = res['data']?['subscription'];
-      _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
     }
     _isLoading = false;
     notifyListeners();
@@ -50,7 +58,7 @@ class SubscriptionProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -59,13 +67,14 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<bool> pauseSubscription() async {
     if (_subscription == null) return false;
+    _error = null;
     try {
       await _api.put('/subscriptions/${_subscription!['id']}/pause', {});
       _subscription!['status'] = 'paused';
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
@@ -73,13 +82,14 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<bool> resumeSubscription() async {
     if (_subscription == null) return false;
+    _error = null;
     try {
       await _api.put('/subscriptions/${_subscription!['id']}/resume', {});
       _subscription!['status'] = 'active';
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
@@ -87,13 +97,14 @@ class SubscriptionProvider extends ChangeNotifier {
 
   Future<bool> cancelSubscription() async {
     if (_subscription == null) return false;
+    _error = null;
     try {
       await _api.put('/subscriptions/${_subscription!['id']}/cancel', {});
       _subscription = null;
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.message(e);
       notifyListeners();
       return false;
     }
