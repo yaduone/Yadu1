@@ -23,6 +23,15 @@ api.interceptors.response.use(
       localStorage.removeItem('admin_data');
       window.location.href = '/login';
     }
+
+    // Handle rate limiting — surface retryAfter to callers
+    if (err.response?.status === 429) {
+      const retryAfter = err.response.data?.retryAfter
+        || parseInt(err.response.headers['retry-after'] || '60', 10);
+      err.retryAfter = retryAfter;
+      err.isRateLimited = true;
+    }
+
     return Promise.reject(err);
   }
 );

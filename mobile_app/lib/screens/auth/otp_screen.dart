@@ -72,13 +72,37 @@ class _OtpScreenState extends State<OtpScreen>
     final auth = context.watch<AppAuthProvider>();
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Carousel fills the entire screen
-          const Positioned.fill(
-            child: AuthImageCarousel(height: double.infinity),
+          Column(
+            children: [
+              // Image carousel — square images, height = screen width
+              AuthImageCarousel(
+                height: MediaQuery.of(context).size.width,
+              ),
+
+              // OTP panel — scrollable
+              Expanded(
+                child: SingleChildScrollView(
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: SlideTransition(
+                      position: _slideAnimation,
+                      child: _OtpPanel(
+                        pinController: _pinController,
+                        auth: auth,
+                        resendSeconds: _resendSeconds,
+                        onResend: _startResendTimer,
+                        onProceed: _handleVerify,
+                        onCompleted: _handleVerify,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
 
           // Back button overlay
@@ -108,29 +132,6 @@ class _OtpScreenState extends State<OtpScreen>
                     size: 16,
                     color: AppColors.textPrimary,
                   ),
-                ),
-              ),
-            ),
-          ),
-
-          // Bottom: glassmorphism OTP panel
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            left: 0,
-            right: 0,
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: _OtpPanel(
-                  pinController: _pinController,
-                  auth: auth,
-                  resendSeconds: _resendSeconds,
-                  onResend: _startResendTimer,
-                  onProceed: _handleVerify,
-                  onCompleted: _handleVerify,
                 ),
               ),
             ),
@@ -199,15 +200,15 @@ class _OtpPanel extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(26, 28, 26, 24),
+          padding: const EdgeInsets.fromLTRB(26, 16, 26, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Logo
               Container(
-                width: 72,
-                height: 72,
+                width: 64,
+                height: 64,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -236,21 +237,21 @@ class _OtpPanel extends StatelessWidget {
                         child: const Icon(
                           Icons.local_drink_rounded,
                           color: Colors.white,
-                          size: 32,
+                          size: 28,
                         ),
                       );
                     },
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Text('YaduONE', style: AppType.h1.copyWith(letterSpacing: -0.5)),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 'Soch nayi sanskaar wahi',
                 style: AppType.small.copyWith(color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Label row: "Enter OTP" + "Resend OTP" with countdown
               Row(

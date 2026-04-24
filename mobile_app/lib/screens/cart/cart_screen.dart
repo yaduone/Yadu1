@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/tappable.dart';
+import '../../utils/transitions.dart';
 import '../../providers/cart_provider.dart';
 import '../products/products_screen.dart';
 
@@ -221,8 +223,9 @@ class _CartScreenState extends State<CartScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const SectionLabel('Extra Items'),
-                            GestureDetector(
+                            Tappable(
                               onTap: () => _showQuickAddSheet(context),
+                              scaleFactor: 0.93,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 6),
@@ -497,7 +500,7 @@ class _CartScreenState extends State<CartScreen> {
                   spacing: 10,
                   runSpacing: 10,
                   children: essentials.map((p) {
-                    return GestureDetector(
+                    return Tappable(
                       onTap: () async {
                         HapticFeedback.lightImpact();
                         await cart.addItem(p['id'], 1);
@@ -506,6 +509,8 @@ class _CartScreenState extends State<CartScreen> {
                           _showAutoSave();
                         }
                       },
+                      scaleFactor: 0.93,
+                      enableFeedback: false,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
@@ -540,8 +545,7 @@ class _CartScreenState extends State<CartScreen> {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => const ProductsScreen()),
+                    SlideRightRoute(page: const ProductsScreen()),
                   );
                 },
                 child: const Text('Browse All Products'),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shimmer/shimmer.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_typography.dart';
+import 'tappable.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PremiumCard — zero-border white card with soft primary-tinted shadow
@@ -121,8 +122,11 @@ class HapticStepper extends StatelessWidget {
 
   Widget _circleButton(IconData icon, VoidCallback? onTap) {
     final enabled = onTap != null;
-    return GestureDetector(
+    return Tappable(
       onTap: onTap,
+      scaleFactor: 0.88,
+      haptic: HapticFeedbackType.light,
+      enableFeedback: false, // haptic handled manually in onChanged
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: 52,
@@ -286,12 +290,14 @@ class WalletPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasDue = amount > 0;
     final bgColor = hasDue 
-        ? const Color(0xFFFFF7ED) // warm amber bg
-        : const Color(0xFFECFDF5); // mint green bg
+        ? const Color(0xFFFFF7ED)
+        : const Color(0xFFECFDF5);
     final fgColor = hasDue ? const Color(0xFFD97706) : AppColors.success;
 
-    return GestureDetector(
+    return Tappable(
       onTap: onTap,
+      scaleFactor: 0.93,
+      haptic: HapticFeedbackType.selection,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -509,6 +515,166 @@ class GlassContainer extends StatelessWidget {
           child: child,
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PulseLoader — subtle pulsing dot indicator for inline loading states
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class PulseLoader extends StatefulWidget {
+  final Color? color;
+  final double size;
+
+  const PulseLoader({super.key, this.color, this.size = 8});
+
+  @override
+  State<PulseLoader> createState() => _PulseLoaderState();
+}
+
+class _PulseLoaderState extends State<PulseLoader>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.color ?? AppColors.primary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(3, (i) {
+        return AnimatedBuilder(
+          animation: _anim,
+          builder: (_, __) {
+            final delay = i * 0.25;
+            final t = ((_ctrl.value - delay) % 1.0).clamp(0.0, 1.0);
+            final scale = 0.6 + (0.4 * (t < 0.5 ? t * 2 : (1 - t) * 2));
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: widget.size * 0.3),
+              child: Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.4 + 0.6 * scale),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AnimatedStatusBadge — status pill that animates color/text changes
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class AnimatedStatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const AnimatedStatusBadge({
+    super.key,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: AnimatedDefaultTextStyle(
+        duration: const Duration(milliseconds: 300),
+        style: AppType.micro.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+        child: Text(label.toUpperCase()),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FadeIndexedStack — cross-fades between indexed stack children
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class FadeIndexedStack extends StatefulWidget {
+  final int index;
+  final List<Widget> children;
+  final Duration duration;
+
+  const FadeIndexedStack({
+    super.key,
+    required this.index,
+    required this.children,
+    this.duration = const Duration(milliseconds: 220),
+  });
+
+  @override
+  State<FadeIndexedStack> createState() => _FadeIndexedStackState();
+}
+
+class _FadeIndexedStackState extends State<FadeIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+  }
+
+  @override
+  void didUpdateWidget(FadeIndexedStack old) {
+    super.didUpdateWidget(old);
+    if (old.index != widget.index) {
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: IndexedStack(index: widget.index, children: widget.children),
     );
   }
 }

@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
+import '../../widgets/tappable.dart';
+import '../../utils/transitions.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/constants.dart';
 import 'otp_screen.dart';
 import 'widgets/auth_image_carousel.dart';
+import '../legal/privacy_policy_screen.dart';
+import '../legal/terms_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,9 +29,23 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  bool? _backendOnline; // null = checking, true = online, false = offline
+
+  Future<void> _checkBackend() async {
+    try {
+      final res = await http
+          .get(Uri.parse('${AppConstants.apiBaseUrl}/health'))
+          .timeout(const Duration(seconds: 5));
+      if (mounted) setState(() => _backendOnline = res.statusCode == 200);
+    } catch (_) {
+      if (mounted) setState(() => _backendOnline = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _checkBackend();
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -55,37 +75,67 @@ class _LoginScreenState extends State<LoginScreen>
     final auth = context.watch<AppAuthProvider>();
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
-      body: Stack(
+      body: Column(
         children: [
-          // Carousel fills the entire screen — panel overlaps it from below
-          const Positioned.fill(
-            child: AuthImageCarousel(height: double.infinity),
+          // Image carousel — square images, height = screen width
+          AuthImageCarousel(
+            height: MediaQuery.of(context).size.width,
           ),
 
-          // Bottom: glassmorphism form panel — lifts with keyboard
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            left: 0,
-            right: 0,
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: _LoginPanel(
-                  phoneController: _phoneController,
-                  countryCode: _countryCode,
-                  auth: auth,
-                  onSendOtp: _handleSendOtp,
+          // Login panel — scrollable so keyboard doesn't cover it
+          Expanded(
+            child: SingleChildScrollView(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: _LoginPanel(
+                    phoneController: _phoneController,
+                    countryCode: _countryCode,
+                    auth: auth,
+                    onSendOtp: _handleSendOtp,
+                  ),
                 ),
               ),
             ),
           ),
         ],
       ),
+
+      // Backend status dot — bottom right
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 4, right: 4),
+        child: Tooltip(
+          message: _backendOnline == null
+              ? 'Checking server...'
+              : _backendOnline!
+                  ? 'Server online'
+                  : 'Server offline',
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _backendOnline == null
+                  ? Colors.grey
+                  : _backendOnline!
+                      ? Colors.green
+                      : Colors.red,
+              boxShadow: [
+                BoxShadow(
+                  color: (_backendOnline == true ? Colors.green : Colors.red)
+                      .withValues(alpha: 0.5),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -111,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen>
     if (auth.error == null && mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const OtpScreen()),
+        SlideUpRoute(page: const OtpScreen()),
       );
     }
   }
@@ -136,15 +186,15 @@ class _LoginPanel extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(26, 28, 26, 24),
+          padding: const EdgeInsets.fromLTRB(26, 16, 26, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Logo
               Container(
-                width: 72,
-                height: 72,
+                width: 64,
+                height: 64,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -173,21 +223,21 @@ class _LoginPanel extends StatelessWidget {
                         child: const Icon(
                           Icons.local_drink_rounded,
                           color: Colors.white,
-                          size: 32,
+                          size: 28,
                         ),
                       );
                     },
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Text('YaduONE', style: AppType.h1.copyWith(letterSpacing: -0.5)),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 'Soch nayi sanskaar wahi',
                 style: AppType.small.copyWith(color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Phone label
               Align(
@@ -295,7 +345,7 @@ class _LoginPanel extends StatelessWidget {
                 ),
               ],
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // Send OTP button
               SizedBox(
@@ -323,12 +373,59 @@ class _LoginPanel extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
 
               // Trust badge
               const TrustBadge(
                 icon: Icons.lock_rounded,
                 label: 'Encrypted OTP',
+              ),
+
+              const SizedBox(height: 16),
+
+              // Legal links
+              Wrap(
+                alignment: WrapAlignment.center,
+                children: [
+                  Text(
+                    'By continuing, you agree to our ',
+                    style: AppType.micro.copyWith(
+                        color: AppColors.textHint,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  Tappable(
+                    onTap: () => Navigator.push(
+                      context,
+                      SlideUpRoute(page: const TermsScreen()),
+                    ),
+                    haptic: HapticFeedbackType.selection,
+                    child: Text(
+                      'Terms',
+                      style: AppType.micro.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text(
+                    ' & ',
+                    style: AppType.micro.copyWith(
+                        color: AppColors.textHint,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  Tappable(
+                    onTap: () => Navigator.push(
+                      context,
+                      SlideUpRoute(page: const PrivacyPolicyScreen()),
+                    ),
+                    haptic: HapticFeedbackType.selection,
+                    child: Text(
+                      'Privacy Policy',
+                      style: AppType.micro.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

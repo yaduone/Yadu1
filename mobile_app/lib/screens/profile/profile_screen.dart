@@ -7,6 +7,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/delivery_calendar.dart';
+import '../legal/privacy_policy_screen.dart';
+import '../legal/terms_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -248,6 +250,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 28),
 
+            // Legal links
+            const SectionLabel('Legal'),
+            const SizedBox(height: 12),
+            PremiumCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _LegalTile(
+                    icon: Icons.shield_outlined,
+                    label: 'Privacy Policy',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PrivacyPolicyScreen()),
+                    ),
+                  ),
+                  Divider(height: 1, indent: 60, color: AppColors.divider),
+                  _LegalTile(
+                    icon: Icons.gavel_rounded,
+                    label: 'Terms of Service',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TermsScreen()),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
             // Logout — subdued, at the bottom
             Center(
               child: TextButton(
@@ -286,6 +319,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             const SizedBox(height: 80),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _LegalTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(label, style: AppType.captionBold),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                size: 20, color: AppColors.textHint),
           ],
         ),
       ),
