@@ -5,8 +5,10 @@ const { authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound } = require('../../utils/response');
 const { isValidMilkType } = require('../../utils/validators');
 
-// GET /api/prices — Public: get current milk prices
-router.get('/', async (req, res, next) => {
+const { cache, invalidateOn } = require('../../middleware/cache');
+
+// GET /api/prices — Public: get current milk prices — cached 300s
+router.get('/', cache.publicStatic, async (req, res, next) => {
   try {
     const snap = await db.collection('price_config').get();
     const prices = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -17,7 +19,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PUT /api/prices/:milk_type — Admin: update milk price
-router.put('/:milk_type', authenticateAdmin, async (req, res, next) => {
+router.put('/:milk_type', authenticateAdmin, invalidateOn(['public']), async (req, res, next) => {
   try {
     const { milk_type } = req.params;
     if (!isValidMilkType(milk_type)) return badRequest(res, 'Invalid milk type');

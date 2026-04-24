@@ -4,8 +4,10 @@ const { db, admin } = require('../../config/firebase');
 const { authenticateAdmin, requireSuperAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound, created } = require('../../utils/response');
 
-// GET /api/areas — Public: list active areas
-router.get('/', async (req, res, next) => {
+const { cache, invalidateOn } = require('../../middleware/cache');
+
+// GET /api/areas — Public: list active areas — cached 300s
+router.get('/', cache.publicStatic, async (req, res, next) => {
   try {
     const snap = await db.collection('areas').where('is_active', '==', true).get();
     const areas = snap.docs.map((doc) => ({ id: doc.id, name: doc.data().name, slug: doc.data().slug }));
@@ -16,7 +18,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST /api/areas — Super admin: create area
-router.post('/', authenticateAdmin, requireSuperAdmin, async (req, res, next) => {
+router.post('/', authenticateAdmin, requireSuperAdmin, invalidateOn(['public']), async (req, res, next) => {
   try {
     const { name, slug } = req.body;
     if (!name || !slug) return badRequest(res, 'name and slug are required');
@@ -39,7 +41,7 @@ router.post('/', authenticateAdmin, requireSuperAdmin, async (req, res, next) =>
 });
 
 // PUT /api/areas/:id — Super admin: update area
-router.put('/:id', authenticateAdmin, requireSuperAdmin, async (req, res, next) => {
+router.put('/:id', authenticateAdmin, requireSuperAdmin, invalidateOn(['public']), async (req, res, next) => {
   try {
     const { name, slug, is_active } = req.body;
     const areaRef = db.collection('areas').doc(req.params.id);
@@ -60,7 +62,7 @@ router.put('/:id', authenticateAdmin, requireSuperAdmin, async (req, res, next) 
 });
 
 // DELETE /api/areas/:id — Super admin: deactivate area
-router.delete('/:id', authenticateAdmin, requireSuperAdmin, async (req, res, next) => {
+router.delete('/:id', authenticateAdmin, requireSuperAdmin, invalidateOn(['public']), async (req, res, next) => {
   try {
     const areaRef = db.collection('areas').doc(req.params.id);
     const areaDoc = await areaRef.get();

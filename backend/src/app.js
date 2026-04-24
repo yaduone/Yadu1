@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const errorHandler = require('./middleware/errorHandler');
+const limit = require('./middleware/rateLimiter');
 
 // Route imports
 const authRoutes = require('./modules/auth/auth.routes');
@@ -20,6 +21,9 @@ const userRoutes = require('./modules/users/user.routes');
 const dueRoutes = require('./modules/dues/due.routes');
 const adminRoutes = require('./modules/admins/admin.routes');
 
+// Initialize Redis connection early
+require('./config/redis').getRedisClient();
+
 const app = express();
 
 // Global middleware
@@ -27,27 +31,35 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Health check
+// Health check (no rate limit — used by load balancers)
 app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'Dairy Delivery API is running' });
+  const { isRedisReady } = require('./config/redis');
+  res.json({ success: true, message: 'Dairy Delivery API is running', redis: isRedisReady() });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/areas', areaRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/tomorrow', tomorrowRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/manifests', manifestRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/livestreams', livestreamRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/prices', priceRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/dues', dueRoutes);
-app.use('/api/admins', adminRoutes);
+// ─── Routes with rate limiting ────────────────────────────────────────────────
+// Auth: strict (5 req/min) — brute force protection
+app.use('/api/auth', limit.auth, authRoutes);
+
+// Public read endpoints: generous (120 req/min) + cached
+app.use('/api/areas', limit.public, areaRoutes);
+app.use('/api/products', limit.public, productRoutes);
+app.use('/api/prices', limit.public, priceRoutes);
+
+// Authenticated user actions: moderate (60 req/min)
+app.use('/api/subscriptions', limit.medium, subscriptionRoutes);
+app.use('/api/cart', limit.medium, cartRoutes);
+app.use('/api/tomorrow', limit.medium, tomorrowRoutes);
+app.use('/api/orders', limit.medium, orderRoutes);
+app.use('/api/notifications', limit.medium, notificationRoutes);
+app.use('/api/users', limit.medium, userRoutes);
+app.use('/api/dues', limit.medium, dueRoutes);
+app.use('/api/livestreams', limit.medium, livestreamRoutes);
+app.use('/api/admins', limit.medium, adminRoutes);
+
+// Heavy endpoints: aggressive (10 req/min) — PDF generation, file uploads, reports
+app.use('/api/manifests', limit.heavy, manifestRoutes);
+app.use('/api/reports', limit.heavy, reportRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);

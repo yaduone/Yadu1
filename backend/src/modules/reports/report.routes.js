@@ -4,8 +4,10 @@ const reportService = require('./report.service');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest } = require('../../utils/response');
 
+const { cache } = require('../../middleware/cache');
+
 // GET /api/reports/user/summary
-router.get('/user/summary', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+router.get('/user/summary', authenticateUser, requireCompleteProfile, cache.userPrivate, async (req, res, next) => {
   try {
     const summary = await reportService.getUserSummary(req.user.userId);
     return success(res, summary);
@@ -15,7 +17,7 @@ router.get('/user/summary', authenticateUser, requireCompleteProfile, async (req
 });
 
 // GET /api/reports/user/calendar?month=YYYY-MM
-router.get('/user/calendar', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+router.get('/user/calendar', authenticateUser, requireCompleteProfile, cache.userPrivate, async (req, res, next) => {
   try {
     const { month } = req.query;
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -29,7 +31,7 @@ router.get('/user/calendar', authenticateUser, requireCompleteProfile, async (re
 });
 
 // GET /api/reports/admin/dashboard
-router.get('/admin/dashboard', authenticateAdmin, async (req, res, next) => {
+router.get('/admin/dashboard', authenticateAdmin, cache.reports, async (req, res, next) => {
   try {
     const dashboard = await reportService.getAdminDashboard(req.admin.areaId);
     return success(res, dashboard);
@@ -39,7 +41,7 @@ router.get('/admin/dashboard', authenticateAdmin, async (req, res, next) => {
 });
 
 // GET /api/reports/admin/daily
-router.get('/admin/daily', authenticateAdmin, async (req, res, next) => {
+router.get('/admin/daily', authenticateAdmin, cache.reports, async (req, res, next) => {
   try {
     const { from, to } = req.query;
     if (!from || !to) return badRequest(res, 'from and to dates are required (YYYY-MM-DD)');
