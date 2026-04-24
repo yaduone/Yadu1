@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../services/api_service.dart';
 
 class LivestreamScreen extends StatefulWidget {
@@ -43,16 +45,32 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: const Icon(Icons.arrow_back_ios_new, size: 16),
           ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Live Stream'),
+        title: Text('Live Stream', style: AppType.h2),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2.5))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  SkeletonLoader(height: 200, width: 200, borderRadius: 24),
+                  SizedBox(height: 20),
+                  SkeletonLoader(height: 20, width: 160, borderRadius: 8),
+                ],
+              ),
+            )
           : _livestream == null
               ? Center(
                   child: Padding(
@@ -67,18 +85,19 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                             color: AppColors.surfaceBg,
                             borderRadius: BorderRadius.circular(24),
                           ),
-                          child: Icon(Icons.live_tv_rounded, size: 36, color: AppColors.textHint),
+                          child: Icon(Icons.live_tv_rounded,
+                              size: 36, color: AppColors.textHint),
                         ),
                         const SizedBox(height: 20),
-                        const Text(
-                          'No live stream available',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                        ),
+                        Text('No live stream available',
+                            style: AppType.h3),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           'Check back later for live updates\nfrom your area',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
+                          style: AppType.caption.copyWith(
+                              color: AppColors.textSecondary,
+                              height: 1.5),
                         ),
                       ],
                     ),
@@ -88,7 +107,6 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     children: [
-                      // Live card
                       PremiumCard(
                         child: Column(
                           children: [
@@ -96,24 +114,24 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                               width: 64,
                               height: 64,
                               decoration: BoxDecoration(
-                                color: AppColors.error.withAlpha(15),
+                                color: AppColors.error.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(18),
                               ),
-                              child: const Icon(Icons.live_tv_rounded, size: 32, color: AppColors.error),
+                              child: const Icon(Icons.live_tv_rounded,
+                                  size: 32, color: AppColors.error),
                             ),
                             const SizedBox(height: 16),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
                               decoration: BoxDecoration(
                                 color: AppColors.error,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'LIVE',
-                                style: TextStyle(
+                                style: AppType.microUpper.copyWith(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
                                   letterSpacing: 1.5,
                                 ),
                               ),
@@ -122,7 +140,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                             Text(
                               _livestream!['title'] ?? 'Livestream',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                              style: AppType.h2,
                             ),
                           ],
                         ),
@@ -130,18 +148,26 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
 
                       const SizedBox(height: 28),
 
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          final url = _livestream!['youtube_url'] as String?;
-                          if (url != null) {
-                            launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                          }
-                        },
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Watch on YouTube'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.error,
-                          foregroundColor: Colors.white,
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            final url =
+                                _livestream!['youtube_url'] as String?;
+                            if (url != null) {
+                              launchUrl(Uri.parse(url),
+                                  mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: Text('Watch on YouTube',
+                              style: AppType.button
+                                  .copyWith(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.error,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ),
                     ],

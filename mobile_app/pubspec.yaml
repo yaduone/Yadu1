@@ -41,6 +41,10 @@ dependencies:
   pinput: ^5.0.1
   carousel_slider: ^5.0.0
   smooth_page_indicator: ^1.2.0+3
+  google_fonts: ^8.0.2
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.1
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:pinput/pinput.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../providers/auth_provider.dart';
 import 'widgets/auth_image_carousel.dart';
-
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({super.key});
@@ -21,6 +24,10 @@ class _OtpScreenState extends State<OtpScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  // Resend countdown
+  int _resendSeconds = 60;
+  Timer? _resendTimer;
+
   @override
   void initState() {
     super.initState();
@@ -28,7 +35,8 @@ class _OtpScreenState extends State<OtpScreen>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _fadeAnimation =
+        CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.25),
       end: Offset.zero,
@@ -36,12 +44,26 @@ class _OtpScreenState extends State<OtpScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
     _controller.forward();
+
+    _startResendTimer();
+  }
+
+  void _startResendTimer() {
+    _resendSeconds = 60;
+    _resendTimer?.cancel();
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_resendSeconds <= 1) {
+        t.cancel();
+      }
+      if (mounted) setState(() => _resendSeconds--);
+    });
   }
 
   @override
   void dispose() {
     _pinController.dispose();
     _controller.dispose();
+    _resendTimer?.cancel();
     super.dispose();
   }
 
@@ -54,7 +76,7 @@ class _OtpScreenState extends State<OtpScreen>
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Carousel fills the entire screen — panel overlaps it from below
+          // Carousel fills the entire screen
           const Positioned.fill(
             child: AuthImageCarousel(height: double.infinity),
           ),
@@ -66,18 +88,18 @@ class _OtpScreenState extends State<OtpScreen>
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 onTap: () => Navigator.pop(context),
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withAlpha(20),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -91,7 +113,7 @@ class _OtpScreenState extends State<OtpScreen>
             ),
           ),
 
-          // Bottom: green OTP panel — lifts with keyboard
+          // Bottom: glassmorphism OTP panel
           AnimatedPositioned(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
@@ -105,7 +127,10 @@ class _OtpScreenState extends State<OtpScreen>
                 child: _OtpPanel(
                   pinController: _pinController,
                   auth: auth,
+                  resendSeconds: _resendSeconds,
+                  onResend: _startResendTimer,
                   onProceed: _handleVerify,
+                  onCompleted: _handleVerify,
                 ),
               ),
             ),
@@ -117,8 +142,10 @@ class _OtpScreenState extends State<OtpScreen>
 
   Future<void> _handleVerify() async {
     final auth = context.read<AppAuthProvider>();
+    HapticFeedback.mediumImpact();
     final success = await auth.verifyOtp(_pinController.text.trim());
     if (success && mounted) {
+      HapticFeedback.heavyImpact();
       Navigator.popUntil(context, (route) => route.isFirst);
     }
   }
@@ -127,58 +154,48 @@ class _OtpScreenState extends State<OtpScreen>
 class _OtpPanel extends StatelessWidget {
   final TextEditingController pinController;
   final AppAuthProvider auth;
+  final int resendSeconds;
+  final VoidCallback onResend;
   final Future<void> Function() onProceed;
+  final Future<void> Function() onCompleted;
 
   const _OtpPanel({
     required this.pinController,
     required this.auth,
+    required this.resendSeconds,
+    required this.onResend,
     required this.onProceed,
+    required this.onCompleted,
   });
 
   @override
   Widget build(BuildContext context) {
     final defaultTheme = PinTheme(
-      width: 46,
-      height: 54,
-      textStyle: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
-      ),
+      width: 48,
+      height: 56,
+      textStyle: AppType.h2.copyWith(color: AppColors.textPrimary),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surfaceBg,
+        borderRadius: BorderRadius.circular(14),
       ),
     );
 
     final focusedTheme = defaultTheme.copyWith(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary, width: 1.5),
+        color: AppColors.surfaceBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary, width: 2),
       ),
     );
 
-    return Container(
+    final submittedTheme = defaultTheme.copyWith(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE8F5E9),
-            Color(0xFFE3F2FD),
-            Color(0xFFF1F8E9),
-          ],
-        ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(20),
-            blurRadius: 24,
-            offset: const Offset(0, -6),
-          ),
-        ],
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(14),
       ),
+    );
+
+    return GlassContainer(
       child: SafeArea(
         top: false,
         child: Padding(
@@ -197,9 +214,9 @@ class _OtpPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withAlpha(22),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
@@ -210,7 +227,12 @@ class _OtpPanel extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDark],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         child: const Icon(
                           Icons.local_drink_rounded,
                           color: Colors.white,
@@ -221,45 +243,32 @@ class _OtpPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'YaduONE',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
+              const SizedBox(height: 14),
+              Text('YaduONE', style: AppType.h1.copyWith(letterSpacing: -0.5)),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Soch nayi sanskaar wahi',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: AppType.small.copyWith(color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
 
-              // Label row: "Enter OTP"  + "Resend OTP"
-              const Row(
+              // Label row: "Enter OTP" + "Resend OTP" with countdown
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Enter OTP',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    'Resend OTP',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                  Text('Enter OTP', style: AppType.captionBold),
+                  GestureDetector(
+                    onTap: resendSeconds <= 0 ? onResend : null,
+                    child: Text(
+                      resendSeconds > 0
+                          ? 'Resend in ${resendSeconds}s'
+                          : 'Resend OTP',
+                      style: AppType.small.copyWith(
+                        color: resendSeconds > 0
+                            ? AppColors.textHint
+                            : AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -271,7 +280,9 @@ class _OtpPanel extends StatelessWidget {
                 length: 6,
                 defaultPinTheme: defaultTheme,
                 focusedPinTheme: focusedTheme,
+                submittedPinTheme: submittedTheme,
                 separatorBuilder: (_) => const SizedBox(width: 6),
+                onCompleted: (_) => onCompleted(),
               ),
 
               if (auth.error != null) ...[
@@ -283,24 +294,21 @@ class _OtpPanel extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withAlpha(18),
+                    color: AppColors.error.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.error.withAlpha(50)),
+                    border:
+                        Border.all(color: AppColors.error.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 18,
-                        color: AppColors.error,
-                      ),
+                      const Icon(Icons.error_outline_rounded,
+                          size: 18, color: AppColors.error),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           auth.error!,
-                          style: const TextStyle(
+                          style: AppType.micro.copyWith(
                             color: AppColors.error,
-                            fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -314,17 +322,9 @@ class _OtpPanel extends StatelessWidget {
 
               SizedBox(
                 width: double.infinity,
-                height: 54,
+                height: 56,
                 child: ElevatedButton(
                   onPressed: auth.isLoading ? null : onProceed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
                   child: auth.isLoading
                       ? const SizedBox(
                           width: 22,
@@ -334,14 +334,8 @@ class _OtpPanel extends StatelessWidget {
                             strokeWidth: 2.5,
                           ),
                         )
-                      : const Text(
-                          'Proceed',
-                          style: TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
+                      : Text('Verify & Proceed',
+                          style: AppType.button.copyWith(color: Colors.white)),
                 ),
               ),
             ],

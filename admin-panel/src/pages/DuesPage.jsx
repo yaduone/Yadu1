@@ -123,7 +123,8 @@ function DuesTab() {
   });
 
   // Summary
-  const totalDue = dues.reduce((s, d) => s + (d.due_amount || 0), 0);
+  const totalDue = dues.reduce((s, d) => s + ((d.due_amount || 0) > 0 ? d.due_amount : 0), 0);
+  const totalPrepaid = dues.reduce((s, d) => s + ((d.due_amount || 0) < 0 ? Math.abs(d.due_amount) : 0), 0);
   const totalBilled = dues.reduce((s, d) => s + (d.total_billed || 0), 0);
   const totalPaid = dues.reduce((s, d) => s + (d.total_paid || 0), 0);
 
@@ -135,15 +136,16 @@ function DuesTab() {
       {/* Left: table */}
       <div className="flex-1 min-w-0">
         {/* Summary bar */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-4 gap-3 mb-4">
           {[
             { label: 'Total Outstanding', value: `₹${totalDue.toFixed(2)}`, color: 'text-red-600', bg: 'bg-red-50' },
+            { label: 'Total Prepaid', value: `+ ₹${totalPrepaid.toFixed(2)}`, color: 'text-green-700', bg: 'bg-green-50' },
             { label: 'Total Billed', value: `₹${totalBilled.toFixed(2)}`, color: 'text-gray-700', bg: 'bg-gray-50' },
             { label: 'Total Collected', value: `₹${totalPaid.toFixed(2)}`, color: 'text-green-700', bg: 'bg-green-50' },
           ].map(({ label, value, color, bg }) => (
             <div key={label} className={`${bg} rounded-xl p-4`}>
-              <p className={`text-xl font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+              <p className={`text-lg font-bold ${color}`}>{value}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5 uppercase tracking-wide font-semibold">{label}</p>
             </div>
           ))}
         </div>
@@ -190,8 +192,8 @@ function DuesTab() {
                       <td className="px-4 py-3 text-right text-gray-600">₹{(d.total_billed || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-right text-green-600 font-medium">₹{(d.total_paid || 0).toFixed(2)}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className={`font-bold text-base ${(d.due_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          ₹{(d.due_amount || 0).toFixed(2)}
+                        <span className={`font-bold text-base ${(d.due_amount || 0) > 0 ? 'text-red-600' : (d.due_amount || 0) < 0 ? 'text-green-600' : 'text-gray-600'}`}>
+                          {(d.due_amount || 0) < 0 ? `+ ₹${Math.abs(d.due_amount).toFixed(2)}` : `₹${(d.due_amount || 0).toFixed(2)}`}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -221,10 +223,10 @@ function DuesTab() {
             </div>
 
             {/* Due balance */}
-            <div className={`rounded-lg p-3 mb-4 ${(selectedDue?.due_amount || 0) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-              <p className="text-xs text-gray-500">Outstanding Due</p>
-              <p className={`text-2xl font-bold mt-0.5 ${(selectedDue?.due_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                ₹{(selectedDue?.due_amount || 0).toFixed(2)}
+            <div className={`rounded-lg p-3 mb-4 ${(selectedDue?.due_amount || 0) > 0 ? 'bg-red-50' : (selectedDue?.due_amount || 0) < 0 ? 'bg-green-50' : 'bg-gray-50'}`}>
+              <p className="text-xs text-gray-500">{(selectedDue?.due_amount || 0) < 0 ? 'Prepaid Balance' : 'Outstanding Due'}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${(selectedDue?.due_amount || 0) > 0 ? 'text-red-600' : (selectedDue?.due_amount || 0) < 0 ? 'text-green-600' : 'text-gray-800'}`}>
+                {(selectedDue?.due_amount || 0) < 0 ? `+ ₹${Math.abs(selectedDue.due_amount).toFixed(2)}` : `₹${(selectedDue?.due_amount || 0).toFixed(2)}`}
               </p>
             </div>
 

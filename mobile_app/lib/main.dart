@@ -7,12 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 
 import 'theme/app_theme.dart';
+import 'theme/app_typography.dart';
+import 'widgets/premium_components.dart';
 import 'providers/auth_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/cart_provider.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/auth/complete_profile_screen.dart';
 import 'screens/home/home_screen.dart';
 
 void main() async {
@@ -51,7 +52,7 @@ class DairyDeliveryApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartProvider()),
       ],
       child: MaterialApp(
-        title: 'MilkFresh',
+        title: 'YaduONE',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: showOnboarding ? const OnboardingScreen() : const AuthGate(),
@@ -76,21 +77,41 @@ class AuthGate extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.water_drop_rounded, size: 56, color: AppColors.primary),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'MilkFresh',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
+                  // Shimmer brand loader
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: const Icon(
+                      Icons.water_drop_rounded,
+                      size: 36,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'YaduONE',
+                    style: AppType.h1.copyWith(
                       color: AppColors.textPrimary,
                       letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Soch nayi sanskaar wahi',
+                    style: AppType.small.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 32),
                   SizedBox(
-                    width: 32,
-                    height: 32,
+                    width: 28,
+                    height: 28,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
                       color: AppColors.primary,
@@ -136,18 +157,20 @@ class _ProfileGateState extends State<_ProfileGate> {
       return Scaffold(
         backgroundColor: AppColors.scaffoldBg,
         body: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: AppColors.primary,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SkeletonLoader(height: 72, width: 72, borderRadius: 22),
+              const SizedBox(height: 24),
+              const SkeletonLoader(height: 20, width: 120, borderRadius: 8),
+            ],
           ),
         ),
       );
     }
 
-    if (!auth.isProfileComplete) {
-      return const CompleteProfileScreen();
-    }
-
+    // Allow users with incomplete profiles to reach Home
+    // HomeScreen will show a banner prompting profile completion
     return const HomeScreen();
   }
 }

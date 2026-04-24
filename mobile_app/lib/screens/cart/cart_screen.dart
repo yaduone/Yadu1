@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_typography.dart';
+import '../../widgets/premium_components.dart';
 import '../../providers/cart_provider.dart';
-import '../../providers/subscription_provider.dart';
+import '../products/products_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -12,300 +15,373 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
+  bool _showSavePill = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CartProvider>().loadTomorrowStatus();
-      context.read<CartProvider>().loadProducts();
+    });
+  }
+
+  void _showAutoSave() {
+    setState(() => _showSavePill = true);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _showSavePill = false);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
-    final sub = context.watch<SubscriptionProvider>();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primary,
-          onRefresh: () => cart.loadTomorrowStatus(),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            children: [
-              const SizedBox(height: 20),
+        child: Stack(
+          children: [
+            cart.tomorrowStatus == null
+                ? const Center(child: SkeletonCardLoader())
+                : RefreshIndicator(
+                    color: AppColors.primary,
+                    onRefresh: cart.loadTomorrowStatus,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      children: [
+                        const SizedBox(height: 20),
 
-              // Header
-              const Text(
-                "Tomorrow's Cart",
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3),
-              ),
-              if (cart.tomorrowStatus != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Delivery on ${cart.tomorrowStatus!['date']}',
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                ),
-              ],
+                        // Header
+                        Text("Tomorrow's Cart", style: AppType.h1),
+                        const SizedBox(height: 4),
+                        Text(
+                          cart.tomorrowStatus!['date'] ?? '',
+                          style: AppType.caption
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
 
-              const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-              // Milk Section
-              if (sub.hasActiveSubscription && sub.subscription!['status'] == 'active') ...[
-                const SectionLabel('Milk'),
-                const SizedBox(height: 12),
-                _buildMilkSection(cart, sub),
-                const SizedBox(height: 24),
-              ],
+                        // ── Milk Section ───────────────────────────
+                        if (cart.effectiveMilk != null) ...[
+                          const SectionLabel('Milk Delivery'),
+                          const SizedBox(height: 12),
 
-              // Extra Products
-              const SectionLabel('Extra Products'),
-              const SizedBox(height: 12),
-              _buildExtrasSection(cart),
-              const SizedBox(height: 16),
+                          PremiumCard(
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(
+                                      Icons.water_drop_rounded,
+                                      color: AppColors.primary,
+                                      size: 24),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            '${(cart.effectiveMilk!['milk_type'] as String).toUpperCase()} Milk',
+                                            style: AppType.bodyBold,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Icon(Icons.lock_outline_rounded,
+                                              size: 14,
+                                              color: AppColors.textHint),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '₹${cart.effectiveMilk!['price_per_litre']}/L',
+                                        style: AppType.small.copyWith(
+                                            color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Quantity stepper (mini)
+                                _MiniStepper(
+                                  value: (cart.effectiveMilk!['quantity_litres']
+                                          as num)
+                                      .toDouble(),
+                                  onChanged: (v) async {
+                                    HapticFeedback.lightImpact();
+                                    final ok =
+                                        await cart.modifyQuantity(v);
+                                    if (ok) _showAutoSave();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
 
-              // Add Products Button
-              OutlinedButton.icon(
-                onPressed: () => _showProductsSheet(cart),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Add Extra Products'),
-              ),
+                        // ── Skip / Revert ──────────────────────────
+                        if (!cart.isSkipped && cart.effectiveMilk != null)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () async {
+                                HapticFeedback.mediumImpact();
+                                await cart.skipTomorrow();
+                                _showAutoSave();
+                              },
+                              child: Text('Skip tomorrow',
+                                  style: AppType.small.copyWith(
+                                      color: AppColors.error,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ),
 
-              const SizedBox(height: 24),
+                        if (cart.isSkipped)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: PremiumCard(
+                              color: AppColors.error.withValues(alpha: 0.06),
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.event_busy_rounded,
+                                      size: 28, color: AppColors.error),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Delivery is skipped for tomorrow',
+                                    style: AppType.captionBold
+                                        .copyWith(color: AppColors.error),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton(
+                                    onPressed: () async {
+                                      HapticFeedback.mediumImpact();
+                                      await cart.revertOverride();
+                                      _showAutoSave();
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(
+                                          color: AppColors.error, width: 1.5),
+                                      foregroundColor: AppColors.error,
+                                      minimumSize:
+                                          const Size(double.infinity, 44),
+                                    ),
+                                    child: const Text('Undo Skip'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
 
-              // Total
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryDark],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
-                    Text(
-                      'Rs.${cart.totalAmount.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                        const SizedBox(height: 24),
+
+                        // ── Extra Items ────────────────────────────
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const SectionLabel('Extra Items'),
+                            GestureDetector(
+                              onTap: () => _showQuickAddSheet(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.add_rounded,
+                                        size: 16, color: AppColors.primary),
+                                    const SizedBox(width: 4),
+                                    Text('Quick Add',
+                                        style: AppType.micro.copyWith(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        if (cart.extraItems.isEmpty)
+                          PremiumCard(
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 8),
+                                Icon(Icons.local_dining_rounded,
+                                    size: 40, color: AppColors.textHint),
+                                const SizedBox(height: 14),
+                                Text(
+                                  'Your morning is missing something fresh',
+                                  textAlign: TextAlign.center,
+                                  style: AppType.caption.copyWith(
+                                      color: AppColors.textSecondary),
+                                ),
+                                const SizedBox(height: 16),
+                                OutlinedButton.icon(
+                                  onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ProductsScreen()),
+                                  ),
+                                  icon: const Icon(Icons.storefront_rounded,
+                                      size: 18),
+                                  label: const Text('Browse Dairy Essentials'),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize:
+                                        const Size(double.infinity, 48),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          )
+                        else
+                          ...cart.extraItems.map((item) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Dismissible(
+                                key: Key(item['product_id'] ?? ''),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  padding: const EdgeInsets.only(right: 20),
+                                  alignment: Alignment.centerRight,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.error,
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: const Icon(Icons.delete_outline_rounded,
+                                      color: Colors.white),
+                                ),
+                                onDismissed: (_) async {
+                                  HapticFeedback.mediumImpact();
+                                  await cart
+                                      .removeItem(item['product_id']);
+                                  _showAutoSave();
+                                },
+                                child: PremiumCard(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 14),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surfaceBg,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(
+                                            Icons.shopping_bag_rounded,
+                                            color: AppColors.primary,
+                                            size: 20),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(item['name'] ?? '',
+                                                style: AppType.captionBold),
+                                            Text(
+                                              'Qty: ${item['quantity']}',
+                                              style: AppType.small.copyWith(
+                                                  color: AppColors
+                                                      .textSecondary),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        '₹${(item['total_price'] as num).toStringAsFixed(0)}',
+                                        style: AppType.bodyBold.copyWith(
+                                            color: AppColors.primary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+
+                        // ── Total ──────────────────────────────────
+                        if (!cart.isSkipped && cart.totalAmount > 0) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.primaryDark,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.2),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Total',
+                                    style: AppType.bodyBold
+                                        .copyWith(color: Colors.white)),
+                                Text(
+                                  '₹${cart.totalAmount.toStringAsFixed(2)}',
+                                  style: AppType.h2.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 100),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 28),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMilkSection(CartProvider cart, SubscriptionProvider sub) {
-    final baseSub = sub.subscription!;
-    final baseQty = (baseSub['quantity_litres'] as num).toDouble();
-    final effectiveQty = cart.effectiveMilk != null ? (cart.effectiveMilk!['quantity_litres'] as num).toDouble() : baseQty;
-
-    return PremiumCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (cart.isSkipped) ...[
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withAlpha(15),
-                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.block_rounded, color: AppColors.error, size: 22),
-                ),
-                const SizedBox(width: 14),
-                const Expanded(
-                  child: Text(
-                    'Delivery Skipped',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.error),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () => cart.revertOverride(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.success,
-                side: const BorderSide(color: AppColors.success, width: 1.5),
-              ),
-              child: const Text('Undo Skip'),
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.water_drop_rounded, color: AppColors.primary, size: 22),
-                ),
-                const SizedBox(width: 14),
-                Text(
-                  '${(baseSub['milk_type'] as String).toUpperCase()} Milk',
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
 
-            // Quantity stepper
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceBg,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _stepperButton(
-                      Icons.remove_rounded,
-                      effectiveQty > 0.5 ? () => cart.modifyQuantity(effectiveQty - 0.5) : null,
-                    ),
-                    Container(
-                      width: 80,
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${effectiveQty}L',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                      ),
-                    ),
-                    _stepperButton(
-                      Icons.add_rounded,
-                      effectiveQty < 10 ? () => cart.modifyQuantity(effectiveQty + 0.5) : null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            if (effectiveQty != baseQty) ...[
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton(
-                  onPressed: () => cart.revertOverride(),
-                  child: Text('Reset to default (${baseQty}L)'),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () => cart.skipTomorrow(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error, width: 1.5),
-              ),
-              child: const Text('Skip Tomorrow'),
+            // Auto-save pill overlay
+            Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
+              child: Center(child: AutoSavePill(visible: _showSavePill)),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _stepperButton(IconData icon, VoidCallback? onPressed) {
-    final enabled = onPressed != null;
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: enabled ? AppColors.primary : AppColors.border,
-          borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: enabled ? Colors.white : AppColors.textHint, size: 22),
       ),
     );
   }
 
-  Widget _buildExtrasSection(CartProvider cart) {
-    if (cart.extraItems.isEmpty) {
-      return PremiumCard(
-        child: Center(
-          child: Column(
-            children: [
-              Icon(Icons.shopping_bag_outlined, size: 36, color: AppColors.textHint),
-              const SizedBox(height: 10),
-              const Text('No extra products added', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-            ],
-          ),
-        ),
-      );
-    }
+  void _showQuickAddSheet(BuildContext context) {
+    final cart = context.read<CartProvider>();
 
-    return PremiumCard(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      child: Column(
-        children: cart.extraItems.map((item) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.inventory_2_outlined, size: 18, color: AppColors.primary),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['product_name'] ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                      Text(
-                        '${item['quantity']}x ${item['unit']} @ Rs.${item['price']}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  'Rs.${(item['total'] as num).toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.error),
-                  onPressed: () => cart.removeItem(item['product_id']),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  void _showProductsSheet(CartProvider cart) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -313,78 +389,153 @@ class _CartScreenState extends State<CartScreen> {
       builder: (_) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        child: DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          maxChildSize: 0.9,
-          minChildSize: 0.4,
-          expand: false,
-          builder: (_, scrollController) => Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                // Handle
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Add Products',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: ListView.separated(
-                    controller: scrollController,
-                    itemCount: cart.products.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, i) {
-                      final p = cart.products[i];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                        leading: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceBg,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.inventory_2_outlined, color: AppColors.primary, size: 20),
-                        ),
-                        title: Text(p['name'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                          '${p['unit']} - Rs.${p['price']}',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                        ),
-                        trailing: GestureDetector(
-                          onTap: () {
-                            cart.addItem(p['id'], 1);
-                            Navigator.pop(context);
-                          },
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+              ),
             ),
+            const SizedBox(height: 20),
+            Text('Quick Add', style: AppType.h2),
+            const SizedBox(height: 4),
+            Text('Essentials for tomorrow',
+                style: AppType.small.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 20),
+
+            // Quick essentials — shows products from cart provider
+            FutureBuilder(
+              future: cart.loadProducts(),
+              builder: (context, snapshot) {
+                if (cart.products.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          const CircularProgressIndicator(strokeWidth: 2.5),
+                          const SizedBox(height: 12),
+                          Text('Loading products...',
+                              style: AppType.small.copyWith(
+                                  color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                final essentials = cart.products.take(6).toList();
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: essentials.map((p) {
+                    return GestureDetector(
+                      onTap: () async {
+                        HapticFeedback.lightImpact();
+                        await cart.addItem(p['id'], 1);
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          _showAutoSave();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: AppColors.border, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add_circle_outline_rounded,
+                                size: 18, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            Text(p['name'] ?? '',
+                                style: AppType.captionBold),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ProductsScreen()),
+                  );
+                },
+                child: const Text('Browse All Products'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Mini +/- stepper for inline quantity editing.
+class _MiniStepper extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _MiniStepper({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _btn(Icons.remove, () {
+          if (value > 0.5) onChanged(value - 0.5);
+        }),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            '${value % 1 == 0 ? value.toInt() : value}L',
+            style: AppType.h3.copyWith(color: AppColors.primary),
           ),
         ),
+        _btn(Icons.add, () {
+          if (value < 10) onChanged(value + 0.5);
+        }),
+      ],
+    );
+  }
+
+  Widget _btn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: AppColors.primaryLight,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 16, color: AppColors.primary),
       ),
     );
   }
