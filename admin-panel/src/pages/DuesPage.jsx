@@ -1,26 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Search } from 'lucide-react';
 
 const METHOD_LABELS = { cash: 'Cash', upi: 'UPI', other: 'Other' };
-const METHOD_COLORS = { cash: 'bg-green-100 text-green-700', upi: 'bg-blue-100 text-blue-700', other: 'bg-gray-100 text-gray-600' };
-const TICKET_STATUS_COLORS = { open: 'bg-red-100 text-red-700', in_review: 'bg-yellow-100 text-yellow-700', resolved: 'bg-green-100 text-green-700' };
+const METHOD_BADGE  = { cash: 'badge badge-green', upi: 'badge badge-blue', other: 'badge badge-gray' };
+const TICKET_BADGE  = { open: 'badge badge-red', in_review: 'badge badge-yellow', resolved: 'badge badge-green' };
 
 export default function DuesPage() {
-  const [tab, setTab] = useState('dues'); // 'dues' | 'tickets'
+  const [tab, setTab] = useState('dues');
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Dues & Payments</h2>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          {[['dues', 'Due Amounts'], ['tickets', 'Tickets']].map(([key, label]) => (
+    <div className="space-y-5">
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Dues & Payments</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Track outstanding balances and support tickets</p>
+        </div>
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+          {[['dues', 'Due Amounts', Wallet], ['tickets', 'Tickets', Ticket]].map(([key, label, Icon]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                tab === key ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                tab === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
+              <Icon size={14} />
               {label}
             </button>
           ))}
@@ -35,16 +40,16 @@ export default function DuesPage() {
 // ─── Dues Tab ─────────────────────────────────────────────────────────────────
 
 function DuesTab() {
-  const [dues, setDues] = useState([]);
-  const [users, setUsers] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState(null); // userId for payment panel
-  const [payments, setPayments] = useState([]);
+  const [dues, setDues]                   = useState([]);
+  const [users, setUsers]                 = useState({});
+  const [loading, setLoading]             = useState(true);
+  const [search, setSearch]               = useState('');
+  const [selected, setSelected]           = useState(null);
+  const [payments, setPayments]           = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: '', method: 'cash', notes: '' });
-  const [paying, setPaying] = useState(false);
-  const [payError, setPayError] = useState('');
+  const [payForm, setPayForm]             = useState({ amount: '', method: 'cash', notes: '' });
+  const [paying, setPaying]               = useState(false);
+  const [payError, setPayError]           = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,18 +58,12 @@ function DuesTab() {
         api.get('/dues/admin/list'),
         api.get('/users/admin/list'),
       ]);
-      const dueList = duesRes.data.data.dues;
-      const userList = usersRes.data.data.users;
-      // Build userId → user map
       const userMap = {};
-      userList.forEach((u) => { userMap[u.id] = u; });
-      setDues(dueList);
+      usersRes.data.data.users.forEach((u) => { userMap[u.id] = u; });
+      setDues(duesRes.data.data.dues);
       setUsers(userMap);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -77,11 +76,8 @@ function DuesTab() {
     try {
       const res = await api.get(`/dues/admin/user/${userId}/payments`);
       setPayments(res.data.data.payments);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingPayments(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoadingPayments(false); }
   }
 
   async function submitPayment(e) {
@@ -91,14 +87,8 @@ function DuesTab() {
     if (!amount || amount <= 0) { setPayError('Enter a valid amount'); return; }
     setPaying(true);
     try {
-      await api.post('/dues/admin/payment', {
-        user_id: selected,
-        amount,
-        method: payForm.method,
-        notes: payForm.notes,
-      });
+      await api.post('/dues/admin/payment', { user_id: selected, amount, method: payForm.method, notes: payForm.notes });
       setPayForm({ amount: '', method: 'cash', notes: '' });
-      // Refresh
       const [duesRes, paymentsRes] = await Promise.all([
         api.get('/dues/admin/list'),
         api.get(`/dues/admin/user/${selected}/payments`),
@@ -107,74 +97,76 @@ function DuesTab() {
       setPayments(paymentsRes.data.data.payments);
     } catch (e) {
       setPayError(e.response?.data?.error || 'Failed to record payment');
-    } finally {
-      setPaying(false);
-    }
+    } finally { setPaying(false); }
   }
 
   const filtered = dues.filter((d) => {
     if (!search) return true;
     const u = users[d.user_id || d.id];
     const q = search.toLowerCase();
-    return (
-      u?.name?.toLowerCase().includes(q) ||
-      u?.phone?.includes(q)
-    );
+    return u?.name?.toLowerCase().includes(q) || u?.phone?.includes(q);
   });
 
-  // Summary
-  const totalDue = dues.reduce((s, d) => s + ((d.due_amount || 0) > 0 ? d.due_amount : 0), 0);
+  const totalDue     = dues.reduce((s, d) => s + ((d.due_amount || 0) > 0 ? d.due_amount : 0), 0);
   const totalPrepaid = dues.reduce((s, d) => s + ((d.due_amount || 0) < 0 ? Math.abs(d.due_amount) : 0), 0);
-  const totalBilled = dues.reduce((s, d) => s + (d.total_billed || 0), 0);
-  const totalPaid = dues.reduce((s, d) => s + (d.total_paid || 0), 0);
+  const totalBilled  = dues.reduce((s, d) => s + (d.total_billed || 0), 0);
+  const totalPaid    = dues.reduce((s, d) => s + (d.total_paid || 0), 0);
 
   const selectedUser = selected ? users[selected] : null;
-  const selectedDue = selected ? dues.find((d) => (d.user_id || d.id) === selected) : null;
+  const selectedDue  = selected ? dues.find((d) => (d.user_id || d.id) === selected) : null;
 
   return (
-    <div className="flex gap-6">
-      {/* Left: table */}
-      <div className="flex-1 min-w-0">
-        {/* Summary bar */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
+    <div className="flex gap-5">
+      {/* Left */}
+      <div className="flex-1 min-w-0 space-y-4">
+        {/* Summary */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: 'Total Outstanding', value: `₹${totalDue.toFixed(2)}`, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'Total Prepaid', value: `+ ₹${totalPrepaid.toFixed(2)}`, color: 'text-green-700', bg: 'bg-green-50' },
-            { label: 'Total Billed', value: `₹${totalBilled.toFixed(2)}`, color: 'text-gray-700', bg: 'bg-gray-50' },
-            { label: 'Total Collected', value: `₹${totalPaid.toFixed(2)}`, color: 'text-green-700', bg: 'bg-green-50' },
-          ].map(({ label, value, color, bg }) => (
-            <div key={label} className={`${bg} rounded-xl p-4`}>
+            { label: 'Outstanding', value: `₹${totalDue.toFixed(2)}`,     color: 'text-red-600',     bg: 'bg-red-50',     icon: TrendingDown },
+            { label: 'Prepaid',     value: `+₹${totalPrepaid.toFixed(2)}`, color: 'text-emerald-700', bg: 'bg-emerald-50', icon: TrendingUp   },
+            { label: 'Total Billed',value: `₹${totalBilled.toFixed(2)}`,   color: 'text-slate-700',   bg: 'bg-slate-50',   icon: Receipt      },
+            { label: 'Collected',   value: `₹${totalPaid.toFixed(2)}`,     color: 'text-emerald-700', bg: 'bg-emerald-50', icon: Wallet       },
+          ].map(({ label, value, color, bg, icon: Icon }) => (
+            <div key={label} className={`${bg} rounded-2xl p-4`}>
+              <Icon size={16} className={`${color} mb-2 opacity-70`} />
               <p className={`text-lg font-bold ${color}`}>{value}</p>
-              <p className="text-[11px] text-gray-500 mt-0.5 uppercase tracking-wide font-semibold">{label}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 font-semibold uppercase tracking-wide">{label}</p>
             </div>
           ))}
         </div>
 
-        <input
-          type="text"
-          placeholder="Search by name or phone…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        />
+        {/* Search */}
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name or phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input pl-9"
+          />
+        </div>
 
+        {/* Table */}
         {loading ? (
-          <p className="text-gray-500 text-center py-10">Loading…</p>
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => <div key={i} className="card h-14 animate-pulse bg-slate-50" />)}
+          </div>
         ) : filtered.length === 0 ? (
-          <p className="text-gray-500 text-center py-10">No due records found.</p>
+          <div className="card p-12 text-center text-slate-400">No due records found.</div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+          <div className="card overflow-hidden">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">User</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Billed</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Paid</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-600">Due</th>
-                  <th className="px-4 py-3"></th>
+                  <th>User</th>
+                  <th className="text-right">Billed</th>
+                  <th className="text-right">Paid</th>
+                  <th className="text-right">Due</th>
+                  <th></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {filtered.map((d) => {
                   const uid = d.user_id || d.id;
                   const u = users[uid];
@@ -182,24 +174,31 @@ function DuesTab() {
                   return (
                     <tr
                       key={uid}
-                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                      className={`cursor-pointer ${isSelected ? 'bg-blue-50/60' : ''}`}
                       onClick={() => openUser(uid)}
                     >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-800">{u?.name || 'Unknown'}</p>
-                        <p className="text-xs text-gray-400">{u?.phone || uid.slice(0, 10) + '…'}</p>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center shrink-0">
+                            <span className="text-white text-xs font-bold">
+                              {u?.name ? u.name[0].toUpperCase() : '?'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800 text-sm">{u?.name || 'Unknown'}</p>
+                            <p className="text-xs text-slate-400">{u?.phone || uid.slice(0, 10) + '…'}</p>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-600">₹{(d.total_billed || 0).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right text-green-600 font-medium">₹{(d.total_paid || 0).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={`font-bold text-base ${(d.due_amount || 0) > 0 ? 'text-red-600' : (d.due_amount || 0) < 0 ? 'text-green-600' : 'text-gray-600'}`}>
-                          {(d.due_amount || 0) < 0 ? `+ ₹${Math.abs(d.due_amount).toFixed(2)}` : `₹${(d.due_amount || 0).toFixed(2)}`}
+                      <td className="text-right text-slate-500">₹{(d.total_billed || 0).toFixed(2)}</td>
+                      <td className="text-right text-emerald-600 font-medium">₹{(d.total_paid || 0).toFixed(2)}</td>
+                      <td className="text-right">
+                        <span className={`font-bold ${(d.due_amount || 0) > 0 ? 'text-red-600' : (d.due_amount || 0) < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                          {(d.due_amount || 0) < 0 ? `+₹${Math.abs(d.due_amount).toFixed(2)}` : `₹${(d.due_amount || 0).toFixed(2)}`}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="text-xs text-blue-600 hover:underline font-medium">
-                          {isSelected ? 'Close' : 'Manage'}
-                        </button>
+                      <td>
+                        <span className="text-xs text-blue-600 font-semibold">{isSelected ? 'Close ▲' : 'Manage'}</span>
                       </td>
                     </tr>
                   );
@@ -212,86 +211,79 @@ function DuesTab() {
 
       {/* Right: payment panel */}
       {selected && (
-        <div className="w-80 shrink-0">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 sticky top-0">
-            <div className="flex items-start justify-between mb-4">
+        <div className="w-80 shrink-0 animate-slide-in">
+          <div className="card p-5 sticky top-0 space-y-4">
+            <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-bold text-gray-800">{selectedUser?.name || 'User'}</h3>
-                <p className="text-xs text-gray-400">{selectedUser?.phone}</p>
+                <h3 className="font-bold text-slate-800">{selectedUser?.name || 'User'}</h3>
+                <p className="text-xs text-slate-400">{selectedUser?.phone}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+              <button onClick={() => setSelected(null)} className="btn-icon">
+                <X size={16} />
+              </button>
             </div>
 
-            {/* Due balance */}
-            <div className={`rounded-lg p-3 mb-4 ${(selectedDue?.due_amount || 0) > 0 ? 'bg-red-50' : (selectedDue?.due_amount || 0) < 0 ? 'bg-green-50' : 'bg-gray-50'}`}>
-              <p className="text-xs text-gray-500">{(selectedDue?.due_amount || 0) < 0 ? 'Prepaid Balance' : 'Outstanding Due'}</p>
-              <p className={`text-2xl font-bold mt-0.5 ${(selectedDue?.due_amount || 0) > 0 ? 'text-red-600' : (selectedDue?.due_amount || 0) < 0 ? 'text-green-600' : 'text-gray-800'}`}>
-                {(selectedDue?.due_amount || 0) < 0 ? `+ ₹${Math.abs(selectedDue.due_amount).toFixed(2)}` : `₹${(selectedDue?.due_amount || 0).toFixed(2)}`}
+            {/* Balance */}
+            <div className={`rounded-xl p-3 ${(selectedDue?.due_amount || 0) > 0 ? 'bg-red-50' : (selectedDue?.due_amount || 0) < 0 ? 'bg-emerald-50' : 'bg-slate-50'}`}>
+              <p className="text-xs text-slate-500">{(selectedDue?.due_amount || 0) < 0 ? 'Prepaid Balance' : 'Outstanding Due'}</p>
+              <p className={`text-2xl font-bold mt-0.5 ${(selectedDue?.due_amount || 0) > 0 ? 'text-red-600' : (selectedDue?.due_amount || 0) < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                {(selectedDue?.due_amount || 0) < 0 ? `+₹${Math.abs(selectedDue.due_amount).toFixed(2)}` : `₹${(selectedDue?.due_amount || 0).toFixed(2)}`}
               </p>
             </div>
 
-            {/* Record payment form */}
-            <form onSubmit={submitPayment} className="mb-5">
-              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Record Payment</p>
-              <div className="space-y-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="Amount (₹)"
-                  value={payForm.amount}
-                  onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  required
-                />
-                <select
-                  value={payForm.method}
-                  onChange={(e) => setPayForm((p) => ({ ...p, method: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                  <option value="other">Other</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Notes (optional)"
-                  value={payForm.notes}
-                  onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-              </div>
-              {payError && <p className="text-red-600 text-xs mt-2">{payError}</p>}
-              <button
-                type="submit"
-                disabled={paying}
-                className="w-full mt-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-60"
+            {/* Payment form */}
+            <form onSubmit={submitPayment} className="space-y-2.5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Record Payment</p>
+              <input
+                type="number" step="0.01" min="0.01" placeholder="Amount (₹)"
+                value={payForm.amount}
+                onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))}
+                className="input" required
+              />
+              <select
+                value={payForm.method}
+                onChange={(e) => setPayForm((p) => ({ ...p, method: e.target.value }))}
+                className="select"
               >
-                {paying ? 'Recording…' : 'Record Payment'}
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="other">Other</option>
+              </select>
+              <input
+                type="text" placeholder="Notes (optional)"
+                value={payForm.notes}
+                onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))}
+                className="input"
+              />
+              {payError && <p className="text-red-600 text-xs">{payError}</p>}
+              <button type="submit" disabled={paying} className="btn-primary w-full justify-center disabled:opacity-60">
+                {paying ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Recording…</>
+                ) : 'Record Payment'}
               </button>
             </form>
 
-            {/* Payment history */}
+            {/* History */}
             <div>
-              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Payment History</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Payment History</p>
               {loadingPayments ? (
-                <p className="text-xs text-gray-400">Loading…</p>
+                <p className="text-xs text-slate-400">Loading…</p>
               ) : payments.length === 0 ? (
-                <p className="text-xs text-gray-400">No payments recorded yet.</p>
+                <p className="text-xs text-slate-400">No payments recorded yet.</p>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="space-y-2 max-h-56 overflow-y-auto">
                   {payments.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div key={p.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                       <div>
-                        <p className="text-xs text-gray-500">{p.payment_date}</p>
+                        <p className="text-xs text-slate-400">{p.payment_date}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${METHOD_COLORS[p.method] || 'bg-gray-100'}`}>
+                          <span className={METHOD_BADGE[p.method] || 'badge badge-gray'}>
                             {METHOD_LABELS[p.method] || p.method}
                           </span>
-                          {p.notes && <span className="text-xs text-gray-400 truncate max-w-[90px]" title={p.notes}>{p.notes}</span>}
+                          {p.notes && <span className="text-xs text-slate-400 truncate max-w-[80px]" title={p.notes}>{p.notes}</span>}
                         </div>
                       </div>
-                      <span className="text-sm font-bold text-green-600">+₹{(p.amount || 0).toFixed(2)}</span>
+                      <span className="text-sm font-bold text-emerald-600">+₹{(p.amount || 0).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -307,23 +299,20 @@ function DuesTab() {
 // ─── Tickets Tab ──────────────────────────────────────────────────────────────
 
 function TicketsTab() {
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets]       = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected]     = useState(null);
   const [resolveForm, setResolveForm] = useState({ status: '', admin_notes: '' });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]         = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get(`/dues/admin/tickets${statusFilter ? `?status=${statusFilter}` : ''}`);
       setTickets(res.data.data.tickets);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }, [statusFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -340,63 +329,57 @@ function TicketsTab() {
       await api.put(`/dues/admin/tickets/${selected.id}`, resolveForm);
       await load();
       setSelected(null);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
   }
 
   const counts = tickets.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
 
   return (
-    <div className="flex gap-6">
-      {/* List */}
-      <div className="flex-1 min-w-0">
-        {/* Filter bar */}
-        <div className="flex gap-2 mb-4">
+    <div className="flex gap-5">
+      <div className="flex-1 min-w-0 space-y-4">
+        {/* Filter */}
+        <div className="flex gap-2 flex-wrap">
           {[['', 'All'], ['open', 'Open'], ['in_review', 'In Review'], ['resolved', 'Resolved']].map(([val, label]) => (
             <button
               key={val}
               onClick={() => setStatusFilter(val)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                statusFilter === val
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`btn btn-sm ${statusFilter === val ? 'btn-primary' : 'btn-secondary'}`}
             >
-              {label} {val && counts[val] ? `(${counts[val]})` : ''}
+              {label}{val && counts[val] ? ` (${counts[val]})` : ''}
             </button>
           ))}
         </div>
 
         {loading ? (
-          <p className="text-gray-500 text-center py-10">Loading…</p>
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => <div key={i} className="card h-20 animate-pulse bg-slate-50" />)}
+          </div>
         ) : tickets.length === 0 ? (
-          <p className="text-gray-500 text-center py-10">No tickets found.</p>
+          <div className="card p-12 text-center text-slate-400">No tickets found.</div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {tickets.map((t) => (
               <div
                 key={t.id}
                 onClick={() => openTicket(t)}
-                className={`bg-white rounded-xl border p-4 cursor-pointer hover:border-blue-300 transition-colors ${
-                  selected?.id === t.id ? 'border-blue-400 ring-1 ring-blue-400' : 'border-gray-200'
+                className={`card p-4 cursor-pointer hover:border-blue-200 transition-all ${
+                  selected?.id === t.id ? 'border-blue-400 ring-1 ring-blue-300' : ''
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-gray-800 truncate">{t.subject}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{t.user_name} · {t.user_phone}</p>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{t.description}</p>
+                    <p className="font-semibold text-slate-800 truncate">{t.subject}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{t.user_name} · {t.user_phone}</p>
+                    <p className="text-sm text-slate-500 mt-1 line-clamp-2">{t.description}</p>
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${TICKET_STATUS_COLORS[t.status] || 'bg-gray-100'}`}>
+                  <span className={TICKET_BADGE[t.status] || 'badge badge-gray'}>
                     {t.status.replace('_', ' ')}
                   </span>
                 </div>
                 {t.admin_notes && (
-                  <div className="mt-2 pt-2 border-t border-gray-100">
-                    <p className="text-xs text-gray-500"><span className="font-medium">Admin note:</span> {t.admin_notes}</p>
+                  <div className="mt-2 pt-2 border-t border-slate-50">
+                    <p className="text-xs text-slate-400"><span className="font-semibold">Note:</span> {t.admin_notes}</p>
                   </div>
                 )}
               </div>
@@ -407,22 +390,23 @@ function TicketsTab() {
 
       {/* Resolve panel */}
       {selected && (
-        <div className="w-72 shrink-0">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 sticky top-0">
-            <div className="flex items-start justify-between mb-4">
-              <p className="font-bold text-gray-800 text-sm">Update Ticket</p>
-              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        <div className="w-72 shrink-0 animate-slide-in">
+          <div className="card p-5 sticky top-0 space-y-4">
+            <div className="flex items-start justify-between">
+              <p className="font-bold text-slate-800 text-sm">Update Ticket</p>
+              <button onClick={() => setSelected(null)} className="btn-icon"><X size={16} /></button>
             </div>
-            <p className="text-sm font-medium text-gray-700 mb-1">{selected.subject}</p>
-            <p className="text-xs text-gray-500 mb-4">{selected.description}</p>
-
+            <div>
+              <p className="text-sm font-semibold text-slate-700">{selected.subject}</p>
+              <p className="text-xs text-slate-500 mt-1">{selected.description}</p>
+            </div>
             <form onSubmit={saveTicket} className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1">Status</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
                 <select
                   value={resolveForm.status}
                   onChange={(e) => setResolveForm((f) => ({ ...f, status: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="select"
                 >
                   <option value="open">Open</option>
                   <option value="in_review">In Review</option>
@@ -430,21 +414,19 @@ function TicketsTab() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1">Admin Notes</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Admin Notes</label>
                 <textarea
                   rows={4}
                   placeholder="Add a note for the user…"
                   value={resolveForm.admin_notes}
                   onChange={(e) => setResolveForm((f) => ({ ...f, admin_notes: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="input resize-none"
                 />
               </div>
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 rounded-lg transition-colors disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : 'Save Changes'}
+              <button type="submit" disabled={saving} className="btn-primary w-full justify-center disabled:opacity-60">
+                {saving ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving…</>
+                ) : 'Save Changes'}
               </button>
             </form>
           </div>

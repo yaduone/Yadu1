@@ -1,24 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import {
-  Bell,
-  UserPlus,
-  FileText,
-  Ticket,
-  UserCheck,
-  RefreshCw,
-  Filter,
-  AlertCircle,
+  Bell, UserPlus, FileText, Ticket, UserCheck,
+  RefreshCw, Filter, AlertCircle, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
 const LOG_TYPES = [
-  { key: 'all',               label: 'All Activity' },
-  { key: 'new_user',          label: 'New Sign-ups' },
-  { key: 'profile_completed', label: 'Profile Completed' },
-  { key: 'manifest_generated',label: 'Manifests' },
-  { key: 'due_ticket_raised', label: 'Due Tickets' },
+  { key: 'all',                label: 'All Activity'       },
+  { key: 'new_user',           label: 'New Sign-ups'       },
+  { key: 'profile_completed',  label: 'Profile Completed'  },
+  { key: 'manifest_generated', label: 'Manifests'          },
+  { key: 'due_ticket_raised',  label: 'Due Tickets'        },
 ];
 
 const TYPE_CONFIG = {
@@ -26,56 +18,47 @@ const TYPE_CONFIG = {
     icon: UserPlus,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
-    border: 'border-blue-100',
-    badge: 'bg-blue-100 text-blue-700',
+    badge: 'badge badge-blue',
     label: 'New Sign-up',
   },
   profile_completed: {
     icon: UserCheck,
-    color: 'text-green-600',
-    bg: 'bg-green-50',
-    border: 'border-green-100',
-    badge: 'bg-green-100 text-green-700',
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-50',
+    badge: 'badge badge-green',
     label: 'Profile Completed',
   },
   manifest_generated: {
     icon: FileText,
     color: 'text-purple-600',
     bg: 'bg-purple-50',
-    border: 'border-purple-100',
-    badge: 'bg-purple-100 text-purple-700',
+    badge: 'badge badge-purple',
     label: 'Manifest',
   },
   due_ticket_raised: {
     icon: Ticket,
     color: 'text-red-600',
     bg: 'bg-red-50',
-    border: 'border-red-100',
-    badge: 'bg-red-100 text-red-700',
+    badge: 'badge badge-red',
     label: 'Due Ticket',
   },
 };
 
 const DEFAULT_CONFIG = {
   icon: Bell,
-  color: 'text-gray-500',
-  bg: 'bg-gray-50',
-  border: 'border-gray-100',
-  badge: 'bg-gray-100 text-gray-600',
+  color: 'text-slate-500',
+  bg: 'bg-slate-50',
+  badge: 'badge badge-gray',
   label: 'Activity',
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now - d;
+  const diffMs = Date.now() - d;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
@@ -91,15 +74,13 @@ function formatFullTime(iso) {
   });
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 export default function ActivityPage() {
-  const [logs, setLogs]           = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [logs, setLogs]             = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError]         = useState('');
-  const [filter, setFilter]       = useState('all');
-  const [expanded, setExpanded]   = useState(null);
+  const [error, setError]           = useState('');
+  const [filter, setFilter]         = useState('all');
+  const [expanded, setExpanded]     = useState(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -119,26 +100,25 @@ export default function ActivityPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Summary counts
   const counts = logs.reduce((acc, l) => {
     acc[l.type] = (acc[l.type] || 0) + 1;
     return acc;
   }, {});
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Activity Feed</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Real-time log of key events in your area</p>
+          <h2 className="page-title">Activity Feed</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Real-time log of key events in your area</p>
         </div>
         <button
           onClick={() => load(true)}
           disabled={refreshing}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          className="btn-ghost btn-sm flex items-center gap-1.5"
         >
-          <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
           Refresh
         </button>
       </div>
@@ -146,36 +126,32 @@ export default function ActivityPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { key: 'new_user',           label: 'New Sign-ups',   color: 'text-blue-600',   bg: 'bg-blue-50'   },
-          { key: 'profile_completed',  label: 'Profiles Done',  color: 'text-green-600',  bg: 'bg-green-50'  },
-          { key: 'manifest_generated', label: 'Manifests',      color: 'text-purple-600', bg: 'bg-purple-50' },
-          { key: 'due_ticket_raised',  label: 'Due Tickets',    color: 'text-red-600',    bg: 'bg-red-50'    },
-        ].map(({ key, label, color, bg }) => (
+          { key: 'new_user',           label: 'New Sign-ups',  color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
+          { key: 'profile_completed',  label: 'Profiles Done', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+          { key: 'manifest_generated', label: 'Manifests',     color: 'text-purple-600',  bg: 'bg-purple-50',  border: 'border-purple-200'  },
+          { key: 'due_ticket_raised',  label: 'Due Tickets',   color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-200'     },
+        ].map(({ key, label, color, bg, border }) => (
           <button
             key={key}
             onClick={() => setFilter(filter === key ? 'all' : key)}
-            className={`${bg} rounded-xl p-4 text-left border-2 transition-all ${
-              filter === key ? 'border-gray-400 shadow-sm' : 'border-transparent'
+            className={`${bg} rounded-2xl p-4 text-left border-2 transition-all ${
+              filter === key ? `${border} shadow-sm` : 'border-transparent'
             }`}
           >
             <p className={`text-2xl font-bold ${color}`}>{counts[key] || 0}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
           </button>
         ))}
       </div>
 
       {/* Filter tabs */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Filter size={14} className="text-gray-400" />
+        <Filter size={13} className="text-slate-400" />
         {LOG_TYPES.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              filter === key
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className={`btn btn-sm ${filter === key ? 'btn-primary' : 'btn-secondary'}`}
           >
             {label}
           </button>
@@ -184,7 +160,7 @@ export default function ActivityPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm">
           <AlertCircle size={16} />
           {error}
         </div>
@@ -192,24 +168,24 @@ export default function ActivityPage() {
 
       {/* Log list */}
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 animate-pulse">
+            <div key={i} className="card p-4 animate-pulse">
               <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gray-100 shrink-0" />
+                <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-100 rounded w-1/3" />
-                  <div className="h-3 bg-gray-100 rounded w-2/3" />
+                  <div className="h-4 bg-slate-100 rounded w-1/3" />
+                  <div className="h-3 bg-slate-100 rounded w-2/3" />
                 </div>
               </div>
             </div>
           ))}
         </div>
       ) : logs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
-          <Bell size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 font-medium">No activity yet</p>
-          <p className="text-gray-400 text-sm mt-1">Events will appear here as they happen</p>
+        <div className="card p-16 text-center">
+          <Bell size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">No activity yet</p>
+          <p className="text-slate-400 text-sm mt-1">Events will appear here as they happen</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -227,69 +203,55 @@ export default function ActivityPage() {
   );
 }
 
-// ─── Log Card ─────────────────────────────────────────────────────────────────
-
 function LogCard({ log, expanded, onToggle }) {
   const cfg = TYPE_CONFIG[log.type] || DEFAULT_CONFIG;
   const Icon = cfg.icon;
   const hasMeta = log.meta && Object.keys(log.meta).length > 0;
 
   return (
-    <div
-      className={`bg-white rounded-xl border ${cfg.border} transition-all`}
-    >
+    <div className={`card transition-all ${expanded ? 'ring-1 ring-blue-200' : ''}`}>
       <button
         onClick={hasMeta ? onToggle : undefined}
-        className={`w-full text-left p-4 ${hasMeta ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'} rounded-xl transition-colors`}
+        className={`w-full text-left p-4 ${hasMeta ? 'cursor-pointer hover:bg-slate-50/60' : 'cursor-default'} rounded-2xl transition-colors`}
       >
         <div className="flex items-start gap-3">
-          {/* Icon */}
           <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center shrink-0`}>
             <Icon size={18} className={cfg.color} />
           </div>
-
-          {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>
-                {cfg.label}
-              </span>
-              <span className="text-xs text-gray-400">{formatTime(log.created_at)}</span>
+              <span className={cfg.badge}>{cfg.label}</span>
+              <span className="text-xs text-slate-400">{formatTime(log.created_at)}</span>
             </div>
-            <p className="text-sm font-semibold text-gray-800 mt-1">{log.title}</p>
-            <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">{log.message}</p>
+            <p className="text-sm font-semibold text-slate-800 mt-1">{log.title}</p>
+            <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">{log.message}</p>
           </div>
-
-          {/* Expand indicator */}
           {hasMeta && (
-            <span className="text-gray-300 text-xs mt-1 shrink-0">
-              {expanded ? '▲' : '▼'}
+            <span className="text-slate-400 shrink-0 mt-1">
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </span>
           )}
         </div>
       </button>
 
-      {/* Expanded meta */}
       {expanded && hasMeta && (
-        <div className="px-4 pb-4">
-          <div className="ml-13 pl-13">
-            <div className="ml-[52px] bg-gray-50 rounded-lg p-3 border border-gray-100">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Details</p>
-              <div className="space-y-1">
-                {Object.entries(log.meta).map(([k, v]) => (
-                  v != null && (
-                    <div key={k} className="flex gap-2 text-xs">
-                      <span className="text-gray-400 font-medium min-w-[100px] shrink-0">
-                        {k.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-gray-700 break-all">{String(v)}</span>
-                    </div>
-                  )
-                ))}
-                <div className="flex gap-2 text-xs pt-1 border-t border-gray-200 mt-1">
-                  <span className="text-gray-400 font-medium min-w-[100px] shrink-0">timestamp</span>
-                  <span className="text-gray-700">{formatFullTime(log.created_at)}</span>
-                </div>
+        <div className="px-4 pb-4 animate-fade-in">
+          <div className="ml-[52px] bg-slate-50 rounded-xl p-3 border border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Details</p>
+            <div className="space-y-1.5">
+              {Object.entries(log.meta).map(([k, v]) =>
+                v != null ? (
+                  <div key={k} className="flex gap-3 text-xs">
+                    <span className="text-slate-400 font-semibold min-w-[100px] shrink-0 capitalize">
+                      {k.replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-slate-700 break-all">{String(v)}</span>
+                  </div>
+                ) : null
+              )}
+              <div className="flex gap-3 text-xs pt-1.5 border-t border-slate-200 mt-1">
+                <span className="text-slate-400 font-semibold min-w-[100px] shrink-0">Timestamp</span>
+                <span className="text-slate-700">{formatFullTime(log.created_at)}</span>
               </div>
             </div>
           </div>

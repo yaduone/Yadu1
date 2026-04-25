@@ -90,19 +90,24 @@ export default function ManifestsPage() {
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold text-gray-800">Delivery Manifests</h2>
+    <div className="space-y-5">
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Delivery Manifests</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Daily delivery route sheets</p>
+        </div>
+      </div>
 
       {/* ── Next-Day Manifest Card ─────────────────────────────────────────── */}
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse h-32" />
+        <div className="card p-6 animate-pulse h-32 bg-slate-50" />
       ) : nextDay && (
-        <div className={`rounded-xl border-2 p-6 ${
+        <div className={`rounded-2xl border-2 p-6 ${
           nextDay.is_ready && nextDay.manifest
-            ? 'bg-green-50 border-green-300'
+            ? 'bg-emerald-50 border-emerald-300'
             : nextDay.is_ready && !nextDay.manifest
             ? 'bg-orange-50 border-orange-300'
-            : 'bg-gray-50 border-gray-200'
+            : 'bg-slate-50 border-slate-200'
         }`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
@@ -166,7 +171,7 @@ export default function ManifestsPage() {
               {nextDay.is_ready && nextDay.manifest ? (
                 <button
                   onClick={() => handleDownload(nextDay.manifest.id, nextDay.delivery_date)}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="btn-primary"
                 >
                   <Download size={15} />
                   Download PDF
@@ -175,7 +180,7 @@ export default function ManifestsPage() {
                 <button
                   onClick={handleTrigger}
                   disabled={triggering}
-                  className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                  className="btn btn-sm bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-400 disabled:opacity-60"
                 >
                   <RefreshCw size={15} className={triggering ? 'animate-spin' : ''} />
                   {triggering ? 'Generating…' : 'Generate Now'}
@@ -191,83 +196,85 @@ export default function ManifestsPage() {
       )}
 
       {/* ── Regenerate Past Manifest ──────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <p className="text-sm font-semibold text-gray-700 mb-3">Regenerate a past manifest</p>
-        <div className="flex items-center gap-3">
+      <div className="card p-5">
+        <p className="text-sm font-semibold text-slate-700 mb-3">Regenerate a past manifest</p>
+        <div className="flex items-center gap-3 flex-wrap">
           <input
             type="date"
             value={regenDate}
             max={todayStr}
             onChange={(e) => { setRegenDate(e.target.value); setRegenMsg(''); }}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="input w-auto"
           />
           <button
             onClick={handleRegenerate}
             disabled={!regenDate || regenerating}
-            className="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="btn-primary disabled:opacity-50"
           >
             <RefreshCw size={14} className={regenerating ? 'animate-spin' : ''} />
             {regenerating ? 'Regenerating…' : 'Regenerate'}
           </button>
           {regenMsg && (
-            <span className={`text-xs ${regenMsg.includes('failed') || regenMsg.includes('Cannot') ? 'text-red-600' : 'text-green-600'}`}>
+            <span className={`text-xs font-medium ${regenMsg.includes('failed') || regenMsg.includes('Cannot') ? 'text-red-600' : 'text-emerald-600'}`}>
               {regenMsg}
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-2">Only today and past dates can be regenerated.</p>
+        <p className="text-xs text-slate-400 mt-2">Only today and past dates can be regenerated.</p>
       </div>
 
       {/* ── Historical Manifests Table ────────────────────────────────────── */}
       <div>
-        <p className="text-sm font-semibold text-gray-700 mb-3">Past Manifests</p>
+        <p className="text-sm font-semibold text-slate-700 mb-3">Past Manifests</p>
         {loading ? (
-          <p className="text-gray-400 text-sm">Loading…</p>
+          <p className="text-slate-400 text-sm">Loading…</p>
         ) : manifests.length === 0 ? (
-          <p className="text-gray-400 text-sm">No past manifests found.</p>
+          <p className="text-slate-400 text-sm">No past manifests found.</p>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+          <div className="card overflow-hidden">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Customers</th>
-                  <th className="text-left px-4 py-3 font-medium text-yellow-700">☀ Morning</th>
-                  <th className="text-left px-4 py-3 font-medium text-indigo-700">🌙 Evening</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Total Milk (L)</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Extras</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Amount</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Generated</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">By</th>
-                  <th className="px-4 py-3"></th>
+                  <th>Date</th>
+                  <th>Customers</th>
+                  <th className="text-yellow-700">☀ Morning</th>
+                  <th className="text-indigo-700">🌙 Evening</th>
+                  <th>Total Milk (L)</th>
+                  <th>Extras</th>
+                  <th>Amount</th>
+                  <th>Generated</th>
+                  <th>By</th>
+                  <th></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {manifests.map((m) => (
-                  <tr key={m.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-800">{m.date}</td>
-                    <td className="px-4 py-3 text-gray-600">{m.total_users}</td>
-                    <td className="px-4 py-3 text-yellow-700 text-xs">
+                  <tr key={m.id}>
+                    <td className="font-semibold text-slate-800">{m.date}</td>
+                    <td className="text-slate-600">{m.total_users}</td>
+                    <td className="text-yellow-700 text-xs">
                       {m.morning_users ?? '—'} cust · {m.morning_milk_litres ?? '—'}L
                     </td>
-                    <td className="px-4 py-3 text-indigo-700 text-xs">
+                    <td className="text-indigo-700 text-xs">
                       {m.evening_users ?? '—'} cust · {m.evening_milk_litres ?? '—'}L
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{m.total_milk_litres}</td>
-                    <td className="px-4 py-3 text-gray-600">{m.total_extra_items}</td>
-                    <td className="px-4 py-3 font-medium">₹{m.total_amount?.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td className="text-slate-600">{m.total_milk_litres}</td>
+                    <td className="text-slate-600">{m.total_extra_items}</td>
+                    <td className="font-semibold text-slate-800">₹{m.total_amount?.toFixed(2)}</td>
+                    <td className="text-xs text-slate-500">
                       {m.generated_at
                         ? new Date(m.generated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
                         : '—'}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
-                      {m.generated_by === 'system' ? 'Auto' : 'Manual'}
+                    <td>
+                      <span className={`badge ${m.generated_by === 'system' ? 'badge-blue' : 'badge-purple'}`}>
+                        {m.generated_by === 'system' ? 'Auto' : 'Manual'}
+                      </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <button
                         onClick={() => handleDownload(m.id, m.date)}
-                        className="text-blue-600 hover:text-blue-800 transition-colors"
+                        className="btn-icon text-blue-600 hover:text-blue-800"
                         title="Download PDF"
                       >
                         <Download size={16} />

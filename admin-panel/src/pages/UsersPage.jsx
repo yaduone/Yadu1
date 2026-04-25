@@ -1,26 +1,31 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import { Search, Users, UserCheck, UserX, UserMinus, HelpCircle } from 'lucide-react';
 
-const STATUS_STYLES = {
-  active:    'bg-green-100 text-green-700',
-  paused:    'bg-yellow-100 text-yellow-700',
-  cancelled: 'bg-red-100 text-red-700',
+const STATUS_BADGE = {
+  active:    'badge badge-green',
+  paused:    'badge badge-yellow',
+  cancelled: 'badge badge-red',
 };
 
 const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Toned' };
 
+const FILTER_CONFIG = [
+  { key: 'active',    label: 'Active',    icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  { key: 'paused',    label: 'Paused',    icon: UserMinus, color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200'   },
+  { key: 'cancelled', label: 'Cancelled', icon: UserX,     color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-200'     },
+  { key: 'no_sub',    label: 'No Sub',    icon: HelpCircle,color: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200'   },
+];
+
 export default function UsersPage() {
   const [users, setUsers]     = useState([]);
-  const [dueMap, setDueMap]   = useState({}); // userId → due_amount
+  const [dueMap, setDueMap]   = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
-  const [filter, setFilter]   = useState('all'); // all | active | paused | cancelled | no_sub
+  const [filter, setFilter]   = useState('all');
 
   useEffect(() => {
-    Promise.all([
-      api.get('/users/admin/list'),
-      api.get('/dues/admin/list'),
-    ])
+    Promise.all([api.get('/users/admin/list'), api.get('/dues/admin/list')])
       .then(([usersRes, duesRes]) => {
         setUsers(usersRes.data.data.users);
         const map = {};
@@ -45,7 +50,6 @@ export default function UsersPage() {
     return true;
   });
 
-  // Summary counts
   const counts = users.reduce((acc, u) => {
     const s = u.subscription?.status ?? 'no_sub';
     acc[s] = (acc[s] || 0) + 1;
@@ -53,49 +57,53 @@ export default function UsersPage() {
   }, {});
 
   return (
-    <div>
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800">Users</h2>
-        <span className="text-sm text-gray-500">{users.length} total in your area</span>
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Users</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{users.length} total in your area</p>
+        </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: 'Active',      key: 'active',    color: 'text-green-600',  bg: 'bg-green-50'  },
-          { label: 'Paused',      key: 'paused',    color: 'text-yellow-600', bg: 'bg-yellow-50' },
-          { label: 'Cancelled',   key: 'cancelled', color: 'text-red-600',    bg: 'bg-red-50'    },
-          { label: 'No Sub',      key: 'no_sub',    color: 'text-gray-500',   bg: 'bg-gray-50'   },
-        ].map(({ label, key, color, bg }) => (
+      {/* Summary filter cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {FILTER_CONFIG.map(({ key, label, icon: Icon, color, bg, border }) => (
           <button
             key={key}
             onClick={() => setFilter(filter === key ? 'all' : key)}
-            className={`${bg} rounded-xl p-4 text-left border-2 transition-all ${
-              filter === key ? 'border-gray-400' : 'border-transparent'
+            className={`${bg} rounded-2xl p-4 text-left border-2 transition-all ${
+              filter === key ? `${border} shadow-sm` : 'border-transparent'
             }`}
           >
+            <div className="flex items-center justify-between mb-2">
+              <Icon size={16} className={color} />
+              {filter === key && <span className="text-[10px] font-bold text-slate-400 uppercase">Active</span>}
+            </div>
             <p className={`text-2xl font-bold ${color}`}>{counts[key] || 0}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
           </button>
         ))}
       </div>
 
-      {/* Search + filter bar */}
-      <div className="flex gap-3 mb-4">
-        <input
-          type="text"
-          placeholder="Search by name, phone or address…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-        />
+      {/* Search + filter */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name, phone or address…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input pl-9"
+          />
+        </div>
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+          className="select w-40"
         >
-          <option value="all">All</option>
+          <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="paused">Paused</option>
           <option value="cancelled">Cancelled</option>
@@ -103,97 +111,98 @@ export default function UsersPage() {
         </select>
       </div>
 
+      {/* Table */}
       {loading ? (
-        <p className="text-gray-500 py-10 text-center">Loading users…</p>
+        <div className="space-y-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="card h-14 animate-pulse bg-slate-50" />
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <p className="text-gray-500 py-10 text-center">No users found.</p>
+        <div className="card p-16 text-center">
+          <Users size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">No users found</p>
+          <p className="text-slate-400 text-sm mt-1">Try adjusting your search or filter.</p>
+        </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+        <div className="card overflow-x-auto">
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">User</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Phone</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Address</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Milk</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Qty / Day</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">₹ / Day</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Since</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Due</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Status</th>
+                <th>User</th>
+                <th>Phone</th>
+                <th>Address</th>
+                <th>Milk</th>
+                <th>Qty / Day</th>
+                <th>₹ / Day</th>
+                <th>Since</th>
+                <th className="text-right">Due</th>
+                <th>Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {filtered.map((user) => {
                 const sub = user.subscription;
                 return (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    {/* User */}
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-800">{user.name || <span className="text-gray-400 italic">Incomplete</span>}</p>
-                      <p className="text-xs text-gray-400 font-mono mt-0.5">{user.id.slice(0, 10)}…</p>
+                  <tr key={user.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+                          <span className="text-white text-xs font-bold">
+                            {user.name ? user.name[0].toUpperCase() : '?'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-800 text-sm">
+                            {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono">{user.id.slice(0, 10)}…</p>
+                        </div>
+                      </div>
                     </td>
-
-                    {/* Phone */}
-                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{user.phone || '—'}</td>
-
-                    {/* Address */}
-                    <td className="px-4 py-3 text-gray-600 max-w-[180px]">
+                    <td className="text-slate-600 whitespace-nowrap">{user.phone || '—'}</td>
+                    <td className="text-slate-500 max-w-[160px]">
                       {user.address ? (
-                        <span title={`${user.address.line1}, ${user.address.pincode}`}>
+                        <span title={`${user.address.line1}, ${user.address.pincode}`} className="truncate block">
                           {user.address.line1}
-                          {user.address.pincode && <span className="text-gray-400 ml-1">· {user.address.pincode}</span>}
+                          {user.address.pincode && <span className="text-slate-400 ml-1">· {user.address.pincode}</span>}
                         </span>
                       ) : '—'}
                     </td>
-
-                    {/* Milk type */}
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       {sub ? (
-                        <span className="capitalize font-medium text-gray-700">
+                        <span className="font-medium text-slate-700 capitalize">
                           {MILK_LABELS[sub.milk_type] || sub.milk_type}
                         </span>
-                      ) : <span className="text-gray-300">—</span>}
+                      ) : <span className="text-slate-300">—</span>}
                     </td>
-
-                    {/* Quantity */}
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {sub ? `${sub.quantity_litres} L` : <span className="text-gray-300">—</span>}
+                    <td className="whitespace-nowrap text-slate-600">
+                      {sub ? `${sub.quantity_litres} L` : <span className="text-slate-300">—</span>}
                     </td>
-
-                    {/* Daily value */}
-                    <td className="px-4 py-3 whitespace-nowrap font-medium">
-                      {sub ? `₹${sub.daily_value}` : <span className="text-gray-300">—</span>}
+                    <td className="whitespace-nowrap font-semibold text-slate-700">
+                      {sub ? `₹${sub.daily_value}` : <span className="text-slate-300">—</span>}
                     </td>
-
-                    {/* Start date */}
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-600">
-                      {sub?.start_date || <span className="text-gray-300">—</span>}
+                    <td className="whitespace-nowrap text-slate-500 text-xs">
+                      {sub?.start_date || <span className="text-slate-300">—</span>}
                     </td>
-
-                    {/* Due amount */}
-                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       {(() => {
                         const due = dueMap[user.id] ?? null;
-                        if (due === null) return <span className="text-gray-300">—</span>;
+                        if (due === null) return <span className="text-slate-300">—</span>;
                         return (
-                          <span className={`font-bold text-sm ${due > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <span className={`font-bold text-sm ${due > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                             ₹{due.toFixed(2)}
                           </span>
                         );
                       })()}
                     </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       {sub ? (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[sub.status] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
                           {sub.status}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400">
-                          no sub
-                        </span>
+                        <span className="badge badge-gray">no sub</span>
                       )}
                     </td>
                   </tr>
