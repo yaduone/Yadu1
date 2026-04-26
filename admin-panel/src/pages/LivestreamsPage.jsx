@@ -7,7 +7,7 @@ export default function LivestreamsPage() {
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
-  const [form, setForm]         = useState({ title: '', youtube_url: '', start_time: '', end_time: '' });
+  const [form, setForm]         = useState({ title: '', youtube_url: '' });
 
   function loadStreams() {
     setLoading(true);
@@ -20,7 +20,7 @@ export default function LivestreamsPage() {
   useEffect(() => { loadStreams(); }, []);
 
   function resetForm() {
-    setForm({ title: '', youtube_url: '', start_time: '', end_time: '' });
+    setForm({ title: '', youtube_url: '' });
     setEditing(null);
     setShowForm(false);
   }
@@ -41,12 +41,7 @@ export default function LivestreamsPage() {
   }
 
   function startEdit(s) {
-    const toLocal = (t) => {
-      if (!t) return '';
-      const d = t.toDate ? t.toDate() : new Date(t._seconds ? t._seconds * 1000 : t);
-      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    };
-    setForm({ title: s.title, youtube_url: s.youtube_url, start_time: toLocal(s.start_time), end_time: toLocal(s.end_time) });
+    setForm({ title: s.title, youtube_url: s.youtube_url });
     setEditing(s.id);
     setShowForm(true);
   }
@@ -91,14 +86,6 @@ export default function LivestreamsPage() {
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">YouTube URL</label>
               <input placeholder="https://youtube.com/..." value={form.youtube_url} onChange={(e) => setForm({ ...form, youtube_url: e.target.value })} className="input" required />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Start Time</label>
-              <input type="datetime-local" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} className="input" required />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">End Time</label>
-              <input type="datetime-local" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} className="input" required />
             </div>
           </div>
           <div className="flex gap-2 mt-4">

@@ -98,6 +98,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         icon: Icons.verified_rounded,
                         label: 'Quality Guaranteed',
                       ),
+                      const TrustBadge(
+                        icon: Icons.verified_rounded,
+                        label: 'Freshness Guaranteed',
+                      ),
 
                       const SizedBox(height: 20),
 

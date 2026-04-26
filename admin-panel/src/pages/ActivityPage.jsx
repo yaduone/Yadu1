@@ -124,7 +124,7 @@ export default function ActivityPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {[
           { key: 'new_user',           label: 'New Sign-ups',  color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
           { key: 'profile_completed',  label: 'Profiles Done', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },

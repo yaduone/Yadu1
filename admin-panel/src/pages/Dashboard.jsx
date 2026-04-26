@@ -49,13 +49,13 @@ const COLOR_MAP = {
 function StatCard({ label, value, icon: Icon, color }) {
   const c = COLOR_MAP[color];
   return (
-    <div className="card p-5 flex items-center gap-4 animate-fade-in">
-      <div className={`w-12 h-12 rounded-2xl ${c.bg} ring-1 ${c.ring} flex items-center justify-center shrink-0`}>
-        <Icon size={22} className={c.icon} />
+    <div className="card p-4 sm:p-5 flex items-center gap-3 sm:gap-4 animate-fade-in">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${c.bg} ring-1 ${c.ring} flex items-center justify-center shrink-0`}>
+        <Icon size={20} className={c.icon} />
       </div>
-      <div>
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-bold text-slate-800 mt-0.5 leading-none">{value}</p>
+      <div className="min-w-0">
+        <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wide leading-tight">{label}</p>
+        <p className="text-xl sm:text-2xl font-bold text-slate-800 mt-0.5 leading-none">{value}</p>
       </div>
     </div>
   );
@@ -138,7 +138,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="page-header">
+      <div className="flex items-start justify-between gap-3 mb-6">
         <div>
           <h2 className="page-title">Dashboard</h2>
           <p className="text-xs text-slate-400 mt-0.5">{today}</p>
@@ -146,15 +146,15 @@ export default function Dashboard() {
         <button
           onClick={() => load(true)}
           disabled={refreshing}
-          className="btn-ghost btn-sm flex items-center gap-1.5"
+          className="btn-ghost btn-sm flex items-center gap-1.5 shrink-0"
         >
           <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-          Refresh
+          <span className="hidden sm:inline">Refresh</span>
         </button>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {STAT_CONFIG.map(({ key, label, icon, color, format }) => (
           <StatCard
             key={key}
@@ -230,15 +230,15 @@ export default function Dashboard() {
       </div>
 
       {/* Summary row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         {[
           { label: 'Total Users',             value: data.total_users,            color: 'text-slate-800' },
           { label: 'Paused Subscriptions',    value: data.paused_subscriptions,   color: 'text-amber-600' },
           { label: 'Extra Products Ordered',  value: data.product_demand.reduce((s, p) => s + p.quantity, 0), color: 'text-blue-600' },
         ].map(({ label, value, color }) => (
-          <div key={label} className="card p-5">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-            <p className={`text-3xl font-bold mt-1 ${color}`}>{value}</p>
+          <div key={label} className="card p-4 sm:p-5">
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+            <p className={`text-2xl sm:text-3xl font-bold mt-1 ${color}`}>{value}</p>
           </div>
         ))}
       </div>

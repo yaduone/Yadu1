@@ -55,7 +55,7 @@ export default function Login() {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
         <div className="w-full max-w-sm animate-fade-in">
           {/* Mobile brand */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
