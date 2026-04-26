@@ -16,20 +16,26 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
   Map<String, dynamic>? _livestream;
   bool _loading = true;
   YoutubePlayerController? _controller;
+  double? _lactometerReading;
 
   @override
   void initState() {
     super.initState();
-    _loadLivestream();
+    _loadData();
   }
 
-  Future<void> _loadLivestream() async {
+  Future<void> _loadData() async {
     try {
-      final res = await ApiService().get('/livestreams/active');
-      final data = res['data']?['livestream'] as Map<String, dynamic>?;
-      if (data != null) {
-        final videoId =
-            YoutubePlayer.convertUrlToId(data['youtube_url'] ?? '');
+      final results = await Future.wait([
+        ApiService().get('/livestreams/active'),
+        ApiService().get('/livestreams/lactometer'),
+      ]);
+
+      final streamData = results[0]['data']?['livestream'] as Map<String, dynamic>?;
+      final lactValue = results[1]['data']?['lactometer_reading'];
+
+      if (streamData != null) {
+        final videoId = YoutubePlayer.convertUrlToId(streamData['youtube_url'] ?? '');
         if (videoId != null) {
           _controller = YoutubePlayerController(
             initialVideoId: videoId,
@@ -42,7 +48,8 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
         }
       }
       setState(() {
-        _livestream = data;
+        _livestream = streamData;
+        _lactometerReading = lactValue != null ? (lactValue as num).toDouble() : null;
         _loading = false;
       });
     } catch (_) {
@@ -79,39 +86,48 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       return Scaffold(
         backgroundColor: AppColors.scaffoldBg,
         appBar: _buildAppBar(),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceBg,
-                    borderRadius: BorderRadius.circular(24),
+        body: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 40),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceBg,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Icon(Icons.live_tv_rounded,
+                            size: 36, color: AppColors.textHint),
+                      ),
+                      const SizedBox(height: 20),
+                      Text('No live stream available', style: AppType.h3),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Check back later for live updates\nfrom your area',
+                        textAlign: TextAlign.center,
+                        style: AppType.caption.copyWith(
+                            color: AppColors.textSecondary, height: 1.5),
+                      ),
+                    ],
                   ),
-                  child: Icon(Icons.live_tv_rounded,
-                      size: 36, color: AppColors.textHint),
                 ),
-                const SizedBox(height: 20),
-                Text('No live stream available', style: AppType.h3),
-                const SizedBox(height: 8),
-                Text(
-                  'Check back later for live updates\nfrom your area',
-                  textAlign: TextAlign.center,
-                  style: AppType.caption
-                      .copyWith(color: AppColors.textSecondary, height: 1.5),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 32),
+              _lactometerCard(),
+              const SizedBox(height: 24),
+            ],
           ),
         ),
       );
     }
 
-    // YoutubePlayerBuilder handles orientation/fullscreen automatically
     return YoutubePlayerBuilder(
       player: YoutubePlayer(
         controller: _controller!,
@@ -127,48 +143,121 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
         return Scaffold(
           backgroundColor: AppColors.scaffoldBg,
           appBar: _buildAppBar(),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Player fills full width at 16:9
-              player,
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '● LIVE',
-                        style: AppType.microUpper.copyWith(
-                          color: Colors.white,
-                          letterSpacing: 1.2,
+          body: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                player,
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '● LIVE',
+                          style: AppType.microUpper.copyWith(
+                            color: Colors.white,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _livestream!['title'] ?? 'Livestream',
-                        style: AppType.h3,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _livestream!['title'] ?? 'Livestream',
+                          style: AppType.h3,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                _lactometerCard(),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _lactometerCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.07),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F4FD),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.water_drop_rounded,
+                color: AppColors.primary, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Today's Lactometer Reading",
+                  style: AppType.caption.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                _lactometerReading != null
+                    ? RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: _lactometerReading!.toStringAsFixed(1),
+                              style: AppType.h1.copyWith(
+                                  color: AppColors.primary),
+                            ),
+                            TextSpan(
+                              text: ' °LR',
+                              style: AppType.body.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Text(
+                        'Not updated yet',
+                        style: AppType.body.copyWith(color: AppColors.textHint),
+                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
