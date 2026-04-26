@@ -1,7 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
-const path = require('path');
 const manifestService = require('./manifest.service');
 const { runNightlyJob } = require('../../jobs/nightlyManifest');
 const { authenticateAdmin } = require('../../middleware/auth');
@@ -30,16 +28,16 @@ router.get('/', authenticateAdmin, async (req, res, next) => {
   }
 });
 
-// GET /api/manifests/:id/download — Admin: download a manifest PDF
-// Gate: the manifest must exist AND (date <= today OR current time is past cron hour)
+// GET /api/manifests/:id/download — Admin: get a signed URL to download the manifest PDF
 router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
   try {
-    const pdfPath = await manifestService.getManifestPdfPath(req.params.id, req.admin.areaId);
-    if (!pdfPath) return notFound(res, 'Manifest not found');
-
     // Determine the date this manifest covers
     const { db } = require('../../config/firebase');
     const doc = await db.collection('manifests').doc(req.params.id).get();
+    if (!doc.exists || doc.data().area_id !== req.admin.areaId) {
+      return notFound(res, 'Manifest not found');
+    }
+
     const manifestDate = doc.data()?.date;
     const tomorrow = dateUtil.tomorrow();
 
@@ -52,13 +50,11 @@ router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
       );
     }
 
-    if (!fs.existsSync(pdfPath)) {
-      return notFound(res, 'Manifest PDF file not found. Try regenerating.');
-    }
+    const result = await manifestService.getManifestSignedUrl(req.params.id, req.admin.areaId);
+    if (!result) return notFound(res, 'Manifest PDF not found in storage. Try regenerating.');
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=${path.basename(pdfPath)}`);
-    fs.createReadStream(pdfPath).pipe(res);
+    // Redirect to the signed URL so the browser downloads directly from Storage
+    return res.redirect(result.url);
   } catch (err) {
     next(err);
   }
