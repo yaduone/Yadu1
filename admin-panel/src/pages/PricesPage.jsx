@@ -36,11 +36,9 @@ export default function PricesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="page-header">
-        <div>
-          <h2 className="page-title">Milk Prices</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Manage per-litre pricing for each milk type</p>
-        </div>
+      <div>
+        <h2 className="page-title">Milk Prices</h2>
+        <p className="text-xs text-slate-400 mt-0.5">Manage per-litre pricing for each milk type</p>
       </div>
 
       {/* Info banner */}

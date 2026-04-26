@@ -45,22 +45,22 @@ export default function ReportsPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="page-header">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h2 className="page-title">Reports</h2>
           <p className="text-xs text-slate-400 mt-0.5">Daily performance overview</p>
         </div>
         {/* Date range */}
-        <div className="flex items-center gap-2">
-          <Calendar size={15} className="text-slate-400" />
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input w-auto text-xs" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Calendar size={15} className="text-slate-400 hidden sm:block" />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input flex-1 sm:flex-none sm:w-auto text-xs" />
           <span className="text-slate-400 text-xs">to</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input w-auto text-xs" />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input flex-1 sm:flex-none sm:w-auto text-xs" />
         </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         {[
           { label: 'Total Orders',  value: totalOrders,              icon: BarChart3,  color: 'blue',    format: (v) => v },
           { label: 'Total Milk',    value: totalLitres,              icon: Droplets,   color: 'emerald', format: (v) => `${v}L` },
@@ -72,13 +72,13 @@ export default function ReportsPage() {
             purple:  { bg: 'bg-purple-50',  text: 'text-purple-600',  ring: 'ring-purple-100'  },
           }[color];
           return (
-            <div key={label} className="card p-5 flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-2xl ${c.bg} ring-1 ${c.ring} flex items-center justify-center shrink-0`}>
-                <Icon size={22} className={c.text} />
+            <div key={label} className="card p-3 sm:p-5 flex items-center gap-3 sm:gap-4">
+              <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${c.bg} ring-1 ${c.ring} flex items-center justify-center shrink-0`}>
+                <Icon size={18} className={c.text} />
               </div>
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-                <p className="text-2xl font-bold text-slate-800 mt-0.5">{format(value)}</p>
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+                <p className="text-lg sm:text-2xl font-bold text-slate-800 mt-0.5">{format(value)}</p>
               </div>
             </div>
           );

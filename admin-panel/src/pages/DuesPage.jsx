@@ -11,21 +11,21 @@ export default function DuesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="page-header">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h2 className="page-title">Dues & Payments</h2>
           <p className="text-xs text-slate-400 mt-0.5">Track outstanding balances and support tickets</p>
         </div>
-        <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 self-start sm:self-auto">
           {[['dues', 'Due Amounts', Wallet], ['tickets', 'Tickets', Ticket]].map(([key, label, Icon]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
                 tab === key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={13} />
               {label}
             </button>
           ))}
@@ -116,8 +116,7 @@ function DuesTab() {
   const selectedDue  = selected ? dues.find((d) => (d.user_id || d.id) === selected) : null;
 
   return (
-    <div className="flex gap-5">
-      {/* Left */}
+    <div className="flex flex-col lg:flex-row gap-5">
       <div className="flex-1 min-w-0 space-y-4">
         {/* Summary */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -211,7 +210,7 @@ function DuesTab() {
 
       {/* Right: payment panel */}
       {selected && (
-        <div className="w-80 shrink-0 animate-slide-in">
+        <div className="w-full lg:w-80 shrink-0 animate-slide-in">
           <div className="card p-5 sticky top-0 space-y-4">
             <div className="flex items-start justify-between">
               <div>
@@ -336,7 +335,7 @@ function TicketsTab() {
   const counts = tickets.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
 
   return (
-    <div className="flex gap-5">
+    <div className="flex flex-col lg:flex-row gap-5">
       <div className="flex-1 min-w-0 space-y-4">
         {/* Filter */}
         <div className="flex gap-2 flex-wrap">
@@ -390,7 +389,7 @@ function TicketsTab() {
 
       {/* Resolve panel */}
       {selected && (
-        <div className="w-72 shrink-0 animate-slide-in">
+        <div className="w-full lg:w-72 shrink-0 animate-slide-in">
           <div className="card p-5 sticky top-0 space-y-4">
             <div className="flex items-start justify-between">
               <p className="font-bold text-slate-800 text-sm">Update Ticket</p>

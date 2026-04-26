@@ -223,68 +223,120 @@ export default function ManifestsPage() {
         <p className="text-xs text-slate-400 mt-2">Only today and past dates can be regenerated.</p>
       </div>
 
-      {/* ── Historical Manifests Table ────────────────────────────────────── */}
+      {/* ── Historical Manifests ─────────────────────────────────────────── */}
       <div>
         <p className="text-sm font-semibold text-slate-700 mb-3">Past Manifests</p>
         {loading ? (
-          <p className="text-slate-400 text-sm">Loading…</p>
-        ) : manifests.length === 0 ? (
-          <p className="text-slate-400 text-sm">No past manifests found.</p>
-        ) : (
-          <div className="card overflow-hidden">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Customers</th>
-                  <th className="text-yellow-700">☀ Morning</th>
-                  <th className="text-indigo-700">🌙 Evening</th>
-                  <th>Total Milk (L)</th>
-                  <th>Extras</th>
-                  <th>Amount</th>
-                  <th>Generated</th>
-                  <th>By</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {manifests.map((m) => (
-                  <tr key={m.id}>
-                    <td className="font-semibold text-slate-800">{m.date}</td>
-                    <td className="text-slate-600">{m.total_users}</td>
-                    <td className="text-yellow-700 text-xs">
-                      {m.morning_users ?? '—'} cust · {m.morning_milk_litres ?? '—'}L
-                    </td>
-                    <td className="text-indigo-700 text-xs">
-                      {m.evening_users ?? '—'} cust · {m.evening_milk_litres ?? '—'}L
-                    </td>
-                    <td className="text-slate-600">{m.total_milk_litres}</td>
-                    <td className="text-slate-600">{m.total_extra_items}</td>
-                    <td className="font-semibold text-slate-800">₹{m.total_amount?.toFixed(2)}</td>
-                    <td className="text-xs text-slate-500">
-                      {m.generated_at
-                        ? new Date(m.generated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
-                        : '—'}
-                    </td>
-                    <td>
-                      <span className={`badge ${m.generated_by === 'system' ? 'badge-blue' : 'badge-purple'}`}>
-                        {m.generated_by === 'system' ? 'Auto' : 'Manual'}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => handleDownload(m.id, m.date)}
-                        className="btn-icon text-blue-600 hover:text-blue-800"
-                        title="Download PDF"
-                      >
-                        <Download size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="card h-20 animate-pulse bg-slate-50" />
+            ))}
           </div>
+        ) : manifests.length === 0 ? (
+          <div className="card p-12 text-center">
+            <p className="text-slate-400 text-sm">No past manifests found.</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile cards */}
+            <div className="space-y-2 sm:hidden">
+              {manifests.map((m) => (
+                <div key={m.id} className="card p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-800 text-sm">{m.date}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {m.total_users} customers · {m.total_milk_litres}L · ₹{m.total_amount?.toFixed(2)}
+                      </p>
+                      <div className="flex gap-2 mt-1.5 flex-wrap">
+                        <span className="text-xs bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded-md">
+                          ☀ {m.morning_users ?? '—'} · {m.morning_milk_litres ?? '—'}L
+                        </span>
+                        <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md">
+                          🌙 {m.evening_users ?? '—'} · {m.evening_milk_litres ?? '—'}L
+                        </span>
+                        {m.total_extra_items > 0 && (
+                          <span className="badge badge-blue">{m.total_extra_items} extras</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {m.generated_at
+                          ? new Date(m.generated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
+                          : '—'}
+                        {' · '}
+                        <span className={`font-medium ${m.generated_by === 'system' ? 'text-blue-600' : 'text-purple-600'}`}>
+                          {m.generated_by === 'system' ? 'Auto' : 'Manual'}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDownload(m.id, m.date)}
+                      className="btn-icon text-blue-600 hover:text-blue-800 shrink-0"
+                      title="Download PDF"
+                    >
+                      <Download size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="card overflow-hidden hidden sm:block">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Customers</th>
+                    <th className="text-yellow-700">☀ Morning</th>
+                    <th className="text-indigo-700">🌙 Evening</th>
+                    <th>Total Milk (L)</th>
+                    <th>Extras</th>
+                    <th>Amount</th>
+                    <th>Generated</th>
+                    <th>By</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manifests.map((m) => (
+                    <tr key={m.id}>
+                      <td className="font-semibold text-slate-800">{m.date}</td>
+                      <td className="text-slate-600">{m.total_users}</td>
+                      <td className="text-yellow-700 text-xs">
+                        {m.morning_users ?? '—'} cust · {m.morning_milk_litres ?? '—'}L
+                      </td>
+                      <td className="text-indigo-700 text-xs">
+                        {m.evening_users ?? '—'} cust · {m.evening_milk_litres ?? '—'}L
+                      </td>
+                      <td className="text-slate-600">{m.total_milk_litres}</td>
+                      <td className="text-slate-600">{m.total_extra_items}</td>
+                      <td className="font-semibold text-slate-800">₹{m.total_amount?.toFixed(2)}</td>
+                      <td className="text-xs text-slate-500">
+                        {m.generated_at
+                          ? new Date(m.generated_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
+                          : '—'}
+                      </td>
+                      <td>
+                        <span className={`badge ${m.generated_by === 'system' ? 'badge-blue' : 'badge-purple'}`}>
+                          {m.generated_by === 'system' ? 'Auto' : 'Manual'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleDownload(m.id, m.date)}
+                          className="btn-icon text-blue-600 hover:text-blue-800"
+                          title="Download PDF"
+                        >
+                          <Download size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

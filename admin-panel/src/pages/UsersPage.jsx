@@ -57,42 +57,40 @@ export default function UsersPage() {
   }, {});
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="page-header">
-        <div>
-          <h2 className="page-title">Users</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{users.length} total in your area</p>
-        </div>
+      <div>
+        <h2 className="page-title">Users</h2>
+        <p className="text-xs text-slate-400 mt-0.5">{users.length} total in your area</p>
       </div>
 
       {/* Summary filter cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         {FILTER_CONFIG.map(({ key, label, icon: Icon, color, bg, border }) => (
           <button
             key={key}
             onClick={() => setFilter(filter === key ? 'all' : key)}
-            className={`${bg} rounded-2xl p-4 text-left border-2 transition-all ${
+            className={`${bg} rounded-2xl p-3 sm:p-4 text-left border-2 transition-all ${
               filter === key ? `${border} shadow-sm` : 'border-transparent'
             }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <Icon size={16} className={color} />
-              {filter === key && <span className="text-[10px] font-bold text-slate-400 uppercase">Active</span>}
+            <div className="flex items-center justify-between mb-1.5">
+              <Icon size={15} className={color} />
+              {filter === key && <span className="text-[9px] font-bold text-slate-400 uppercase">Active</span>}
             </div>
-            <p className={`text-2xl font-bold ${color}`}>{counts[key] || 0}</p>
+            <p className={`text-xl sm:text-2xl font-bold ${color}`}>{counts[key] || 0}</p>
             <p className="text-xs text-slate-500 mt-0.5">{label}</p>
           </button>
         ))}
       </div>
 
       {/* Search + filter */}
-      <div className="flex gap-3">
+      <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name, phone or address…"
+            placeholder="Search name, phone…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input pl-9"
@@ -101,116 +99,169 @@ export default function UsersPage() {
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="select w-40"
+          className="select w-32 sm:w-40"
         >
-          <option value="all">All Status</option>
+          <option value="all">All</option>
           <option value="active">Active</option>
           <option value="paused">Paused</option>
           <option value="cancelled">Cancelled</option>
-          <option value="no_sub">No Subscription</option>
+          <option value="no_sub">No Sub</option>
         </select>
       </div>
 
-      {/* Table */}
+      {/* Content */}
       {loading ? (
         <div className="space-y-2">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="card h-14 animate-pulse bg-slate-50" />
+            <div key={i} className="card h-16 animate-pulse bg-slate-50" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="card p-16 text-center">
+        <div className="card p-12 text-center">
           <Users size={40} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-500 font-medium">No users found</p>
           <p className="text-slate-400 text-sm mt-1">Try adjusting your search or filter.</p>
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Phone</th>
-                <th>Address</th>
-                <th>Milk</th>
-                <th>Qty / Day</th>
-                <th>₹ / Day</th>
-                <th>Since</th>
-                <th className="text-right">Due</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((user) => {
-                const sub = user.subscription;
-                return (
-                  <tr key={user.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
-                          <span className="text-white text-xs font-bold">
-                            {user.name ? user.name[0].toUpperCase() : '?'}
+        <>
+          {/* Mobile card list */}
+          <div className="space-y-2 sm:hidden">
+            {filtered.map((user) => {
+              const sub = user.subscription;
+              const due = dueMap[user.id] ?? null;
+              return (
+                <div key={user.id} className="card p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+                      <span className="text-white text-sm font-bold">
+                        {user.name ? user.name[0].toUpperCase() : '?'}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-slate-800 text-sm truncate">
+                          {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
+                        </p>
+                        {sub ? (
+                          <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
+                            {sub.status}
                           </span>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-800 text-sm">
-                            {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-mono">{user.id.slice(0, 10)}…</p>
-                        </div>
+                        ) : (
+                          <span className="badge badge-gray">no sub</span>
+                        )}
                       </div>
-                    </td>
-                    <td className="text-slate-600 whitespace-nowrap">{user.phone || '—'}</td>
-                    <td className="text-slate-500 max-w-[160px]">
-                      {user.address ? (
-                        <span title={`${user.address.line1}, ${user.address.pincode}`} className="truncate block">
-                          {user.address.line1}
-                          {user.address.pincode && <span className="text-slate-400 ml-1">· {user.address.pincode}</span>}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="whitespace-nowrap">
-                      {sub ? (
-                        <span className="font-medium text-slate-700 capitalize">
-                          {MILK_LABELS[sub.milk_type] || sub.milk_type}
-                        </span>
-                      ) : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap text-slate-600">
-                      {sub ? `${sub.quantity_litres} L` : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap font-semibold text-slate-700">
-                      {sub ? `₹${sub.daily_value}` : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap text-slate-500 text-xs">
-                      {sub?.start_date || <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      {(() => {
-                        const due = dueMap[user.id] ?? null;
-                        if (due === null) return <span className="text-slate-300">—</span>;
-                        return (
-                          <span className={`font-bold text-sm ${due > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            ₹{due.toFixed(2)}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="whitespace-nowrap">
-                      {sub ? (
-                        <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
-                          {sub.status}
-                        </span>
-                      ) : (
-                        <span className="badge badge-gray">no sub</span>
+                      <p className="text-xs text-slate-400 mt-0.5">{user.phone || '—'}</p>
+                      {user.address && (
+                        <p className="text-xs text-slate-400 truncate">{user.address.line1}</p>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {sub && (
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <span className="text-xs text-slate-600 font-medium capitalize">
+                            {MILK_LABELS[sub.milk_type] || sub.milk_type} · {sub.quantity_litres}L
+                          </span>
+                          <span className="text-xs font-semibold text-slate-700">₹{sub.daily_value}/day</span>
+                          {due !== null && (
+                            <span className={`text-xs font-bold ${due > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              Due: ₹{due.toFixed(0)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="card overflow-x-auto hidden sm:block">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Phone</th>
+                  <th>Address</th>
+                  <th>Milk</th>
+                  <th>Qty / Day</th>
+                  <th>₹ / Day</th>
+                  <th>Since</th>
+                  <th className="text-right">Due</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((user) => {
+                  const sub = user.subscription;
+                  return (
+                    <tr key={user.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+                            <span className="text-white text-xs font-bold">
+                              {user.name ? user.name[0].toUpperCase() : '?'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800 text-sm">
+                              {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-mono">{user.id.slice(0, 10)}…</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="text-slate-600 whitespace-nowrap">{user.phone || '—'}</td>
+                      <td className="text-slate-500 max-w-[160px]">
+                        {user.address ? (
+                          <span title={`${user.address.line1}, ${user.address.pincode}`} className="truncate block">
+                            {user.address.line1}
+                            {user.address.pincode && <span className="text-slate-400 ml-1">· {user.address.pincode}</span>}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {sub ? (
+                          <span className="font-medium text-slate-700 capitalize">
+                            {MILK_LABELS[sub.milk_type] || sub.milk_type}
+                          </span>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap text-slate-600">
+                        {sub ? `${sub.quantity_litres} L` : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap font-semibold text-slate-700">
+                        {sub ? `₹${sub.daily_value}` : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap text-slate-500 text-xs">
+                        {sub?.start_date || <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        {(() => {
+                          const due = dueMap[user.id] ?? null;
+                          if (due === null) return <span className="text-slate-300">—</span>;
+                          return (
+                            <span className={`font-bold text-sm ${due > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              ₹{due.toFixed(2)}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {sub ? (
+                          <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
+                            {sub.status}
+                          </span>
+                        ) : (
+                          <span className="badge badge-gray">no sub</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

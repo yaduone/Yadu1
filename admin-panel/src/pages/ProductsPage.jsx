@@ -145,17 +145,18 @@ export default function ProductsPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="page-header">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="page-title">Products</h2>
           <p className="text-xs text-slate-400 mt-0.5">{products.length} products total</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(!showForm); }}
-          className="btn-primary"
+          className="btn-primary btn-sm sm:btn shrink-0"
         >
-          <Plus size={16} />
-          {showForm ? 'Cancel' : 'Add Product'}
+          <Plus size={15} />
+          <span className="hidden sm:inline">Add Product</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 
@@ -173,7 +174,7 @@ export default function ProductsPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Name *</label>
                 <input
@@ -219,7 +220,7 @@ export default function ProductsPage() {
                   required
                 />
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
                 <input
                   placeholder="Short product description (optional)"
@@ -328,87 +329,135 @@ export default function ProductsPage() {
           <p className="text-slate-400 text-sm mt-1">Click "Add Product" to create your first one.</p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Image</th>
-                <th>Name</th>
-                <th>Category</th>
-                <th>Unit</th>
-                <th>Price</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    {p.images?.[0] ? (
-                      <div className="relative w-10 h-10">
-                        <img
-                          src={p.images[0]}
-                          alt={p.name}
-                          className="w-10 h-10 object-cover rounded-xl border border-slate-100"
-                          onError={(e) => { e.target.style.display = 'none'; }}
-                        />
-                        {p.images.length > 1 && (
-                          <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                            {p.images.length}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300">
-                        <ImagePlus size={16} />
-                      </div>
-                    )}
-                  </td>
-                  <td className="font-semibold text-slate-800">{p.name}</td>
-                  <td>
-                    <span className="badge badge-blue capitalize">{p.category?.replace(/_/g, ' ')}</span>
-                  </td>
-                  <td className="text-slate-500">{p.unit}</td>
-                  <td className="font-semibold text-slate-800">₹{p.price}</td>
-                  <td>
-                    <button
-                      onClick={() => toggleActive(p)}
-                      className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${
-                        p.is_active ? 'text-emerald-600' : 'text-slate-400'
-                      }`}
-                      title={p.is_active ? 'Click to deactivate' : 'Click to activate'}
-                    >
-                      {p.is_active
-                        ? <ToggleRight size={20} className="text-emerald-500" />
-                        : <ToggleLeft size={20} className="text-slate-300" />
-                      }
-                      {p.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1">
+        <>
+          {/* Mobile card list */}
+          <div className="space-y-2 sm:hidden">
+            {products.map((p) => (
+              <div key={p.id} className="card p-4">
+                <div className="flex items-center gap-3">
+                  {p.images?.[0] ? (
+                    <img
+                      src={p.images[0]}
+                      alt={p.name}
+                      className="w-12 h-12 object-cover rounded-xl border border-slate-100 shrink-0"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <ImagePlus size={18} className="text-slate-300" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-slate-800 truncate">{p.name}</p>
+                      <span className="font-bold text-slate-800 shrink-0">₹{p.price}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="badge badge-blue capitalize">{p.category?.replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400">{p.unit}</span>
                       <button
-                        onClick={() => startEdit(p)}
-                        className="btn-icon"
-                        title="Edit"
+                        onClick={() => toggleActive(p)}
+                        className={`text-xs font-semibold flex items-center gap-1 ${p.is_active ? 'text-emerald-600' : 'text-slate-400'}`}
                       >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(p)}
-                        className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
+                        {p.is_active
+                          ? <ToggleRight size={16} className="text-emerald-500" />
+                          : <ToggleLeft size={16} className="text-slate-300" />
+                        }
+                        {p.is_active ? 'Active' : 'Inactive'}
                       </button>
                     </div>
-                  </td>
+                  </div>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button onClick={() => startEdit(p)} className="btn-icon" title="Edit">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => setDeleteTarget(p)} className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50" title="Delete">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="card overflow-hidden hidden sm:block">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Image</th>
+                  <th>Name</th>
+                  <th>Category</th>
+                  <th>Unit</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {products.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      {p.images?.[0] ? (
+                        <div className="relative w-10 h-10">
+                          <img
+                            src={p.images[0]}
+                            alt={p.name}
+                            className="w-10 h-10 object-cover rounded-xl border border-slate-100"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          {p.images.length > 1 && (
+                            <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                              {p.images.length}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300">
+                          <ImagePlus size={16} />
+                        </div>
+                      )}
+                    </td>
+                    <td className="font-semibold text-slate-800">{p.name}</td>
+                    <td>
+                      <span className="badge badge-blue capitalize">{p.category?.replace(/_/g, ' ')}</span>
+                    </td>
+                    <td className="text-slate-500">{p.unit}</td>
+                    <td className="font-semibold text-slate-800">₹{p.price}</td>
+                    <td>
+                      <button
+                        onClick={() => toggleActive(p)}
+                        className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+                          p.is_active ? 'text-emerald-600' : 'text-slate-400'
+                        }`}
+                      >
+                        {p.is_active
+                          ? <ToggleRight size={20} className="text-emerald-500" />
+                          : <ToggleLeft size={20} className="text-slate-300" />
+                        }
+                        {p.is_active ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => startEdit(p)} className="btn-icon" title="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(p)}
+                          className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Delete modal */}
