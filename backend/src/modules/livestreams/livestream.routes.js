@@ -5,6 +5,49 @@ const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require(
 const { success, badRequest, notFound, created } = require('../../utils/response');
 const { isValidYoutubeUrl } = require('../../utils/validators');
 
+// GET /api/livestreams/lactometer/admin — Admin: get current lactometer reading
+router.get('/lactometer/admin', authenticateAdmin, async (req, res, next) => {
+  try {
+    const areaDoc = await db.collection('areas').doc(req.admin.areaId).get();
+    const reading = areaDoc.exists ? (areaDoc.data().lactometer_reading ?? null) : null;
+    return success(res, { lactometer_reading: reading });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/livestreams/lactometer — User: get today's lactometer reading for their area
+router.get('/lactometer', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+  try {
+    const areaDoc = await db.collection('areas').doc(req.user.areaId).get();
+    const reading = areaDoc.exists ? (areaDoc.data().lactometer_reading ?? null) : null;
+    return success(res, { lactometer_reading: reading });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/livestreams/lactometer — Admin: update lactometer reading for their area
+router.put('/lactometer', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { reading } = req.body;
+    if (reading === undefined || reading === null || reading === '') {
+      return badRequest(res, 'reading is required');
+    }
+    const value = parseFloat(reading);
+    if (isNaN(value) || value < 0) {
+      return badRequest(res, 'reading must be a valid positive number');
+    }
+    await db.collection('areas').doc(req.admin.areaId).update({
+      lactometer_reading: value,
+      lactometer_updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return success(res, { lactometer_reading: value });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/livestreams/active — User: get active livestream for their area
 router.get('/active', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {

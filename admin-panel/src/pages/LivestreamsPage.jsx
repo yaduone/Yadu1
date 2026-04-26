@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Pencil, Trash2, Radio, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Radio, ToggleLeft, ToggleRight, Droplets } from 'lucide-react';
 
 export default function LivestreamsPage() {
   const [streams, setStreams]   = useState([]);
@@ -8,6 +8,12 @@ export default function LivestreamsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [form, setForm]         = useState({ title: '', youtube_url: '' });
+
+  // Lactometer state
+  const [lactReading, setLactReading]   = useState('');
+  const [lactCurrent, setLactCurrent]   = useState(null);
+  const [lactSaving, setLactSaving]     = useState(false);
+  const [lactMsg, setLactMsg]           = useState('');
 
   function loadStreams() {
     setLoading(true);
@@ -18,6 +24,12 @@ export default function LivestreamsPage() {
   }
 
   useEffect(() => { loadStreams(); }, []);
+
+  useEffect(() => {
+    api.get('/livestreams/lactometer/admin')
+      .then((res) => setLactCurrent(res.data.data.lactometer_reading))
+      .catch(() => {});
+  }, []);
 
   function resetForm() {
     setForm({ title: '', youtube_url: '' });
@@ -57,6 +69,22 @@ export default function LivestreamsPage() {
     loadStreams();
   }
 
+  async function handleLactSave() {
+    if (!lactReading) return;
+    setLactSaving(true);
+    setLactMsg('');
+    try {
+      await api.put('/livestreams/lactometer', { reading: lactReading });
+      setLactCurrent(parseFloat(lactReading));
+      setLactReading('');
+      setLactMsg('Updated successfully');
+    } catch (err) {
+      setLactMsg(err.response?.data?.error || 'Failed to update');
+    } finally {
+      setLactSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="page-header">
@@ -64,10 +92,52 @@ export default function LivestreamsPage() {
           <h2 className="page-title">Livestreams</h2>
           <p className="text-xs text-slate-400 mt-0.5">{streams.length} streams configured</p>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary">
-          <Plus size={16} />
-          {showForm ? 'Cancel' : 'Add Livestream'}
-        </button>
+        {/* ── Lactometer Reading ───────────────────────────────────────────── */}
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
+            <Droplets size={15} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800 text-sm">Today's Lactometer Reading</p>
+            {lactCurrent !== null && (
+              <p className="text-xs text-slate-400">Current: <span className="font-semibold text-slate-600">{lactCurrent} °LR</span></p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative">
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              placeholder="e.g. 26.5"
+              value={lactReading}
+              onChange={(e) => { setLactReading(e.target.value); setLactMsg(''); }}
+              className="input w-36 pr-10"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">°LR</span>
+          </div>
+          <button
+            onClick={handleLactSave}
+            disabled={!lactReading || lactSaving}
+            className="btn-primary disabled:opacity-50"
+          >
+            {lactSaving ? 'Saving…' : 'Update'}
+          </button>
+          {lactMsg && (
+            <span className={`text-xs font-medium ${lactMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
+              {lactMsg}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-slate-400 mt-2">Unit: °LR (Lactometer Reading). Visible to all users in your area.</p>
+      </div>
+
+      <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary w-fit">
+        <Plus size={16} />
+        {showForm ? 'Cancel' : 'Add Livestream'}
+      </button>
       </div>
 
       {showForm && (
