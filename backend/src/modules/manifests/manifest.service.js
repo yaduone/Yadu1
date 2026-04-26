@@ -1,7 +1,8 @@
-const { db, admin } = require('../../config/firebase');
+const { db, admin, bucket } = require('../../config/firebase');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const dateUtil = require('../../utils/date');
 const { logActivity } = require('../../utils/activityLog');
 
@@ -11,14 +12,10 @@ function serializeManifest(doc) {
   return {
     id,
     ...d,
-    // Convert Firestore timestamp → ISO string so the frontend can use it
     generated_at: d.generated_at?.toDate ? d.generated_at.toDate().toISOString() : d.generated_at || null,
-    // Expose only the filename, not the full server path
-    pdf_filename: d.pdf_path ? path.basename(d.pdf_path) : null,
+    pdf_filename: d.pdf_storage_path ? path.basename(d.pdf_storage_path) : null,
   };
 }
-
-const MANIFESTS_DIR = path.join(__dirname, '../../../manifests');
 
 /**
  * Generate a delivery manifest for a specific area and date.
@@ -79,14 +76,9 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
   const eveningUsers = eveningOrders.length;
   const eveningMilkLitres = eveningOrders.reduce((sum, o) => sum + (o.milk ? o.milk.quantity_litres : 0), 0);
 
-  // 5. Generate PDF
+  // 5. Generate PDF to a temp file, then upload to Firebase Storage
   const fileName = `${area.slug}_${date}.pdf`;
-  const filePath = path.join(MANIFESTS_DIR, fileName);
-
-  // Ensure directory exists
-  if (!fs.existsSync(MANIFESTS_DIR)) {
-    fs.mkdirSync(MANIFESTS_DIR, { recursive: true });
-  }
+  const filePath = path.join(os.tmpdir(), fileName);
 
   await generatePDF(filePath, {
     area: area.name,
@@ -103,7 +95,15 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     eveningMilkLitres,
   });
 
-  // 6. Save/update manifest record
+  // 6. Upload PDF to Firebase Storage, then clean up temp file
+  const storagePath = `manifests/${fileName}`;
+  await bucket.upload(filePath, {
+    destination: storagePath,
+    metadata: { contentType: 'application/pdf' },
+  });
+  fs.unlink(filePath, () => {}); // clean up temp file (fire-and-forget)
+
+  // 7. Save/update manifest record
   const existingSnap = await db
     .collection('manifests')
     .where('area_id', '==', areaId)
@@ -122,7 +122,7 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     morning_milk_litres: morningMilkLitres,
     evening_users: eveningUsers,
     evening_milk_litres: eveningMilkLitres,
-    pdf_path: filePath,
+    pdf_storage_path: storagePath, // Storage path instead of local disk path
     status: 'ready',
     generated_at: admin.firestore.FieldValue.serverTimestamp(),
     generated_by: generatedBy,
@@ -286,12 +286,20 @@ async function listManifests(areaId, month) {
 }
 
 /**
- * Get manifest PDF path for download (returns full server path).
+ * Get a short-lived signed URL for downloading a manifest PDF from Storage.
  */
-async function getManifestPdfPath(manifestId, areaId) {
+async function getManifestSignedUrl(manifestId, areaId) {
   const doc = await db.collection('manifests').doc(manifestId).get();
   if (!doc.exists || doc.data().area_id !== areaId) return null;
-  return doc.data().pdf_path; // full server path for fs.createReadStream
+
+  const storagePath = doc.data().pdf_storage_path;
+  if (!storagePath) return null;
+
+  const [url] = await bucket.file(storagePath).getSignedUrl({
+    action: 'read',
+    expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+  });
+  return { url, filename: path.basename(storagePath) };
 }
 
 /**
@@ -318,4 +326,4 @@ async function getNextDayStatus(areaId) {
   };
 }
 
-module.exports = { generateManifest, listManifests, getManifestPdfPath, getNextDayStatus };
+module.exports = { generateManifest, listManifests, getManifestSignedUrl, getNextDayStatus };
