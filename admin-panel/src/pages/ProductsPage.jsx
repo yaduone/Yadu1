@@ -119,9 +119,7 @@ export default function ProductsPage() {
 
   async function toggleActive(p) {
     try {
-      const fd = new FormData();
-      fd.append('is_active', String(!p.is_active));
-      await api.put(`/products/${p.id}`, fd);
+      await api.put(`/products/${p.id}`, { is_active: !p.is_active });
       loadProducts();
     } catch (err) { console.error(err); }
   }
