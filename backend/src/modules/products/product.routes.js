@@ -23,6 +23,23 @@ const upload = multer({
   },
 });
 
+// Multer error handler middleware
+function handleMulterError(err, req, res, next) {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'FILE_TOO_LARGE') {
+      return badRequest(res, 'File size exceeds 5MB limit');
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return badRequest(res, 'Too many files (max 10)');
+    }
+    return badRequest(res, err.message);
+  }
+  if (err && err.statusCode === 400) {
+    return badRequest(res, err.message);
+  }
+  next(err);
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 const { cache, invalidateOn } = require('../../middleware/cache');
@@ -49,23 +66,34 @@ router.get('/all', authenticateAdmin, cache.adminData, async (req, res, next) =>
 });
 
 // POST /api/products — admin: create product  (multipart/form-data)
-router.post('/', authenticateAdmin, upload.array('images', 10), invalidateOn(['products', 'public']), async (req, res, next) => {
+router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterError, invalidateOn(['products', 'public']), async (req, res, next) => {
   try {
+    console.log('[PRODUCT CREATE] Request received', {
+      hasFiles: !!req.files,
+      fileCount: req.files?.length || 0,
+      bodyKeys: Object.keys(req.body),
+    });
+
     const { name, category, unit, price, description } = req.body;
 
     if (!name || !category || !unit || price === undefined) {
+      console.log('[PRODUCT CREATE] Missing required fields', { name, category, unit, price });
       if (req.files?.length) await deleteImages(req.files.map((f) => f.originalname));
       return badRequest(res, 'name, category, unit, and price are required');
     }
     if (!isValidProductCategory(category)) {
+      console.log('[PRODUCT CREATE] Invalid category', { category });
       return badRequest(res, 'Invalid category');
     }
     const parsedPrice = parseFloat(price);
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      console.log('[PRODUCT CREATE] Invalid price', { price, parsedPrice });
       return badRequest(res, 'Price must be a positive number');
     }
 
+    console.log('[PRODUCT CREATE] Uploading images', { fileCount: req.files?.length || 0 });
     const imageUrls = req.files?.length ? await uploadImages(req.files) : [];
+    console.log('[PRODUCT CREATE] Images uploaded', { imageCount: imageUrls.length, urls: imageUrls });
 
     const productData = {
       name,
@@ -90,8 +118,15 @@ router.post('/', authenticateAdmin, upload.array('images', 10), invalidateOn(['p
 // File field  : images         — new files to upload (appended, or replaces if replace_images=true)
 // Text field  : replace_images — "true" → delete all existing images, replace with new uploads
 // Text field  : remove_images  — JSON array of existing image URLs to delete individually
-router.put('/:id', authenticateAdmin, upload.array('images', 10), invalidateOn(['products', 'public']), async (req, res, next) => {
+router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterError, invalidateOn(['products', 'public']), async (req, res, next) => {
   try {
+    console.log('[PRODUCT UPDATE] Request received', {
+      productId: req.params.id,
+      hasFiles: !!req.files,
+      fileCount: req.files?.length || 0,
+      bodyKeys: Object.keys(req.body),
+    });
+
     const productRef = db.collection('products').doc(req.params.id);
     const productDoc = await productRef.get();
     if (!productDoc.exists) return notFound(res, 'Product not found');
