@@ -1,7 +1,16 @@
 import axios from 'axios';
 
+const getApiUrl = () => {
+  // Production
+  if (typeof window !== 'undefined' && window.location.hostname === 'yadu1-ten.vercel.app') {
+    return 'https://yadu1.up.railway.app/api';
+  }
+  // Development
+  return import.meta.env.VITE_API_URL || '/api';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: getApiUrl(),
   headers: { 'Content-Type': 'application/json' },
 });
 
