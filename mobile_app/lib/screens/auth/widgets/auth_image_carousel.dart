@@ -24,7 +24,6 @@ class AuthImageCarousel extends StatefulWidget {
 class _AuthImageCarouselState extends State<AuthImageCarousel>
     with SingleTickerProviderStateMixin {
   int _current = 0;
-
   late AnimationController _panCtrl;
 
   @override
@@ -44,7 +43,6 @@ class _AuthImageCarouselState extends State<AuthImageCarousel>
 
   @override
   Widget build(BuildContext context) {
-    // Square images — use screen width so image fills without cropping
     final screenWidth = MediaQuery.of(context).size.width;
     final h = widget.height > 0 ? widget.height : screenWidth;
 
@@ -53,7 +51,7 @@ class _AuthImageCarouselState extends State<AuthImageCarousel>
       width: screenWidth,
       child: Stack(
         children: [
-          // Fallback background
+          // Fallback gradient background
           Container(
             width: double.infinity,
             height: h,
@@ -113,18 +111,42 @@ class _AuthImageCarouselState extends State<AuthImageCarousel>
             }).toList(),
           ),
 
-          // Dot indicator at the bottom of the image area
+          // Bottom fade — covers ~40% of carousel height to hide image text bleed
           Positioned(
             left: 0,
             right: 0,
-            bottom: 12,
+            bottom: 0,
+            height: h * 0.40,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.white.withValues(alpha: 0.55),
+                    Colors.white.withValues(alpha: 0.88),
+                    Colors.white,
+                    Colors.white,
+                  ],
+                  stops: const [0.0, 0.35, 0.60, 0.80, 1.0],
+                ),
+              ),
+            ),
+          ),
+
+          // Dot indicator
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 28,
             child: Center(
               child: AnimatedSmoothIndicator(
                 activeIndex: _current,
                 count: AuthImageCarousel._images.length,
                 effect: ExpandingDotsEffect(
                   activeDotColor: AppColors.primary,
-                  dotColor: Colors.white.withValues(alpha: 0.7),
+                  dotColor: AppColors.primary.withValues(alpha: 0.3),
                   dotHeight: 7,
                   dotWidth: 7,
                   expansionFactor: 3,

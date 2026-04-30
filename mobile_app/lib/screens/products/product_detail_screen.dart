@@ -1,6 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
@@ -17,6 +17,15 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
+  bool _addingToCart = false;
+  int _currentImageIndex = 0;
+  final PageController _pageController = PageController();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,11 +38,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           // Scrollable content
           CustomScrollView(
             slivers: [
-              // Parallax header image
+              // Image slider header
               SliverAppBar(
                 expandedHeight: 320,
-                stretch: true,
-                stretchTriggerOffset: 150,
+                pinned: true,
                 backgroundColor: AppColors.scaffoldBg,
                 leading: IconButton(
                   icon: Container(
@@ -54,25 +62,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   onPressed: () => Navigator.pop(context),
                 ),
                 flexibleSpace: FlexibleSpaceBar(
-                  stretchModes: const [
-                    StretchMode.zoomBackground,
-                    StretchMode.blurBackground,
-                  ],
-                  background: _firstImageUrl(p) != null
-                      ? CachedNetworkImage(
-                          imageUrl: _firstImageUrl(p)!,
-                          fit: BoxFit.cover,
-                          fadeInDuration: const Duration(milliseconds: 300),
-                          placeholder: (_, __) => Container(
-                            color: AppColors.surfaceBg,
-                            child: const Center(
-                              child: Icon(Icons.image_rounded,
-                                  color: AppColors.textHint, size: 48),
-                            ),
-                          ),
-                          errorWidget: (_, __, ___) => _imageFallback(),
-                        )
-                      : _imageFallback(),
+                  background: _buildImageSlider(p),
                 ),
               ),
 
@@ -203,12 +193,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     child: SizedBox(
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _addToCart,
-                        child: Text(
-                          "Add to Tomorrow's Cart",
-                          style: AppType.captionBold
-                              .copyWith(color: Colors.white),
-                        ),
+                        onPressed: _addingToCart ? null : _addToCart,
+                        child: _addingToCart
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : Text(
+                                "Add to Tomorrow's Cart",
+                                style: AppType.captionBold
+                                    .copyWith(color: Colors.white),
+                              ),
                       ),
                     ),
                   ),
@@ -221,17 +218,75 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  String? _firstImageUrl(dynamic p) {
+  List<String> _imageUrls(dynamic p) {
     final images = p['images'];
-    if (images is List && images.isNotEmpty) return images[0] as String;
-    return null;
+    if (images is List && images.isNotEmpty) {
+      return images.whereType<String>().toList();
+    }
+    return [];
+  }
+
+  Widget _buildImageSlider(dynamic p) {
+    final urls = _imageUrls(p);
+    if (urls.isEmpty) return _imageFallback();
+
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: topPadding),
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: urls.length,
+            onPageChanged: (i) => setState(() => _currentImageIndex = i),
+            itemBuilder: (_, i) => CachedNetworkImage(
+              imageUrl: urls[i],
+              fit: BoxFit.cover,
+              fadeInDuration: const Duration(milliseconds: 300),
+              placeholder: (_, __) => Container(
+                color: AppColors.surfaceBg,
+                child: const Center(
+                  child: Icon(Icons.image_rounded, color: AppColors.textHint, size: 48),
+                ),
+              ),
+              errorWidget: (_, __, ___) => _imageFallback(),
+            ),
+          ),
+        ),
+        if (urls.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(urls.length, (i) {
+                final active = i == _currentImageIndex;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: active ? 20 : 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primary : Colors.white.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<void> _addToCart() async {
     HapticFeedback.mediumImpact();
+    setState(() => _addingToCart = true);
     final cart = context.read<CartProvider>();
     final ok = await cart.addItem(widget.product['id'], _quantity);
-    if (ok && mounted) {
+    if (!mounted) return;
+    setState(() => _addingToCart = false);
+    if (ok) {
       HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -244,6 +299,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ),
       );
       Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(cart.error ?? 'Failed to add item. Please try again.',
+              style: AppType.small.copyWith(color: Colors.white)),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      );
     }
   }
 

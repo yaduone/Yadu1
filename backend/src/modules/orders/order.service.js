@@ -1,5 +1,6 @@
 const { db, admin } = require('../../config/firebase');
 const dueService = require('../dues/due.service');
+const notificationService = require('../notifications/notification.service');
 
 /**
  * Create an order from subscription + cart data (called by nightly job).
@@ -149,10 +150,24 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // When delivered: add order total to user's due amount
+  // When delivered: add order total to user's due amount, then notify the user
   if (newStatus === 'delivered') {
     const order = orderDoc.data();
     await dueService.incrementDue(order.user_id, order.area_id, order.total_amount);
+
+    // Fetch updated due balance so the notification can show the accurate total
+    try {
+      const updatedDue = await dueService.getUserDue(order.user_id);
+      await notificationService.sendDeliveryNotification(
+        order.user_id,
+        order.area_id,
+        order,
+        updatedDue.due_amount,
+      );
+    } catch (notifErr) {
+      // Non-fatal — log but don't block the status update response
+      console.error('[updateOrderStatus] delivery notification failed:', notifErr.message);
+    }
   }
 
   return { id: orderId, status: newStatus };

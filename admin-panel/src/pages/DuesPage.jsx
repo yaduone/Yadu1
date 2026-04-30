@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Search } from 'lucide-react';
+import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Search, Bell } from 'lucide-react';
 
 const METHOD_LABELS = { cash: 'Cash', upi: 'UPI', other: 'Other' };
 const METHOD_BADGE  = { cash: 'badge badge-green', upi: 'badge badge-blue', other: 'badge badge-gray' };
@@ -50,6 +50,8 @@ function DuesTab() {
   const [payForm, setPayForm]             = useState({ amount: '', method: 'cash', notes: '' });
   const [paying, setPaying]               = useState(false);
   const [payError, setPayError]           = useState('');
+  const [pinging, setPinging]             = useState(false);
+  const [pingMsg, setPingMsg]             = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,10 +70,26 @@ function DuesTab() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function pingUser() {
+    setPinging(true);
+    setPingMsg('');
+    try {
+      await api.post(`/dues/admin/ping/${selected}`);
+      setPingMsg('✓ Reminder sent to user');
+      setTimeout(() => setPingMsg(''), 4000);
+    } catch (e) {
+      setPingMsg(e.response?.data?.error || 'Failed to send reminder');
+      setTimeout(() => setPingMsg(''), 4000);
+    } finally {
+      setPinging(false);
+    }
+  }
+
   async function openUser(userId) {
     setSelected(userId);
     setPayForm({ amount: '', method: 'cash', notes: '' });
     setPayError('');
+    setPingMsg('');
     setLoadingPayments(true);
     try {
       const res = await api.get(`/dues/admin/user/${userId}/payments`);
@@ -229,6 +247,29 @@ function DuesTab() {
                 {(selectedDue?.due_amount || 0) < 0 ? `+₹${Math.abs(selectedDue.due_amount).toFixed(2)}` : `₹${(selectedDue?.due_amount || 0).toFixed(2)}`}
               </p>
             </div>
+
+            {/* Due reminder ping */}
+            {(selectedDue?.due_amount || 0) > 0 && (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={pingUser}
+                  disabled={pinging}
+                  className="btn btn-sm w-full justify-center border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {pinging ? (
+                    <><span className="w-3 h-3 border-2 border-amber-400/40 border-t-amber-600 rounded-full animate-spin" /> Sending…</>
+                  ) : (
+                    <><Bell size={13} /> Ping for Payment</>
+                  )}
+                </button>
+                {pingMsg && (
+                  <p className={`text-xs text-center ${pingMsg.startsWith('✓') ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {pingMsg}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Payment form */}
             <form onSubmit={submitPayment} className="space-y-2.5">

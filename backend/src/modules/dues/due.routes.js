@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const dueService = require('./due.service');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
-const { success, badRequest } = require('../../utils/response');
+const { success, badRequest, notFound } = require('../../utils/response');
+const notificationService = require('../notifications/notification.service');
 
 // ─── User routes ─────────────────────────────────────────────────────────────
 
@@ -74,6 +75,36 @@ router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
       payment_date,
     });
     return success(res, result, 'Payment recorded');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/dues/admin/ping/:userId — Admin: ping a user about their outstanding due
+router.post('/admin/ping/:userId', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const due = await dueService.getUserDue(userId);
+
+    if (due.due_amount <= 0) {
+      return badRequest(res, 'User has no outstanding due amount to remind about');
+    }
+
+    // Verify user belongs to this admin's area
+    const { db } = require('../../config/firebase');
+    const dueDoc = await db.collection('due_amounts').doc(userId).get();
+    if (!dueDoc.exists) return notFound(res, 'No due record found for this user');
+    if (dueDoc.data().area_id !== req.admin.areaId) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    await notificationService.sendDueReminderNotification(userId, req.admin.areaId, {
+      dueAmount: due.due_amount,
+      totalBilled: due.total_billed,
+      totalPaid: due.total_paid,
+    });
+
+    return success(res, null, 'Payment reminder sent to user');
   } catch (err) {
     next(err);
   }

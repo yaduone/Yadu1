@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 
 import 'theme/app_theme.dart';
@@ -13,7 +12,7 @@ import 'providers/auth_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/calendar_provider.dart';
-import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 
@@ -23,11 +22,11 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Check if onboarding has been completed
-  final prefs = await SharedPreferences.getInstance();
-  final onboardingSeen = prefs.getBool('onboarding_seen') ?? false;
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
-  // Premium light status bar
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -36,13 +35,11 @@ void main() async {
     ),
   );
 
-  runApp(DairyDeliveryApp(showOnboarding: !onboardingSeen));
+  runApp(const DairyDeliveryApp());
 }
 
 class DairyDeliveryApp extends StatelessWidget {
-  final bool showOnboarding;
-
-  const DairyDeliveryApp({super.key, required this.showOnboarding});
+  const DairyDeliveryApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +54,7 @@ class DairyDeliveryApp extends StatelessWidget {
         title: 'YaduONE',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: showOnboarding ? const OnboardingScreen() : const AuthGate(),
+        home: const SplashScreen(),
       ),
     );
   }

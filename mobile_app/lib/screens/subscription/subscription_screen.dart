@@ -166,63 +166,89 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         // Action buttons
         if (isActive)
           OutlinedButton.icon(
-            onPressed: () async {
-              HapticFeedback.mediumImpact();
-              final confirm = await _confirmDialog(
-                context,
-                'Pause Subscription?',
-                'You can resume anytime. No deliveries will be made while paused.',
-              );
-              if (!confirm || !mounted) return;
-              final ok = await sub.pauseSubscription();
-              if (!mounted) return;
-              if (ok) {
-                AppSnackbar.success(context, 'Subscription paused successfully.');
-              } else {
-                AppSnackbar.error(context, sub.error ?? 'Failed to pause subscription.');
-              }
-            },
-            icon: const Icon(Icons.pause_circle_outline_rounded),
-            label: const Text('Pause Subscription'),
+            onPressed: sub.isLoading
+                ? null
+                : () async {
+                    HapticFeedback.mediumImpact();
+                    final confirm = await _confirmDialog(
+                      context,
+                      'Pause Subscription?',
+                      'You can resume anytime. No deliveries will be made while paused.',
+                    );
+                    if (!confirm || !context.mounted) return;
+                    final ok = await sub.pauseSubscription();
+                    if (!context.mounted) return;
+                    if (ok) {
+                      AppSnackbar.success(context, 'Subscription paused successfully.');
+                    } else {
+                      AppSnackbar.error(context, sub.error ?? 'Failed to pause subscription.');
+                    }
+                  },
+            icon: sub.isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.pause_circle_outline_rounded),
+            label: Text(sub.isLoading ? 'Pausing…' : 'Pause Subscription'),
           )
         else
           ElevatedButton.icon(
-            onPressed: () async {
-              HapticFeedback.mediumImpact();
-              final ok = await sub.resumeSubscription();
-              if (!mounted) return;
-              if (ok) {
-                AppSnackbar.success(context, 'Subscription resumed. Deliveries will restart.');
-              } else {
-                AppSnackbar.error(context, sub.error ?? 'Failed to resume subscription.');
-              }
-            },
-            icon: const Icon(Icons.play_circle_outline_rounded),
-            label: const Text('Resume Subscription'),
+            onPressed: sub.isLoading
+                ? null
+                : () async {
+                    HapticFeedback.mediumImpact();
+                    final ok = await sub.resumeSubscription();
+                    if (!context.mounted) return;
+                    if (ok) {
+                      AppSnackbar.success(context, 'Subscription resumed. Deliveries will restart.');
+                    } else {
+                      AppSnackbar.error(context, sub.error ?? 'Failed to resume subscription.');
+                    }
+                  },
+            icon: sub.isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2),
+                  )
+                : const Icon(Icons.play_circle_outline_rounded),
+            label: Text(sub.isLoading ? 'Resuming…' : 'Resume Subscription'),
           ),
 
         const SizedBox(height: 12),
 
         TextButton(
-          onPressed: () async {
-            final confirm = await _confirmDialog(
-              context,
-              'Cancel Subscription?',
-              'This action cannot be undone. You\'ll need to create a new subscription.',
-            );
-            if (!confirm || !mounted) return;
-            final ok = await sub.cancelSubscription();
-            if (!mounted) return;
-            if (ok) {
-              Navigator.pop(context);
-            } else {
-              AppSnackbar.error(context, sub.error ?? 'Failed to cancel subscription.');
-            }
-          },
-          child: Text(
-            'Cancel Subscription',
-            style: AppType.caption.copyWith(color: AppColors.error),
-          ),
+          onPressed: sub.isLoading
+              ? null
+              : () async {
+                  final confirm = await _confirmDialog(
+                    context,
+                    'Cancel Subscription?',
+                    'This action cannot be undone. You\'ll need to create a new subscription.',
+                  );
+                  if (!confirm || !context.mounted) return;
+                  final ok = await sub.cancelSubscription();
+                  if (!context.mounted) return;
+                  if (ok) {
+                    Navigator.pop(context);
+                  } else {
+                    AppSnackbar.error(context, sub.error ?? 'Failed to cancel subscription.');
+                  }
+                },
+          child: sub.isLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      color: AppColors.error, strokeWidth: 2),
+                )
+              : Text(
+                  'Cancel Subscription',
+                  style: AppType.caption.copyWith(color: AppColors.error),
+                ),
         ),
       ],
     );

@@ -9,6 +9,7 @@ import '../../services/api_service.dart';
 import '../../widgets/delivery_calendar.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_screen.dart';
+import '../auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,6 +21,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   List<dynamic> _orders = [];
   bool _loadingOrders = true;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -284,37 +286,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Logout — subdued, at the bottom
             Center(
               child: TextButton(
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Logout?'),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel')),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: Text('Logout',
-                              style:
-                                  TextStyle(color: AppColors.error)),
+                onPressed: _loggingOut
+                    ? null
+                    : () async {
+                        final authProvider = context.read<AppAuthProvider>();
+                        final nav = Navigator.of(context);
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Logout?'),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24)),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: Text('Logout',
+                                    style: TextStyle(color: AppColors.error)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true && mounted) {
+                          setState(() => _loggingOut = true);
+                          await authProvider.logout();
+                          nav.pushAndRemoveUntil(
+                            MaterialPageRoute(
+                                builder: (_) => const LoginScreen()),
+                            (route) => false,
+                          );
+                        }
+                      },
+                child: _loggingOut
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        'Sign Out',
+                        style: AppType.caption.copyWith(
+                          color: AppColors.textHint,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true && mounted) {
-                    context.read<AppAuthProvider>().logout();
-                  }
-                },
-                child: Text(
-                  'Sign Out',
-                  style: AppType.caption.copyWith(
-                    color: AppColors.textHint,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                      ),
               ),
             ),
 

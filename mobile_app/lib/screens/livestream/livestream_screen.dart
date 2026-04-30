@@ -35,7 +35,11 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       final lactValue = results[1]['data']?['lactometer_reading'];
 
       if (streamData != null) {
-        final videoId = YoutubePlayer.convertUrlToId(streamData['youtube_url'] ?? '');
+        final rawUrl = streamData['youtube_url'] ?? '';
+        final videoId = YoutubePlayer.convertUrlToId(rawUrl) ??
+            RegExp(r'youtube\.com/live/([a-zA-Z0-9_-]{11})')
+                .firstMatch(rawUrl)
+                ?.group(1);
         if (videoId != null) {
           _controller = YoutubePlayerController(
             initialVideoId: videoId,
