@@ -284,6 +284,7 @@ class _ProductCard extends StatelessWidget {
       imageUrl: url,
       width: double.infinity,
       fit: BoxFit.cover,
+      memCacheWidth: 400,
       fadeInDuration: const Duration(milliseconds: 300),
       placeholder: (_, __) => Container(
         color: AppColors.surfaceBg,

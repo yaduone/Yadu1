@@ -1115,6 +1115,8 @@ class _ExtraItemThumbnail extends StatelessWidget {
                         child: CachedNetworkImage(
                           imageUrl: imageUrl,
                           fit: BoxFit.cover,
+                          memCacheWidth: 120,
+                          memCacheHeight: 120,
                           errorWidget: (_, __, ___) =>
                               _ProductInitial(name: name),
                         ),

@@ -5,8 +5,8 @@ const { authenticateUser, requireCompleteProfile } = require('../../middleware/a
 const { success, notFound } = require('../../utils/response');
 const { purgeExpiredNotifications } = require('./notification.service');
 
-// GET /api/notifications — User: get non-expired notifications
-router.get('/', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+// GET /api/notifications — User: get non-expired notifications (no profile check — notifications are for all authenticated users)
+router.get('/', authenticateUser, async (req, res, next) => {
   try {
     const page  = parseInt(req.query.page, 10)  || 1;
     const limit = parseInt(req.query.limit, 10) || 20;
@@ -16,29 +16,42 @@ router.get('/', authenticateUser, requireCompleteProfile, async (req, res, next)
 
     const now = admin.firestore.Timestamp.now();
 
-    // User-specific notifications that haven't expired
-    const userSnap = await db
-      .collection('notifications')
-      .where('user_id', '==', req.user.userId)
-      .where('expires_at', '>', now)
-      .get();
+    const queries = [];
 
-    // Area-wide broadcast notifications that haven't expired
-    const areaSnap = await db
-      .collection('notifications')
-      .where('area_id', '==', req.user.areaId)
-      .where('user_id', '==', null)
-      .where('expires_at', '>', now)
-      .get();
+    // Single-field queries only — no composite index needed.
+    // Expiry filtering is done in JS after fetch.
+    if (req.user.userId) {
+      queries.push(
+        db.collection('notifications')
+          .where('user_id', '==', req.user.userId)
+          .get()
+      );
+    }
 
-    const all = [
-      ...userSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-      ...areaSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-    ].sort((a, b) => {
-      const aTime = a.created_at?.toDate ? a.created_at.toDate() : new Date(0);
-      const bTime = b.created_at?.toDate ? b.created_at.toDate() : new Date(0);
-      return bTime - aTime;
-    });
+    if (req.user.areaId) {
+      queries.push(
+        db.collection('notifications')
+          .where('area_id', '==', req.user.areaId)
+          .where('user_id', '==', null)
+          .get()
+      );
+    }
+
+    const snaps = await Promise.all(queries);
+    const nowMs = now.toMillis();
+    const all = snaps
+      .flatMap((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+      .filter((n) => {
+        // Drop expired docs in JS — avoids composite index requirement
+        if (!n.expires_at) return true;
+        const expiresMs = n.expires_at?.toMillis ? n.expires_at.toMillis() : 0;
+        return expiresMs > nowMs;
+      })
+      .sort((a, b) => {
+        const aTime = a.created_at?.toDate ? a.created_at.toDate() : new Date(0);
+        const bTime = b.created_at?.toDate ? b.created_at.toDate() : new Date(0);
+        return bTime - aTime;
+      });
 
     // Serialise Firestore Timestamps to ISO strings for the client
     const serialised = all.map((n) => ({
@@ -60,7 +73,7 @@ router.get('/', authenticateUser, requireCompleteProfile, async (req, res, next)
 });
 
 // PUT /api/notifications/:id/read — Mark a single notification as read
-router.put('/:id/read', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+router.put('/:id/read', authenticateUser, async (req, res, next) => {
   try {
     const ref = db.collection('notifications').doc(req.params.id);
     const doc = await ref.get();
@@ -73,7 +86,7 @@ router.put('/:id/read', authenticateUser, requireCompleteProfile, async (req, re
 });
 
 // PUT /api/notifications/read-all — Mark all user notifications as read
-router.put('/read-all', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+router.put('/read-all', authenticateUser, async (req, res, next) => {
   try {
     const snap = await db
       .collection('notifications')

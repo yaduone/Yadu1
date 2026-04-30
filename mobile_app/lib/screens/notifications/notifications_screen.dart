@@ -15,33 +15,80 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   List<dynamic> _notifications = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
   bool _hasError = false;
+  String _errorMessage = 'Could not load notifications';
   int _unreadCount = 0;
+  int _page = 1;
+  static const int _pageSize = 20;
+  final ScrollController _scrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >=
+            _scrollCtrl.position.maxScrollExtent - 200 &&
+        !_loadingMore &&
+        _hasMore) {
+      _loadMore();
+    }
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _hasError = false;
+      _page = 1;
+      _hasMore = true;
     });
     try {
-      final res = await ApiService().get('/notifications?limit=50');
+      final res = await ApiService()
+          .get('/notifications?limit=$_pageSize&page=1');
       final list = (res['data']?['notifications'] as List?) ?? [];
       setState(() {
         _notifications = list;
         _unreadCount = list.where((n) => n['is_read'] != true).length;
         _loading = false;
+        _hasMore = list.length == _pageSize;
       });
-    } catch (_) {
+    } catch (e) {
       setState(() {
         _loading = false;
         _hasError = true;
+        _errorMessage = e.toString();
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final nextPage = _page + 1;
+      final res = await ApiService()
+          .get('/notifications?limit=$_pageSize&page=$nextPage');
+      final list = (res['data']?['notifications'] as List?) ?? [];
+      setState(() {
+        _notifications = [..._notifications, ...list];
+        _unreadCount = _notifications.where((n) => n['is_read'] != true).length;
+        _page = nextPage;
+        _hasMore = list.length == _pageSize;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      setState(() => _loadingMore = false);
     }
   }
 
@@ -165,6 +212,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             const SizedBox(height: 12),
             Text('Could not load notifications',
                 style: AppType.caption.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _errorMessage,
+                textAlign: TextAlign.center,
+                style: AppType.small.copyWith(color: AppColors.textHint),
+              ),
+            ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _load,
@@ -199,10 +255,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       color: AppColors.primary,
       onRefresh: _load,
       child: ListView.separated(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-        itemCount: _notifications.length,
+        itemCount: _notifications.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
+          if (i == _notifications.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          }
           final n = _notifications[i];
           final type = n['type'] as String? ?? 'info';
           switch (type) {

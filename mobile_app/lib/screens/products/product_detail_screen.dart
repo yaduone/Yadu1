@@ -18,12 +18,13 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _quantity = 1;
   bool _addingToCart = false;
-  int _currentImageIndex = 0;
+  final ValueNotifier<int> _currentImageIndex = ValueNotifier(0);
   final PageController _pageController = PageController();
 
   @override
   void dispose() {
     _pageController.dispose();
+    _currentImageIndex.dispose();
     super.dispose();
   }
 
@@ -240,10 +241,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           child: PageView.builder(
             controller: _pageController,
             itemCount: urls.length,
-            onPageChanged: (i) => setState(() => _currentImageIndex = i),
+            onPageChanged: (i) => _currentImageIndex.value = i,
             itemBuilder: (_, i) => CachedNetworkImage(
               imageUrl: urls[i],
               fit: BoxFit.cover,
+              memCacheWidth: 800,
               fadeInDuration: const Duration(milliseconds: 300),
               placeholder: (_, __) => Container(
                 color: AppColors.surfaceBg,
@@ -258,21 +260,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         if (urls.length > 1)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(urls.length, (i) {
-                final active = i == _currentImageIndex;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: active ? 20 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: active ? AppColors.primary : Colors.white.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                );
-              }),
+            child: ValueListenableBuilder<int>(
+              valueListenable: _currentImageIndex,
+              builder: (_, currentIndex, __) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(urls.length, (i) {
+                  final active = i == currentIndex;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 20 : 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: active ? AppColors.primary : Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  );
+                }),
+              ),
             ),
           ),
       ],

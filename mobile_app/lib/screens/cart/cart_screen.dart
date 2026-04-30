@@ -19,7 +19,7 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen>
     with SingleTickerProviderStateMixin {
-  bool _showSavePill = false;
+  final ValueNotifier<bool> _showSavePill = ValueNotifier(false);
   bool _skipping = false;
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
@@ -41,13 +41,14 @@ class _CartScreenState extends State<CartScreen>
   @override
   void dispose() {
     _fadeCtrl.dispose();
+    _showSavePill.dispose();
     super.dispose();
   }
 
   void _showAutoSave() {
-    setState(() => _showSavePill = true);
+    _showSavePill.value = true;
     Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _showSavePill = false);
+      if (mounted) _showSavePill.value = false;
     });
   }
 
@@ -284,12 +285,15 @@ class _CartScreenState extends State<CartScreen>
                     ),
                   ),
 
-            // Auto-save pill
+            // Auto-save pill — uses ValueListenableBuilder to avoid full tree rebuild
             Positioned(
               top: 8,
               left: 0,
               right: 0,
-              child: Center(child: AutoSavePill(visible: _showSavePill)),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _showSavePill,
+                builder: (_, visible, __) => Center(child: AutoSavePill(visible: visible)),
+              ),
             ),
           ],
         ),

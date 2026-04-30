@@ -561,32 +561,34 @@ class _PulseLoaderState extends State<PulseLoader>
   @override
   Widget build(BuildContext context) {
     final color = widget.color ?? AppColors.primary;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        return AnimatedBuilder(
-          animation: _anim,
-          builder: (_, __) {
-            final delay = i * 0.25;
-            final t = ((_ctrl.value - delay) % 1.0).clamp(0.0, 1.0);
-            final scale = 0.6 + (0.4 * (t < 0.5 ? t * 2 : (1 - t) * 2));
-            return Padding(
-              padding: EdgeInsets.symmetric(horizontal: widget.size * 0.3),
-              child: Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: widget.size,
-                  height: widget.size,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.4 + 0.6 * scale),
-                    shape: BoxShape.circle,
+    return RepaintBoundary(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (i) {
+          return AnimatedBuilder(
+            animation: _anim,
+            builder: (_, __) {
+              final delay = i * 0.25;
+              final t = ((_ctrl.value - delay) % 1.0).clamp(0.0, 1.0);
+              final scale = 0.6 + (0.4 * (t < 0.5 ? t * 2 : (1 - t) * 2));
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: widget.size * 0.3),
+                child: Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: widget.size,
+                    height: widget.size,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.4 + 0.6 * scale),
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      }),
+              );
+            },
+          );
+        }),
+      ),
     );
   }
 }
