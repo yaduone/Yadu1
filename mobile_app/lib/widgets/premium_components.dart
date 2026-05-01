@@ -50,13 +50,17 @@ class PremiumCard extends StatelessWidget {
 
 class SectionLabel extends StatelessWidget {
   final String text;
-  const SectionLabel(this.text, {super.key});
+  final Color? color;
+  const SectionLabel(this.text, {super.key, this.color});
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text.toUpperCase(),
-      style: AppType.microUpper.copyWith(color: AppColors.textHint),
+      style: AppType.microUpper.copyWith(
+        color: color ?? AppColors.textHint,
+        letterSpacing: 1.4,
+      ),
     );
   }
 }
@@ -211,13 +215,15 @@ class SkeletonCardLoader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(width: 120, height: 14, color: Colors.white),
-                    const SizedBox(height: 8),
-                    Container(width: 80, height: 10, color: Colors.white),
-                  ],
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(width: 120, height: 14, color: Colors.white),
+                      const SizedBox(height: 8),
+                      Container(width: 80, height: 10, color: Colors.white),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -377,8 +383,8 @@ class TrustBadgeRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        TrustBadge(icon: Icons.verified_rounded, label: 'FSSAI Approved'),
-        TrustBadge(icon: Icons.schedule_rounded, label: 'Farm to Door in 12 Hrs'),
+        TrustBadge(icon: Icons.verified_rounded, label: 'Freshness Guaranteed'),
+        TrustBadge(icon: Icons.schedule_rounded, label: 'Farm to Door'),
         TrustBadge(icon: Icons.lock_rounded, label: 'Encrypted OTP'),
       ],
     );

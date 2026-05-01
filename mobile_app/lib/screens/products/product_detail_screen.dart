@@ -180,6 +180,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                 .copyWith(color: AppColors.textSecondary)),
                         Text(
                           '₹${((p['price'] as num) * _quantity).toStringAsFixed(0)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: AppType.h2.copyWith(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w800,

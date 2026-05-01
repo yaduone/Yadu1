@@ -346,6 +346,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               const SizedBox(height: 8),
                               Text(
                                 type,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                                 style: AppType.captionBold.copyWith(
                                   color: isSelected
                                       ? Colors.white
@@ -414,6 +417,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           child: Center(
                             child: Text(
                               slot,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: AppType.captionBold.copyWith(
                                 color: isSelected
                                     ? AppColors.primary

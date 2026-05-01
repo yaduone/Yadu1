@@ -25,53 +25,71 @@ class ApiService {
 
   static const _timeout = Duration(seconds: 15);
 
-  Future<Map<String, dynamic>> get(String path) => _execute(
-        () async => http.get(
-          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+  static final List<String> _baseUrls = [
+    AppConstants.apiBaseUrl,
+    AppConstants.apiFallbackUrl,
+  ];
+
+  Future<Map<String, dynamic>> get(String path) => _executeWithFallback(
+        (base) async => http.get(
+          Uri.parse('$base$path'),
           headers: await _headers(),
         ).timeout(_timeout),
       );
 
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
-      _execute(
-        () async => http.post(
-          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+      _executeWithFallback(
+        (base) async => http.post(
+          Uri.parse('$base$path'),
           headers: await _headers(),
           body: jsonEncode(body),
         ).timeout(_timeout),
       );
 
   Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) =>
-      _execute(
-        () async => http.put(
-          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+      _executeWithFallback(
+        (base) async => http.put(
+          Uri.parse('$base$path'),
           headers: await _headers(),
           body: jsonEncode(body),
         ).timeout(_timeout),
       );
 
-  Future<Map<String, dynamic>> delete(String path) => _execute(
-        () async => http.delete(
-          Uri.parse('${AppConstants.apiBaseUrl}$path'),
+  Future<Map<String, dynamic>> delete(String path) => _executeWithFallback(
+        (base) async => http.delete(
+          Uri.parse('$base$path'),
           headers: await _headers(),
         ).timeout(_timeout),
       );
 
-  /// Wraps every HTTP call with consistent error translation.
-  Future<Map<String, dynamic>> _execute(
-      Future<http.Response> Function() call) async {
-    try {
-      final res = await call();
-      return _handleResponse(res);
-    } on SocketException {
-      throw const NetworkException();
-    } on TimeoutException {
-      throw const TimeoutApiException();
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException(e.toString(), 0);
+  Future<Map<String, dynamic>> _executeWithFallback(
+      Future<http.Response> Function(String baseUrl) call) async {
+    Object lastError = const NetworkException();
+
+    for (int i = 0; i < _baseUrls.length; i++) {
+      try {
+        final res = await call(_baseUrls[i]);
+        return _handleResponse(res);
+      } on SocketException {
+        lastError = const NetworkException();
+        // Only try fallback on network-level failures
+        if (i < _baseUrls.length - 1) continue;
+      } on TimeoutException {
+        lastError = const TimeoutApiException();
+        if (i < _baseUrls.length - 1) continue;
+      } on ApiException catch (e) {
+        // Fall through to next URL on 5xx server errors; rethrow 4xx immediately
+        if (e.statusCode >= 500 && i < _baseUrls.length - 1) {
+          lastError = e;
+          continue;
+        }
+        rethrow;
+      } catch (e) {
+        throw ApiException(e.toString(), 0);
+      }
     }
+
+    throw lastError;
   }
 
   Map<String, dynamic> _handleResponse(http.Response res) {
@@ -101,13 +119,11 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Thrown when there is no internet / socket error.
 class NetworkException extends ApiException {
   const NetworkException()
       : super('No internet connection. Please check your network and try again.', 0);
 }
 
-/// Thrown when the request times out.
 class TimeoutApiException extends ApiException {
   const TimeoutApiException()
       : super('Request timed out. Please try again.', 0);

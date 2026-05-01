@@ -67,20 +67,50 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
     super.dispose();
   }
 
+  // ── Shared background stack ───────────────────────────────────────────────────
+  Widget _withBackground({required Widget child}) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Sticky background image
+        Positioned.fill(
+          child: Image.asset('assets/images/bg2.jpg', fit: BoxFit.cover),
+        ),
+        // Dark scrim for readability
+        Positioned.fill(
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xCC000000), Color(0x99000000), Color(0xBB000000)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0.0, 0.4, 1.0],
+              ),
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBg,
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
         appBar: _buildAppBar(),
-        body: const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SkeletonLoader(height: 220, width: double.infinity, borderRadius: 0),
-              SizedBox(height: 20),
-              SkeletonLoader(height: 20, width: 160, borderRadius: 8),
-            ],
+        body: _withBackground(
+          child: const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SkeletonLoader(height: 220, width: double.infinity, borderRadius: 0),
+                SizedBox(height: 20),
+                SkeletonLoader(height: 20, width: 160, borderRadius: 8),
+              ],
+            ),
           ),
         ),
       );
@@ -88,45 +118,53 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
 
     if (_livestream == null || _controller == null) {
       return Scaffold(
-        backgroundColor: AppColors.scaffoldBg,
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
         appBar: _buildAppBar(),
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceBg,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Icon(Icons.live_tv_rounded,
-                            size: 36, color: AppColors.textHint),
+        body: _withBackground(
+          child: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 40),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.2)),
+                            ),
+                            child: const Icon(Icons.live_tv_rounded,
+                                size: 36, color: Colors.white),
+                          ),
+                          const SizedBox(height: 20),
+                          Text('No live stream available',
+                              style: AppType.h3.copyWith(color: Colors.white)),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Check back later for live updates\nfrom your area',
+                            textAlign: TextAlign.center,
+                            style: AppType.caption.copyWith(
+                                color: Colors.white70, height: 1.5),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      Text('No live stream available', style: AppType.h3),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Check back later for live updates\nfrom your area',
-                        textAlign: TextAlign.center,
-                        style: AppType.caption.copyWith(
-                            color: AppColors.textSecondary, height: 1.5),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 32),
+                  _lactometerCard(),
+                  const SizedBox(height: 24),
+                ],
               ),
-              const SizedBox(height: 32),
-              _lactometerCard(),
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         ),
       );
@@ -145,50 +183,61 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       ),
       builder: (context, player) {
         return Scaffold(
-          backgroundColor: AppColors.scaffoldBg,
+          backgroundColor: Colors.transparent,
+          extendBodyBehindAppBar: true,
           appBar: _buildAppBar(),
-          body: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                player,
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '● LIVE',
-                          style: AppType.microUpper.copyWith(
-                            color: Colors.white,
-                            letterSpacing: 1.2,
+          body: _withBackground(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Video player — full width, no padding so it fills edge-to-edge
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(16)),
+                      child: player,
+                    ),
+                    const SizedBox(height: 20),
+                    // LIVE badge + title
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '● LIVE',
+                              style: AppType.microUpper.copyWith(
+                                color: Colors.white,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _livestream!['title'] ?? 'Livestream',
+                              style: AppType.h3.copyWith(color: Colors.white),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _livestream!['title'] ?? 'Livestream',
-                          style: AppType.h3,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                    _lactometerCard(),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                _lactometerCard(),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
           ),
         );
@@ -201,13 +250,14 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.07),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -217,11 +267,11 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F4FD),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.water_drop_rounded,
-                color: AppColors.primary, size: 24),
+                color: Colors.white, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -231,8 +281,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                 Text(
                   "Today's Lactometer Reading",
                   style: AppType.caption.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600),
+                      color: Colors.white70, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 _lactometerReading != null
@@ -241,13 +290,12 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                           children: [
                             TextSpan(
                               text: _lactometerReading!.toStringAsFixed(1),
-                              style: AppType.h1.copyWith(
-                                  color: AppColors.primary),
+                              style: AppType.h1.copyWith(color: Colors.white),
                             ),
                             TextSpan(
                               text: ' °LR',
                               style: AppType.body.copyWith(
-                                  color: AppColors.textSecondary,
+                                  color: Colors.white70,
                                   fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -255,7 +303,8 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                       )
                     : Text(
                         'Not updated yet',
-                        style: AppType.body.copyWith(color: AppColors.textHint),
+                        style:
+                            AppType.body.copyWith(color: Colors.white54),
                       ),
               ],
             ),
@@ -267,26 +316,28 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
 
   AppBar _buildAppBar() {
     return AppBar(
-      backgroundColor: AppColors.scaffoldBg,
-      leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.all(8),
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  Border.all(color: Colors.white.withValues(alpha: 0.3)),
+            ),
+            child: const Icon(Icons.arrow_back_ios_new,
+                size: 16, color: Colors.white),
           ),
-          child: const Icon(Icons.arrow_back_ios_new, size: 16),
         ),
-        onPressed: () => Navigator.pop(context),
       ),
-      title: Text('Live Stream', style: AppType.h2),
+      title: Text(
+        'Live Stream',
+        style: AppType.h2.copyWith(color: Colors.white),
+      ),
     );
   }
 }

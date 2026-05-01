@@ -57,8 +57,32 @@ class _CartScreenState extends State<CartScreen>
     final cart = context.watch<CartProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/333.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.35, 0.65],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
         child: Stack(
           children: [
             cart.tomorrowStatus == null
@@ -96,13 +120,24 @@ class _CartScreenState extends State<CartScreen>
                                       cart.isLocked
                                           ? 'Day After Tomorrow'
                                           : "Tomorrow's Cart",
-                                      style: AppType.h1,
+                                      style: AppType.h1.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black54,
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       cart.tomorrowStatus!['date'] ?? '',
                                       style: AppType.caption.copyWith(
-                                          color: AppColors.textSecondary),
+                                        color: Colors.white.withValues(alpha: 0.82),
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -112,13 +147,19 @@ class _CartScreenState extends State<CartScreen>
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: AppColors.primaryLight,
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.5),
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Text(
                                     '₹${cart.totalAmount.toStringAsFixed(0)}',
                                     style: AppType.captionBold.copyWith(
-                                        color: AppColors.primary),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -134,7 +175,7 @@ class _CartScreenState extends State<CartScreen>
 
                           // ── Milk Section ────────────────────────────
                           if (cart.effectiveMilk != null) ...[
-                            const SectionLabel('Milk Delivery'),
+                            const SectionLabel('Milk Delivery', color: Colors.white70),
                             const SizedBox(height: 12),
                             _MilkCard(
                               milk: cart.effectiveMilk!,
@@ -218,7 +259,7 @@ class _CartScreenState extends State<CartScreen>
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const SectionLabel('Extra Items'),
+                              const SectionLabel('Extra Items', color: Colors.white70),
                               Tappable(
                                 onTap: () => _showQuickAddSheet(context),
                                 scaleFactor: 0.93,
@@ -297,6 +338,8 @@ class _CartScreenState extends State<CartScreen>
             ),
           ],
         ),
+          ),
+        ],
       ),
     );
   }
@@ -425,9 +468,12 @@ class _MilkCardState extends State<_MilkCard> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          '${(widget.milk['milk_type'] as String).toUpperCase()} Milk',
-                          style: AppType.bodyBold,
+                        Flexible(
+                          child: Text(
+                            '${(widget.milk['milk_type'] as String).toUpperCase()} Milk',
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.bodyBold,
+                          ),
                         ),
                         const SizedBox(width: 6),
                         const Icon(Icons.lock_outline_rounded,

@@ -50,8 +50,32 @@ class _ReportsScreenState extends State<ReportsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/333.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.35, 0.65],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
         child: _loading
             ? Padding(
                 padding: const EdgeInsets.all(20),
@@ -109,12 +133,26 @@ class _ReportsScreenState extends State<ReportsScreen>
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Reports & Insights', style: AppType.h1),
+                                    Text(
+                                      'Reports & Insights',
+                                      style: AppType.h1.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black54,
+                                            blurRadius: 10,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                     const SizedBox(height: 4),
                                     Text(
                                       'Your delivery analytics at a glance',
-                                      style: AppType.caption
-                                          .copyWith(color: AppColors.textSecondary),
+                                      style: AppType.caption.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.82),
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -180,7 +218,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                           const SizedBox(height: 28),
 
                           // Monthly summary
-                          const SectionLabel('Monthly Summary'),
+                          const SectionLabel('Monthly Summary', color: Colors.white70),
                           const SizedBox(height: 12),
                           ...(_report!['monthly_summary'] as List? ?? [])
                               .map((m) => Padding(
@@ -240,6 +278,8 @@ class _ReportsScreenState extends State<ReportsScreen>
                       ),
                     ),
                   ),
+          ),
+        ],
       ),
     );
   }
@@ -262,6 +302,8 @@ class _ReportsScreenState extends State<ReportsScreen>
           const SizedBox(height: 14),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: AppType.h2.copyWith(color: color, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 2),

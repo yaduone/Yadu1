@@ -21,37 +21,26 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _landmarkController = TextEditingController();
   final _pincodeController = TextEditingController();
   String? _selectedAreaId;
-  List<Map<String, dynamic>> _areas = [];
-  bool _loadingAreas = true;
 
   @override
   void initState() {
     super.initState();
-    _loadAreas();
+    _loadRajendranagar();
   }
 
-  Future<void> _loadAreas() async {
+  Future<void> _loadRajendranagar() async {
     try {
       final res = await ApiService().get('/areas');
       final list = (res['data']?['areas'] as List?) ?? [];
+      final areas = list.cast<Map<String, dynamic>>();
+      final raj = areas.firstWhere(
+        (a) => a['slug'] == 'rajendranagar',
+        orElse: () => areas.isNotEmpty ? areas.first : <String, dynamic>{},
+      );
       setState(() {
-        _areas = list.cast<Map<String, dynamic>>();
-        _loadingAreas = false;
-        if (_areas.length == 1) {
-          _selectedAreaId = _areas.first['id'] as String;
-        }
+        _selectedAreaId = raj['id'] as String?;
       });
-    } catch (e) {
-      setState(() => _loadingAreas = false);
-      if (mounted) {
-        AppSnackbar.error(
-          context,
-          'Could not load delivery areas. Please check your connection and try again.',
-          actionLabel: 'Retry',
-          onAction: _loadAreas,
-        );
-      }
-    }
+    } catch (_) {}
   }
 
   @override
@@ -117,40 +106,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   _buildField(
                       'Full Name', _nameController, Icons.person_rounded),
                   const SizedBox(height: 18),
-
-                  Text('Delivery Area', style: AppType.captionBold),
-                  const SizedBox(height: 8),
-                  _loadingAreas
-                      ? const Center(
-                          child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        ))
-                      : DropdownButtonFormField<String>(
-                          initialValue: _selectedAreaId,
-                          items: _areas
-                              .map((a) => DropdownMenuItem(
-                                  value: a['id'] as String,
-                                  child: Text(a['name'] as String)))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedAreaId = v),
-                          decoration: InputDecoration(
-                            hintText: 'Choose your area',
-                            prefixIcon: const Icon(
-                                Icons.location_on_outlined,
-                                color: AppColors.textHint,
-                                size: 20),
-                            filled: true,
-                            fillColor: AppColors.surfaceBg,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-
-                  const SizedBox(height: 18),
                   _buildField('Address Line 1', _line1Controller,
                       Icons.home_outlined),
                   const SizedBox(height: 14),
@@ -201,11 +156,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       AppSnackbar.warning(context, 'Please enter your full name.');
       return;
     }
-    if (_selectedAreaId == null) {
-      AppSnackbar.warning(context, 'Please select your delivery area.');
-      return;
-    }
-    if (_line1Controller.text.trim().isEmpty) {
+if (_line1Controller.text.trim().isEmpty) {
       AppSnackbar.warning(context, 'Please enter your address.');
       return;
     }

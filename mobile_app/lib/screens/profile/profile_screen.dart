@@ -48,8 +48,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = auth.userData;
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/333.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.15),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.35, 0.65],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           children: [
@@ -58,7 +82,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Header
             Row(
               children: [
-                Expanded(child: Text('Profile', style: AppType.h1)),
+                Expanded(
+                  child: Text(
+                    'Profile',
+                    style: AppType.h1.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 CalendarIconButton(),
               ],
             ),
@@ -77,11 +115,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 14),
                   Text(
                     user?['name'] ?? 'User',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppType.h2,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     user?['phone'] ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppType.caption.copyWith(color: AppColors.textSecondary),
                   ),
 
@@ -127,6 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               Text(
                                 '${user!['address']['line1'] ?? ''}',
+                                overflow: TextOverflow.ellipsis,
                                 style: AppType.caption,
                               ),
                               if (user['address']['line2'] != null &&
@@ -154,7 +197,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 28),
 
             // Order History
-            const SectionLabel('Order History'),
+            const SectionLabel('Order History', color: Colors.white70),
             const SizedBox(height: 12),
 
             if (_loadingOrders)
@@ -253,7 +296,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 28),
 
             // Legal links
-            const SectionLabel('Legal'),
+            const SectionLabel('Legal', color: Colors.white70),
             const SizedBox(height: 12),
             PremiumCard(
               padding: EdgeInsets.zero,
@@ -338,6 +381,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 80),
           ],
         ),
+          ),
+        ],
       ),
     );
   }

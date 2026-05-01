@@ -184,10 +184,13 @@ class _BalanceTabState extends State<_BalanceTab> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text(
-                      due > 0 ? 'Outstanding Due' : due < 0 ? 'Prepaid Balance' : 'All Clear',
-                      style: AppType.caption.copyWith(
-                        color: Colors.white.withValues(alpha: 0.8),
+                    Flexible(
+                      child: Text(
+                        due > 0 ? 'Outstanding Due' : due < 0 ? 'Prepaid Balance' : 'All Clear',
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.caption.copyWith(
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
                       ),
                     ),
                   ],
@@ -289,8 +292,12 @@ class _BalanceTabState extends State<_BalanceTab> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: AppType.caption.copyWith(color: AppColors.textSecondary)),
+        Flexible(
+          child: Text(label,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.caption.copyWith(color: AppColors.textSecondary)),
+        ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: (bold ? AppType.bodyBold : AppType.captionBold)

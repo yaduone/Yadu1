@@ -265,21 +265,31 @@ class _ProductCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisSize: MainAxisSize.max,
                     children: [
-                      Text(
-                        product['name'] ?? '',
-                        style: AppType.captionBold,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            product['name'] ?? '',
+                            style: AppType.captionBold,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (product['unit'] != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              product['unit'] ?? '',
+                              style: AppType.small
+                                  .copyWith(color: AppColors.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      if (product['unit'] != null)
-                        Text(
-                          product['unit'] ?? '',
-                          style: AppType.small
-                              .copyWith(color: AppColors.textSecondary),
-                        ),
-                      const Spacer(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

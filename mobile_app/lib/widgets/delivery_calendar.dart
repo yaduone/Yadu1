@@ -804,8 +804,9 @@ class _DetailRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppType.captionBold),
+              Text(title, style: AppType.captionBold, overflow: TextOverflow.ellipsis),
               Text(subtitle,
+                  overflow: TextOverflow.ellipsis,
                   style: AppType.small
                       .copyWith(color: AppColors.textSecondary)),
             ],

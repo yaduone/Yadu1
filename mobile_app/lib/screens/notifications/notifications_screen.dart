@@ -151,8 +151,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Notifications', style: AppType.h2),
+            Flexible(child: Text('Notifications', style: AppType.h2, overflow: TextOverflow.ellipsis)),
             if (_unreadCount > 0) ...[
               const SizedBox(width: 8),
               Container(
