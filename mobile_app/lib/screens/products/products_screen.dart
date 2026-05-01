@@ -1,4 +1,3 @@
-import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -236,15 +235,10 @@ class _ProductCard extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      ImageFiltered(
-                        imageFilter: isActive
-                            ? _noFilter
-                            : _comingSoonBlur,
-                        child: _buildImage(product),
-                      ),
+                      _buildImage(product),
                       if (!isActive)
                         Container(
-                          color: Colors.black.withValues(alpha: 0.45),
+                          color: const Color(0x80000000),
                           child: const Center(
                             child: Text(
                               'Coming\nSoon',
@@ -320,9 +314,6 @@ class _ProductCard extends StatelessWidget {
       ),
     );
   }
-
-  static final _noFilter = dart_ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0);
-  static final _comingSoonBlur = dart_ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5);
 
   Widget _buildImage(dynamic product) {
     final images = product['images'];

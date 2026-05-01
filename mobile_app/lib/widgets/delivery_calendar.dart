@@ -184,8 +184,43 @@ class _CalendarSheetState extends State<_CalendarSheet> {
                     const SizedBox(height: 16),
 
                     // Calendar grid
-                    loading
-                        ? const Padding(
+                    if (cal.error != null && days.isEmpty && !loading)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              const Icon(Icons.cloud_off_rounded,
+                                  size: 36, color: AppColors.textHint),
+                              const SizedBox(height: 10),
+                              Text('Could not load calendar',
+                                  style: AppType.captionBold
+                                      .copyWith(color: AppColors.textPrimary)),
+                              const SizedBox(height: 4),
+                              Text('Pull down to retry',
+                                  style: AppType.small
+                                      .copyWith(color: AppColors.textSecondary)),
+                              const SizedBox(height: 12),
+                              GestureDetector(
+                                onTap: () => cal.loadMonth(_monthKey, forceRefresh: true),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text('Retry',
+                                      style: AppType.captionBold
+                                          .copyWith(color: Colors.white)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (loading)
+                      const Padding(
                             padding: EdgeInsets.symmetric(vertical: 40),
                             child: Center(
                               child: CircularProgressIndicator(
@@ -193,7 +228,8 @@ class _CalendarSheetState extends State<_CalendarSheet> {
                                   color: AppColors.primary),
                             ),
                           )
-                        : _CalendarGrid(
+                    else
+                        _CalendarGrid(
                             month: _focusedMonth,
                             days: days,
                             onDayTap: (date, data) =>

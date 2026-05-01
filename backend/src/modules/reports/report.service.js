@@ -195,18 +195,18 @@ async function getUserCalendar(userId, month) {
   const nextYear = mon === 12 ? year + 1 : year;
   const endDate = `${nextYear}-${String(nextMon).padStart(2, '0')}-01`;
 
-  // Fetch orders for the month
+  // Fetch orders for the month — filter by user only, then filter date range
+  // in JS to avoid needing a composite index on (user_id, date)
   const ordersSnap = await db
     .collection('orders')
     .where('user_id', '==', userId)
-    .where('date', '>=', startDate)
-    .where('date', '<', endDate)
     .get();
 
   const calendar = {};
 
   for (const doc of ordersSnap.docs) {
     const o = doc.data();
+    if (!o.date || o.date < startDate || o.date >= endDate) continue;
     calendar[o.date] = {
       order_id: doc.id,
       status: o.status,
