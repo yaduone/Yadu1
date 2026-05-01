@@ -1,3 +1,10 @@
+import java.util.Properties
+
+val keyPropertiesFile = rootProject.file("key.properties")
+val keyProperties = Properties().apply {
+    if (keyPropertiesFile.exists()) load(keyPropertiesFile.inputStream())
+}
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -33,11 +40,32 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = (keyProperties["storeFile"] as String?)?.let { file(it) }
+                ?: System.getenv("KEYSTORE_PATH")?.let { file(it) }
+            storePassword = keyProperties["storePassword"] as String?
+                ?: System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = keyProperties["keyAlias"] as String?
+                ?: System.getenv("KEY_ALIAS")
+            keyPassword = keyProperties["keyPassword"] as String?
+                ?: System.getenv("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val hasReleaseKey = keyPropertiesFile.exists() || System.getenv("KEYSTORE_PATH") != null
+            signingConfig = if (hasReleaseKey)
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }

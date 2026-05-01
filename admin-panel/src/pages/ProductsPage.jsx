@@ -330,19 +330,31 @@ export default function ProductsPage() {
         <>
           {/* Mobile card list */}
           <div className="space-y-2 sm:hidden">
-            {products.map((p) => (
-              <div key={p.id} className="card p-4">
+            {[...products].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)).map((p) => (
+              <div key={p.id} className={`card p-4 ${!p.is_active ? 'opacity-80' : ''}`}>
                 <div className="flex items-center gap-3">
                   {p.images?.[0] ? (
-                    <img
-                      src={p.images[0]}
-                      alt={p.name}
-                      className="w-12 h-12 object-cover rounded-xl border border-slate-100 shrink-0"
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
+                    <div className="relative w-12 h-12 rounded-xl shrink-0 overflow-hidden border border-slate-100">
+                      <img
+                        src={p.images[0]}
+                        alt={p.name}
+                        className={`w-12 h-12 object-cover ${!p.is_active ? 'blur-[2px]' : ''}`}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                      {!p.is_active && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+                          <span className="text-white text-[8px] font-bold text-center leading-tight px-0.5">Coming<br/>Soon</span>
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <div className="relative w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
                       <ImagePlus size={18} className="text-slate-300" />
+                      {!p.is_active && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+                          <span className="text-white text-[8px] font-bold text-center leading-tight px-0.5">Coming<br/>Soon</span>
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -393,26 +405,36 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p.id}>
+                {[...products].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)).map((p) => (
+                  <tr key={p.id} className={!p.is_active ? 'opacity-80' : ''}>
                     <td>
                       {p.images?.[0] ? (
-                        <div className="relative w-10 h-10">
+                        <div className="relative w-10 h-10 rounded-xl overflow-hidden">
                           <img
                             src={p.images[0]}
                             alt={p.name}
-                            className="w-10 h-10 object-cover rounded-xl border border-slate-100"
+                            className={`w-10 h-10 object-cover border border-slate-100 ${!p.is_active ? 'blur-[2px]' : ''}`}
                             onError={(e) => { e.target.style.display = 'none'; }}
                           />
-                          {p.images.length > 1 && (
+                          {p.is_active && p.images.length > 1 && (
                             <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                               {p.images.length}
                             </span>
                           )}
+                          {!p.is_active && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+                              <span className="text-white text-[7px] font-bold text-center leading-tight">Coming<br/>Soon</span>
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300">
+                        <div className="relative w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 overflow-hidden">
                           <ImagePlus size={16} />
+                          {!p.is_active && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
+                              <span className="text-white text-[7px] font-bold text-center leading-tight">Coming<br/>Soon</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>

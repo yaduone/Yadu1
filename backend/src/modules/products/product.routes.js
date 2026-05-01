@@ -44,10 +44,10 @@ function handleMulterError(err, req, res, next) {
 
 const { cache, invalidateOn } = require('../../middleware/cache');
 
-// GET /api/products — active products (public) — cached 300s
+// GET /api/products — all products (public) — cached 300s
 router.get('/', cache.publicStatic, async (req, res, next) => {
   try {
-    let query = db.collection('products').where('is_active', '==', true);
+    let query = db.collection('products');
     if (req.query.category) {
       if (!isValidProductCategory(req.query.category)) return badRequest(res, 'Invalid category');
       query = query.where('category', '==', req.query.category);

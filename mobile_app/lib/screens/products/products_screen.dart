@@ -1,3 +1,4 @@
+import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -37,12 +38,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
       if (p['category'] != null) categories.add(p['category'] as String);
     }
 
-    // Filter by category
-    final filtered = _selectedCategory == 'All'
+    // Filter by category then sort: active first, inactive (coming soon) last
+    final categoryFiltered = _selectedCategory == 'All'
         ? products
         : products
             .where((p) => p['category'] == _selectedCategory)
             .toList();
+    final filtered = [...categoryFiltered]
+      ..sort((a, b) {
+        final aActive = a['is_active'] == true ? 0 : 1;
+        final bActive = b['is_active'] == true ? 0 : 1;
+        return aActive.compareTo(bActive);
+      });
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -192,89 +199,130 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ProductDetailScreen(product: product),
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image
-            Expanded(
-              flex: 3,
-              child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-                child: _buildImage(product),
-              ),
-            ),
+    final isActive = product['is_active'] == true;
 
-            // Info
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product['name'] ?? '',
-                      style: AppType.captionBold,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    if (product['unit'] != null)
-                      Text(
-                        product['unit'] ?? '',
-                        style: AppType.small
-                            .copyWith(color: AppColors.textSecondary),
+    return GestureDetector(
+      onTap: isActive
+          ? () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProductDetailScreen(product: product),
+                ),
+              )
+          : null,
+      child: Opacity(
+        opacity: isActive ? 1.0 : 0.85,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              Expanded(
+                flex: 3,
+                child: ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ImageFiltered(
+                        imageFilter: isActive
+                            ? _noFilter
+                            : _comingSoonBlur,
+                        child: _buildImage(product),
                       ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '₹${(product['price'] as num).toStringAsFixed(0)}',
-                          style: AppType.bodyBold
-                              .copyWith(color: AppColors.primary),
-                        ),
+                      if (!isActive)
                         Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(10),
+                          color: Colors.black.withValues(alpha: 0.45),
+                          child: const Center(
+                            child: Text(
+                              'Coming\nSoon',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                                height: 1.3,
+                              ),
+                            ),
                           ),
-                          child: const Icon(Icons.add_rounded,
-                              color: Colors.white, size: 18),
                         ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              // Info
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product['name'] ?? '',
+                        style: AppType.captionBold,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      if (product['unit'] != null)
+                        Text(
+                          product['unit'] ?? '',
+                          style: AppType.small
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '₹${(product['price'] as num).toStringAsFixed(0)}',
+                            style: AppType.bodyBold.copyWith(
+                              color: isActive
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                          if (isActive)
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.add_rounded,
+                                  color: Colors.white, size: 18),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  static final _noFilter = dart_ui.ImageFilter.blur(sigmaX: 0, sigmaY: 0);
+  static final _comingSoonBlur = dart_ui.ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5);
 
   Widget _buildImage(dynamic product) {
     final images = product['images'];

@@ -8,7 +8,16 @@ const config = {
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret-change-me',
+    secret: (() => {
+      const secret = process.env.JWT_SECRET;
+      if (!secret || secret === 'dev-secret-change-me') {
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('JWT_SECRET environment variable must be set in production');
+        }
+        return secret || 'dev-secret-change-me';
+      }
+      return secret;
+    })(),
     expiresIn: '24h',
   },
   allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean),

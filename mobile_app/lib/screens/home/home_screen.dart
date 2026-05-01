@@ -134,7 +134,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
               top: false,
               child: RefreshIndicator(
                 color: Colors.white,
-                backgroundColor: AppColors.primary,
+                backgroundColor: const Color(0xFF2A9D8F),
                 onRefresh: () async {
                   await sub.loadSubscription();
                   await cart.loadTomorrowStatus();
@@ -257,14 +257,14 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                           height: 110,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF0F4C75), Color(0xFF2E8EEA)],
+                              colors: [Color(0xFF1B6B5A), Color(0xFF2A9D8F)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.3),
+                                color: const Color(0xFF2A9D8F).withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
@@ -346,19 +346,20 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
     );
   }
 
-  // ── Blue Header ───────────────────────────────────────────────────────────────
+  // ── Header ────────────────────────────────────────────────────────────────────
 
   Widget _buildBlueHeader(BuildContext context, String firstName) {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0D47A1), Color(0xFF2E8EEA)],
+          colors: [Color(0xFF1B6B5A), Color(0xFF2A9D8F), Color(0xFF48C9B0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          stops: [0.0, 0.55, 1.0],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1565C0).withValues(alpha: 0.45),
+            color: const Color(0xFF2A9D8F).withValues(alpha: 0.40),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
