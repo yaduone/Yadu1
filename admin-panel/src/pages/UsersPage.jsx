@@ -8,7 +8,7 @@ const STATUS_BADGE = {
   cancelled: 'badge badge-red',
 };
 
-const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Toned' };
+const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Child Pack' };
 
 const FILTER_CONFIG = [
   { key: 'active',    label: 'Active',    icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },

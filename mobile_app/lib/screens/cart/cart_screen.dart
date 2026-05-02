@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -451,17 +452,7 @@ class _MilkCardState extends State<_MilkCard> {
           // ── Top row: icon + info + stepper ─────────────────────
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.water_drop_rounded,
-                    color: AppColors.primary, size: 24),
-              ),
-              const SizedBox(width: 14),
+              _MilkTypeIcon(milkType: (widget.milk['milk_type'] as String? ?? '').toLowerCase()),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -722,17 +713,7 @@ class _ExtraItemCardState extends State<_ExtraItemCard> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.shopping_bag_rounded,
-                  color: AppColors.primary, size: 20),
-            ),
-            const SizedBox(width: 14),
+            _ExtraItemThumb(productId: widget.item['product_id']),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1163,6 +1144,83 @@ class _BasketChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Milk Type Icon ────────────────────────────────────────────────────────────
+
+class _MilkTypeIcon extends StatelessWidget {
+  final String milkType;
+  const _MilkTypeIcon({required this.milkType});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool useEmoji = milkType == 'cow' || milkType == 'buffalo';
+    final String emoji = milkType == 'cow' ? '🐄' : milkType == 'buffalo' ? '🐃' : '';
+    final bool isInfant = milkType == 'toned' || milkType == 'double_toned';
+
+    return Container(
+      width: 48,
+      height: 48,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: useEmoji
+          ? Center(child: Text(emoji, style: const TextStyle(fontSize: 24)))
+          : Icon(
+              isInfant ? Icons.child_care_rounded : Icons.water_drop_rounded,
+              color: AppColors.primary,
+              size: 24,
+            ),
+    );
+  }
+}
+
+// ── Extra Item Thumb ──────────────────────────────────────────────────────────
+
+class _ExtraItemThumb extends StatelessWidget {
+  final String? productId;
+  const _ExtraItemThumb({required this.productId});
+
+  @override
+  Widget build(BuildContext context) {
+    final products = context.read<CartProvider>().products;
+    final product = products.firstWhere(
+      (p) => p['id'] == productId || p['_id'] == productId,
+      orElse: () => <String, dynamic>{},
+    );
+    final cover = (product['cover_image_small'] ?? product['cover_image_large']) as String?;
+    final images = product['images'];
+    final url = (cover != null && cover.isNotEmpty)
+        ? cover
+        : (images is List && images.isNotEmpty ? images[0] as String? : null);
+
+    return Container(
+      width: 44,
+      height: 44,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: url != null && url.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                memCacheWidth: 88,
+                memCacheHeight: 88,
+                errorWidget: (_, __, ___) => const Icon(
+                    Icons.shopping_bag_rounded,
+                    color: AppColors.primary, size: 20),
+              ),
+            )
+          : const Icon(Icons.shopping_bag_rounded,
+              color: AppColors.primary, size: 20),
     );
   }
 }

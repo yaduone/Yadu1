@@ -4,11 +4,11 @@ class AppConstants {
   // static const String apiBaseUrl = 'http://10.0.2.2:3000/api'; // Android emulator
   // static const String apiBaseUrl = 'http://localhost:3000/api'; // iOS simulator
   static const String appName = 'YaduONE';
-  static const List<String> milkTypes = ['Cow', 'Buffalo', 'Toned'];
+  static const List<String> milkTypes = ['Cow', 'Buffalo', 'Child Pack'];
   static const Map<String, String> milkTypeLabels = {
     'cow': 'Cow Milk',
     'buffalo': 'Buffalo Milk',
-    'toned': 'Toned Milk',
+    'toned': 'Child Pack',
   };
 
   static const List<String> deliverySlots = ['morning', 'evening', 'both'];

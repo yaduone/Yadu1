@@ -32,7 +32,7 @@ export default function PricesPage() {
     }
   }
 
-  const MILK_ICONS = { cow: '🐄', buffalo: '🐃', toned: '🥛' };
+  const MILK_ICONS = { cow: '🐄', buffalo: '🐃', toned: '👶' };
 
   return (
     <div className="space-y-5">

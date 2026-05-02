@@ -17,6 +17,8 @@ class SubscriptionScreen extends StatefulWidget {
   State<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
+const _milkValues = {'Cow': 'cow', 'Buffalo': 'buffalo', 'Child Pack': 'toned'};
+
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _selectedMilk = 'cow';
   double _quantity = 1.0;
@@ -128,13 +130,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           child: Column(
             children: [
               StatefulAvatar(
-                name: (s['milk_type'] as String).toUpperCase(),
+                name: AppConstants.milkTypeLabels[s['milk_type'] as String] ?? (s['milk_type'] as String).toUpperCase(),
                 isSubscriptionActive: isActive,
                 size: 64,
               ),
               const SizedBox(height: 16),
               Text(
-                '${(s['milk_type'] as String).toUpperCase()} Milk',
+                '${AppConstants.milkTypeLabels[s['milk_type'] as String] ?? (s['milk_type'] as String).toUpperCase()} Milk',
                 style: AppType.h2,
               ),
               const SizedBox(height: 6),
@@ -299,7 +301,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Row(
                 children: AppConstants.milkTypes.map((type) {
                   final isSelected =
-                      _selectedMilk == type.toLowerCase();
+                      _selectedMilk == (_milkValues[type] ?? type.toLowerCase());
                   return Expanded(
                     child: Padding(
                       padding: EdgeInsets.only(
@@ -308,7 +310,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       child: GestureDetector(
                         onTap: () {
                           HapticFeedback.selectionClick();
-                          setState(() => _selectedMilk = type.toLowerCase());
+                          setState(() => _selectedMilk = _milkValues[type] ?? type.toLowerCase());
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),

@@ -634,183 +634,175 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                   ),
                   const SizedBox(height: 10),
                 ],
-                // Extra cart items
-                if (cart.extraItems.isNotEmpty) ...[
-                  Row(
-                    children: [
-                      const Icon(Icons.add_shopping_cart_rounded,
-                          size: 13, color: Color(0xFF57758A)),
-                      const SizedBox(width: 5),
-                      Text(
-                        '${cart.extraItems.length} extra ${cart.extraItems.length == 1 ? 'item' : 'items'} in cart',
-                        style: AppType.micro.copyWith(
-                          color: const Color(0xFF57758A),
-                          fontWeight: FontWeight.w600,
-                        ),
+              ],
+              // Extra cart items — shown for all users
+              if (cart.extraItems.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.add_shopping_cart_rounded,
+                        size: 13, color: Color(0xFF57758A)),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${cart.extraItems.length} extra ${cart.extraItems.length == 1 ? 'item' : 'items'} in cart',
+                      style: AppType.micro.copyWith(
+                        color: const Color(0xFF57758A),
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 86,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: cart.extraItems.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) {
-                        final item = cart.extraItems[i] as Map<String, dynamic>;
-                        final qty = item['quantity'];
-                        final productId = item['product_id'];
-                        final fullProduct = cart.products.firstWhere(
-                          (p) => p['id'] == productId || p['_id'] == productId,
-                          orElse: () => item,
-                        );
-                        final name = (fullProduct['name'] ?? item['product_name'] ?? '') as String;
-                        final cover = (fullProduct['cover_image_small'] ?? fullProduct['cover_image_large']) as String?;
-                        final images = fullProduct['images'] ?? item['images'];
-                        final imageUrl = (cover != null && cover.isNotEmpty)
-                            ? cover
-                            : (images is List && images.isNotEmpty)
-                                ? images[0] as String?
-                                : null;
-                        return Tappable(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ProductDetailScreen(product: fullProduct),
-                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 86,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: cart.extraItems.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final item = cart.extraItems[i] as Map<String, dynamic>;
+                      final qty = item['quantity'];
+                      final productId = item['product_id'];
+                      final fullProduct = cart.products.firstWhere(
+                        (p) => p['id'] == productId || p['_id'] == productId,
+                        orElse: () => item,
+                      );
+                      final name = (fullProduct['name'] ?? item['product_name'] ?? '') as String;
+                      final cover = (fullProduct['cover_image_small'] ?? fullProduct['cover_image_large']) as String?;
+                      final images = fullProduct['images'] ?? item['images'];
+                      final imageUrl = (cover != null && cover.isNotEmpty)
+                          ? cover
+                          : (images is List && images.isNotEmpty)
+                              ? images[0] as String?
+                              : null;
+                      return Tappable(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProductDetailScreen(product: fullProduct),
                           ),
-                          scaleFactor: 0.93,
-                          child: SizedBox(
-                            width: 66,
-                            child: Column(
-                              children: [
-                                Stack(
-                                  children: [
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryLight,
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(color: AppColors.border),
-                                      ),
-                                      child: imageUrl != null && imageUrl.isNotEmpty
-                                          ? ClipRRect(
-                                              borderRadius: BorderRadius.circular(13),
-                                              child: CachedNetworkImage(
-                                                imageUrl: imageUrl,
-                                                fit: BoxFit.cover,
-                                                memCacheWidth: 112,
-                                                memCacheHeight: 112,
-                                                errorWidget: (_, __, ___) =>
-                                                    Center(
-                                                      child: Text(
-                                                        name.isNotEmpty
-                                                            ? name[0].toUpperCase()
-                                                            : '?',
-                                                        style: AppType.h3.copyWith(
-                                                            color: AppColors.primary),
-                                                      ),
-                                                    ),
-                                              ),
-                                            )
-                                          : Center(
-                                              child: Text(
-                                                name.isNotEmpty
-                                                    ? name[0].toUpperCase()
-                                                    : '?',
-                                                style: AppType.h3.copyWith(
-                                                    color: AppColors.primary),
-                                              ),
-                                            ),
+                        ),
+                        scaleFactor: 0.93,
+                        child: SizedBox(
+                          width: 66,
+                          child: Column(
+                            children: [
+                              Stack(
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryLight,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: AppColors.border),
                                     ),
-                                    if (qty != null)
-                                      Positioned(
-                                        right: 0,
-                                        bottom: 0,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 5, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primary,
-                                            borderRadius: BorderRadius.circular(7),
-                                          ),
-                                          child: Text(
-                                            'x$qty',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w800,
+                                    child: imageUrl != null && imageUrl.isNotEmpty
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(13),
+                                            child: CachedNetworkImage(
+                                              imageUrl: imageUrl,
+                                              fit: BoxFit.cover,
+                                              memCacheWidth: 112,
+                                              memCacheHeight: 112,
+                                              errorWidget: (_, __, ___) => Center(
+                                                child: Text(
+                                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                                  style: AppType.h3.copyWith(color: AppColors.primary),
+                                                ),
+                                              ),
                                             ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                              style: AppType.h3.copyWith(color: AppColors.primary),
+                                            ),
+                                          ),
+                                  ),
+                                  if (qty != null)
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary,
+                                          borderRadius: BorderRadius.circular(7),
+                                        ),
+                                        child: Text(
+                                          'x$qty',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
                                           ),
                                         ),
                                       ),
-                                  ],
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: AppType.micro.copyWith(
+                                  color: AppColors.textSecondary,
+                                  height: 1.2,
+                                  fontSize: 10,
                                 ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: AppType.micro.copyWith(
-                                    color: AppColors.textSecondary,
-                                    height: 1.2,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                // Add more / Explore products button
-                Tappable(
-                  onTap: () => Navigator.push(
-                      context, SlideRightRoute(page: const ProductsScreen())),
-                  scaleFactor: 0.97,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          cart.extraItems.isNotEmpty
-                              ? Icons.add_shopping_cart_rounded
-                              : Icons.storefront_rounded,
-                          size: 16,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          cart.extraItems.isNotEmpty
-                              ? 'Add more products'
-                              : 'Explore products',
-                          style: AppType.small.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded,
-                            size: 14, color: AppColors.primary.withValues(alpha: 0.6)),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ),
+                const SizedBox(height: 10),
               ],
+              // Add more / Explore products button — shown for all users
+              Tappable(
+                onTap: () => Navigator.push(
+                    context, SlideRightRoute(page: const ProductsScreen())),
+                scaleFactor: 0.97,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        cart.extraItems.isNotEmpty
+                            ? Icons.add_shopping_cart_rounded
+                            : Icons.storefront_rounded,
+                        size: 16,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        cart.extraItems.isNotEmpty
+                            ? 'Add more products'
+                            : 'Explore products',
+                        style: AppType.small.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.arrow_forward_rounded,
+                          size: 14, color: AppColors.primary.withValues(alpha: 0.6)),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
               _HeroCarousel(
                 currentIndex: _carouselIndex,
