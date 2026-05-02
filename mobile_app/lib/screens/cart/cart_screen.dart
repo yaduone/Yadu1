@@ -11,6 +11,7 @@ import '../../utils/transitions.dart';
 import '../../utils/constants.dart';
 import '../../providers/cart_provider.dart';
 import '../products/products_screen.dart';
+import '../home/home_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -58,14 +59,23 @@ class _CartScreenState extends State<CartScreen>
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // Navigate to home tab (index 0)
+          context.findAncestorStateOfType<HomeScreenState>()?.changeTab(0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
         children: [
           Positioned.fill(
             child: Image.asset(
               'assets/images/333.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 800,
             ),
           ),
           Positioned.fill(
@@ -342,6 +352,7 @@ class _CartScreenState extends State<CartScreen>
         ),
           ),
         ],
+      ),
       ),
     );
   }

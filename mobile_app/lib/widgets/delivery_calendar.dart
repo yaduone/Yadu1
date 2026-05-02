@@ -7,7 +7,7 @@ import '../providers/calendar_provider.dart';
 import 'premium_components.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entry point — call this from anywhere to open the calendar sheet
+// Entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
 void showDeliveryCalendar(BuildContext context) {
@@ -23,7 +23,7 @@ void showDeliveryCalendar(BuildContext context) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reusable calendar icon button — mount this wherever needed
+// Reusable calendar icon button
 // ─────────────────────────────────────────────────────────────────────────────
 
 class CalendarIconButton extends StatelessWidget {
@@ -55,7 +55,7 @@ class CalendarIconButton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The bottom sheet
+// Bottom sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CalendarSheet extends StatefulWidget {
@@ -78,7 +78,6 @@ class _CalendarSheetState extends State<_CalendarSheet> {
   String get _monthKey => DateFormat('yyyy-MM').format(_focusedMonth);
 
   void _load() {
-    // Use microtask so context is available but don't defer a full frame
     Future.microtask(() {
       if (mounted) context.read<CalendarProvider>().loadMonth(_monthKey);
     });
@@ -104,14 +103,13 @@ class _CalendarSheetState extends State<_CalendarSheet> {
     final screenH = MediaQuery.of(context).size.height;
 
     return Container(
-      height: screenH * 0.88,
+      height: screenH * 0.92,
       decoration: const BoxDecoration(
         color: AppColors.scaffoldBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
         children: [
-          // Drag handle
           const SizedBox(height: 12),
           Center(
             child: Container(
@@ -125,7 +123,6 @@ class _CalendarSheetState extends State<_CalendarSheet> {
           ),
           const SizedBox(height: 16),
 
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -165,7 +162,6 @@ class _CalendarSheetState extends State<_CalendarSheet> {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   children: [
-                    // Month navigator
                     _MonthNavigator(
                       month: _focusedMonth,
                       onPrev: _prevMonth,
@@ -178,67 +174,42 @@ class _CalendarSheetState extends State<_CalendarSheet> {
 
                     const SizedBox(height: 16),
 
-                    // Legend
-                    const _Legend(),
+                    if (!loading && days.isNotEmpty) ...[
+                      _MonthStatsCard(days: days),
+                      const SizedBox(height: 16),
+                    ],
 
+                    const _Legend(),
                     const SizedBox(height: 16),
 
-                    // Calendar grid
                     if (cal.error != null && days.isEmpty && !loading)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              const Icon(Icons.cloud_off_rounded,
-                                  size: 36, color: AppColors.textHint),
-                              const SizedBox(height: 10),
-                              Text('Could not load calendar',
-                                  style: AppType.captionBold
-                                      .copyWith(color: AppColors.textPrimary)),
-                              const SizedBox(height: 4),
-                              Text('Pull down to retry',
-                                  style: AppType.small
-                                      .copyWith(color: AppColors.textSecondary)),
-                              const SizedBox(height: 12),
-                              GestureDetector(
-                                onTap: () => cal.loadMonth(_monthKey, forceRefresh: true),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text('Retry',
-                                      style: AppType.captionBold
-                                          .copyWith(color: Colors.white)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
+                      _ErrorState(
+                          onRetry: () =>
+                              cal.loadMonth(_monthKey, forceRefresh: true))
                     else if (loading)
                       const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.primary),
-                            ),
-                          )
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: AppColors.primary),
+                        ),
+                      )
                     else
-                        _CalendarGrid(
-                            month: _focusedMonth,
-                            days: days,
-                            onDayTap: (date, data) =>
-                                _showDayDetail(context, date, data),
-                          ),
+                      _CalendarGrid(
+                        month: _focusedMonth,
+                        days: days,
+                        onDayTap: (date, data) =>
+                            _showDayDetail(context, date, data),
+                      ),
 
                     if (!loading && summary != null) ...[
                       const SizedBox(height: 20),
                       _SummaryRow(summary: summary),
+                    ],
+
+                    if (!loading && days.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _RecentDeliveriesLog(days: days),
                     ],
                   ],
                 );
@@ -254,7 +225,7 @@ class _CalendarSheetState extends State<_CalendarSheet> {
       BuildContext context, DateTime date, Map<String, dynamic>? data) {
     showModalBottomSheet(
       context: context,
-      useRootNavigator: true, // required when pushing from inside another sheet
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _DayDetailSheet(date: date, data: data),
@@ -263,7 +234,150 @@ class _CalendarSheetState extends State<_CalendarSheet> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Month navigator row
+// Month stats card — total spent + litres delivered this month
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MonthStatsCard extends StatelessWidget {
+  final Map<String, dynamic> days;
+
+  const _MonthStatsCard({required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    double totalSpent = 0;
+    double totalLitres = 0;
+    int deliveredCount = 0;
+
+    for (final entry in days.values) {
+      final d = entry as Map<String, dynamic>;
+      if (d['status'] == 'delivered') {
+        totalSpent += (d['total_amount'] as num? ?? 0).toDouble();
+        final milk = d['milk'] as Map<String, dynamic>?;
+        if (milk != null) {
+          totalLitres +=
+              (milk['quantity_litres'] as num? ?? 0).toDouble();
+        }
+        deliveredCount++;
+      }
+    }
+
+    return PremiumCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          _StatChip(
+            icon: Icons.currency_rupee_rounded,
+            iconColor: AppColors.primary,
+            label: 'Month Spend',
+            value: '₹${totalSpent.toStringAsFixed(0)}',
+          ),
+          Container(width: 1, height: 40, color: AppColors.border,
+              margin: const EdgeInsets.symmetric(horizontal: 12)),
+          _StatChip(
+            icon: Icons.water_drop_rounded,
+            iconColor: const Color(0xFF06B6D4),
+            label: 'Litres Delivered',
+            value: '${totalLitres.toStringAsFixed(1)}L',
+          ),
+          Container(width: 1, height: 40, color: AppColors.border,
+              margin: const EdgeInsets.symmetric(horizontal: 12)),
+          _StatChip(
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: AppColors.success,
+            label: 'Deliveries',
+            value: '$deliveredCount days',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+
+  const _StatChip({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: iconColor),
+          const SizedBox(height: 4),
+          Text(value,
+              style: AppType.captionBold.copyWith(color: AppColors.textPrimary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          Text(label,
+              style: AppType.micro.copyWith(color: AppColors.textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error state
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ErrorState extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Center(
+        child: Column(
+          children: [
+            const Icon(Icons.cloud_off_rounded,
+                size: 36, color: AppColors.textHint),
+            const SizedBox(height: 10),
+            Text('Could not load calendar',
+                style: AppType.captionBold
+                    .copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: 4),
+            Text('Pull down to retry',
+                style:
+                    AppType.small.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('Retry',
+                    style:
+                        AppType.captionBold.copyWith(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Month navigator
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MonthNavigator extends StatelessWidget {
@@ -285,10 +399,7 @@ class _MonthNavigator extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         _navBtn(Icons.chevron_left_rounded, onPrev, true),
-        Text(
-          DateFormat('MMMM yyyy').format(month),
-          style: AppType.h3,
-        ),
+        Text(DateFormat('MMMM yyyy').format(month), style: AppType.h3),
         _navBtn(Icons.chevron_right_rounded, onNext, canGoNext),
       ],
     );
@@ -377,14 +488,11 @@ class _CalendarGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final firstDay = DateTime(month.year, month.month, 1);
     final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
-    // weekday: Mon=1 ... Sun=7, we want Sun=0 offset
-    final startOffset = (firstDay.weekday % 7); // Sun=0, Mon=1 ...
-
+    final startOffset = (firstDay.weekday % 7);
     final today = DateTime.now();
 
     return Column(
       children: [
-        // Day-of-week headers
         Row(
           children: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
               .map((d) => Expanded(
@@ -398,8 +506,6 @@ class _CalendarGrid extends StatelessWidget {
               .toList(),
         ),
         const SizedBox(height: 8),
-
-        // Grid
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -407,12 +513,11 @@ class _CalendarGrid extends StatelessWidget {
             crossAxisCount: 7,
             mainAxisSpacing: 6,
             crossAxisSpacing: 4,
-            childAspectRatio: 0.85,
+            childAspectRatio: 0.80,
           ),
           itemCount: startOffset + daysInMonth,
           itemBuilder: (context, index) {
             if (index < startOffset) return const SizedBox();
-
             final day = index - startOffset + 1;
             final date = DateTime(month.year, month.month, day);
             final dateKey = DateFormat('yyyy-MM-dd').format(date);
@@ -449,9 +554,8 @@ class _DayCell extends StatelessWidget {
     required this.onTap,
   });
 
-  Color get _dotColor {
-    final status = data?['status'] as String?;
-    switch (status) {
+  Color get _statusColor {
+    switch (data?['status'] as String?) {
       case 'delivered':
         return AppColors.success;
       case 'pending':
@@ -465,13 +569,24 @@ class _DayCell extends StatelessWidget {
     }
   }
 
+  // First letter of milk type for delivered days: C / B / P
+  String? get _milkInitial {
+    if (data?['status'] != 'delivered') return null;
+    final milkType =
+        (data?['milk'] as Map<String, dynamic>?)?['milk_type'] as String?;
+    return milkType?.isNotEmpty == true
+        ? milkType![0].toUpperCase()
+        : null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final dotColor = _statusColor;
+    final initial = _milkInitial;
     final hasData = data != null;
-    final dotColor = _dotColor;
 
     return GestureDetector(
-      onTap: onTap, // always tappable — shows "no delivery" for empty days
+      onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
@@ -499,15 +614,26 @@ class _DayCell extends StatelessWidget {
                 fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 3),
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: dotColor,
-                shape: BoxShape.circle,
+            const SizedBox(height: 2),
+            if (initial != null)
+              Text(
+                initial,
+                style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  color: dotColor,
+                  height: 1.1,
+                ),
+              )
+            else
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -535,17 +661,17 @@ class _SummaryRow extends StatelessWidget {
               count: summary['delivered'] ?? 0,
               label: 'Delivered',
               color: AppColors.success),
-          _divider(),
+          _vDivider(),
           _SummaryTile(
               count: summary['pending'] ?? 0,
               label: 'Pending',
               color: AppColors.warning),
-          _divider(),
+          _vDivider(),
           _SummaryTile(
               count: summary['skipped'] ?? 0,
               label: 'Skipped',
               color: AppColors.error),
-          _divider(),
+          _vDivider(),
           _SummaryTile(
               count: summary['cancelled'] ?? 0,
               label: 'Cancelled',
@@ -555,11 +681,8 @@ class _SummaryRow extends StatelessWidget {
     );
   }
 
-  Widget _divider() => Container(
-        width: 1,
-        height: 32,
-        color: AppColors.border,
-      );
+  Widget _vDivider() =>
+      Container(width: 1, height: 32, color: AppColors.border);
 }
 
 class _SummaryTile extends StatelessWidget {
@@ -580,10 +703,122 @@ class _SummaryTile extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(label,
-            style:
-                AppType.micro.copyWith(color: AppColors.textSecondary)),
+            style: AppType.micro.copyWith(color: AppColors.textSecondary)),
       ],
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recent deliveries log — last 5 delivered days, newest first
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecentDeliveriesLog extends StatelessWidget {
+  final Map<String, dynamic> days;
+
+  const _RecentDeliveriesLog({required this.days});
+
+  @override
+  Widget build(BuildContext context) {
+    final delivered = days.entries
+        .where((e) => (e.value as Map<String, dynamic>)['status'] == 'delivered')
+        .toList()
+      ..sort((a, b) => b.key.compareTo(a.key)); // newest first
+
+    if (delivered.isEmpty) return const SizedBox.shrink();
+
+    final recent = delivered.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.history_rounded,
+                size: 16, color: AppColors.textSecondary),
+            const SizedBox(width: 6),
+            Text('Recent Deliveries',
+                style: AppType.captionBold
+                    .copyWith(color: AppColors.textPrimary)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...recent.map((entry) {
+          final date = DateTime.parse(entry.key);
+          final d = entry.value as Map<String, dynamic>;
+          final milk = d['milk'] as Map<String, dynamic>?;
+          final extras = (d['extra_items'] as List?) ?? [];
+          final total = (d['total_amount'] as num?)?.toDouble() ?? 0;
+          final slot = d['delivery_slot'] as String?;
+          final milkType =
+              (milk?['milk_type'] as String? ?? '').toUpperCase();
+          final qty = milk?['quantity_litres'];
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: PremiumCard(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.check_circle_rounded,
+                        size: 20, color: AppColors.success),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('EEE, d MMM').format(date),
+                          style: AppType.captionBold,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _buildSubtitle(
+                              milkType, qty, extras.length, slot),
+                          style: AppType.small
+                              .copyWith(color: AppColors.textSecondary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '₹${total.toStringAsFixed(0)}',
+                    style: AppType.captionBold
+                        .copyWith(color: AppColors.primary),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  String _buildSubtitle(
+      String milkType, dynamic qty, int extraCount, String? slot) {
+    final parts = <String>[];
+    if (milkType.isNotEmpty && qty != null) {
+      parts.add('$milkType ${qty}L');
+    }
+    if (extraCount > 0) {
+      parts.add('$extraCount extra${extraCount > 1 ? 's' : ''}');
+    }
+    if (slot != null && slot.isNotEmpty) {
+      parts.add(slot[0].toUpperCase() + slot.substring(1));
+    }
+    return parts.join(' · ');
   }
 }
 
@@ -629,11 +864,14 @@ class _DayDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = (data?['status'] as String? ?? 'no delivery').toUpperCase();
+    final status = data?['status'] as String?;
     final milk = data?['milk'] as Map<String, dynamic>?;
     final extras = (data?['extra_items'] as List?) ?? [];
     final total = (data?['total_amount'] as num?)?.toDouble() ?? 0;
+    final slot = data?['delivery_slot'] as String?;
+    final orderId = data?['order_id'] as String?;
     final color = _statusColor;
+    final isFuture = date.isAfter(DateTime.now());
 
     return Container(
       decoration: const BoxDecoration(
@@ -646,7 +884,6 @@ class _DayDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle
           Center(
             child: Container(
               width: 36,
@@ -679,19 +916,22 @@ class _DayDetailSheet extends StatelessWidget {
                       DateFormat('EEEE, d MMMM yyyy').format(date),
                       style: AppType.h3,
                     ),
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        status,
-                        style: AppType.micro.copyWith(
-                            color: color, fontWeight: FontWeight.w700),
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _StatusBadge(
+                          label: status != null
+                              ? status.toUpperCase()
+                              : isFuture
+                                  ? 'UPCOMING'
+                                  : 'NO RECORD',
+                          color: color,
+                        ),
+                        if (slot != null && slot.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          _SlotBadge(slot: slot),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -702,16 +942,19 @@ class _DayDetailSheet extends StatelessWidget {
           if (data == null) ...[
             const SizedBox(height: 20),
             Center(
-              child: Text('No delivery recorded for this day.',
-                  style: AppType.caption
-                      .copyWith(color: AppColors.textSecondary)),
+              child: Text(
+                isFuture
+                    ? 'No delivery scheduled for this day.'
+                    : 'No delivery recorded for this day.',
+                style: AppType.caption
+                    .copyWith(color: AppColors.textSecondary),
+              ),
             ),
           ] else ...[
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 16),
 
-            // Milk
             if (milk != null) ...[
               _DetailRow(
                 icon: Icons.water_drop_rounded,
@@ -726,7 +969,6 @@ class _DayDetailSheet extends StatelessWidget {
               const SizedBox(height: 10),
             ],
 
-            // Extra items
             if (extras.isNotEmpty) ...[
               Text('Extra Items',
                   style: AppType.small
@@ -762,9 +1004,83 @@ class _DayDetailSheet extends StatelessWidget {
                 ],
               ),
             ],
+
+            // Order reference footer
+            if (orderId != null && orderId.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.receipt_long_rounded,
+                      size: 12, color: AppColors.textHint),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Order #${orderId.length > 8 ? orderId.substring(orderId.length - 8) : orderId}',
+                    style: AppType.micro
+                        .copyWith(color: AppColors.textHint),
+                  ),
+                ],
+              ),
+            ],
           ],
 
           const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(label,
+          style: AppType.micro
+              .copyWith(color: color, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+class _SlotBadge extends StatelessWidget {
+  final String slot;
+
+  const _SlotBadge({required this.slot});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMorning = slot.toLowerCase() == 'morning';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isMorning ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded,
+            size: 10,
+            color: isMorning
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF6366F1),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            slot[0].toUpperCase() + slot.substring(1),
+            style: AppType.micro.copyWith(
+                color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -804,7 +1120,9 @@ class _DetailRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppType.captionBold, overflow: TextOverflow.ellipsis),
+              Text(title,
+                  style: AppType.captionBold,
+                  overflow: TextOverflow.ellipsis),
               Text(subtitle,
                   overflow: TextOverflow.ellipsis,
                   style: AppType.small

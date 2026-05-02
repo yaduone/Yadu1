@@ -10,6 +10,9 @@ import '../../widgets/delivery_calendar.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_screen.dart';
 import '../auth/login_screen.dart';
+import 'edit_profile_screen.dart';
+import '../../utils/transitions.dart';
+import '../home/home_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -47,9 +50,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final sub = context.watch<SubscriptionProvider>();
     final user = auth.userData;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // Navigate to home tab (index 0)
+          context.findAncestorStateOfType<HomeScreenState>()?.changeTab(0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
         children: [
           Positioned.fill(
             child: Image.asset(
@@ -107,6 +118,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             PremiumCard(
               child: Column(
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_rounded, size: 20),
+                        color: AppColors.primary,
+                        onPressed: () => Navigator.push(
+                          context,
+                          SlideUpRoute(page: const EditProfileScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
                   StatefulAvatar(
                     name: user?['name'] ?? 'U',
                     isSubscriptionActive: sub.hasActiveSubscription,
@@ -383,6 +407,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -87,12 +87,12 @@ class _LoginScreenState extends State<LoginScreen>
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // ── Full-bleed carousel (bleeds under status bar) ──
+          // ── Carousel positioned below status bar ──
           Positioned(
-            top: -mq.padding.top,
+            top: mq.padding.top,
             left: 0,
             right: 0,
-            child: AuthImageCarousel(height: carouselH + mq.padding.top),
+            child: AuthImageCarousel(height: carouselH),
           ),
 
           // ── Floating login card — rises with keyboard ──────────────────

@@ -4,6 +4,7 @@ import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../widgets/delivery_calendar.dart';
 import '../../services/api_service.dart';
+import '../home/home_screen.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -49,9 +50,17 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          // Navigate to home tab (index 0)
+          context.findAncestorStateOfType<HomeScreenState>()?.changeTab(0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
         children: [
           Positioned.fill(
             child: Image.asset(
@@ -281,7 +290,8 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _statTile(

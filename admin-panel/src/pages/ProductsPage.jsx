@@ -5,7 +5,7 @@ import {
   AlertTriangle, Package, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 
-const CATEGORIES = ['curd', 'paneer', 'butter_milk', 'ghee', 'butter', 'lassi', 'cream', 'cheese'];
+const CATEGORIES = ['curd', 'paneer', 'butter_milk', 'ghee', 'butter', 'lassi', 'Snacks', 'cheese'];
 
 const EMPTY_FORM = {
   name: '', category: 'curd', unit: '', price: '', description: '',

@@ -82,7 +82,7 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       children: [
         // Sticky background image
         Positioned.fill(
-          child: Image.asset('assets/images/bg2.jpg', fit: BoxFit.cover),
+          child: Image.asset('assets/images/bg2.jpg', fit: BoxFit.cover, cacheWidth: 800),
         ),
         // Dark scrim for readability
         Positioned.fill(

@@ -31,11 +31,16 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  // Public method to change tab from child screens
+  void changeTab(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   static const _screens = [
     _HomeTab(),
@@ -167,6 +172,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
             child: Image.asset(
               'assets/images/bg.jpg',
               fit: BoxFit.cover,
+              cacheWidth: 800,
             ),
           ),
           Positioned.fill(
@@ -293,12 +299,12 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         },
                         onAddExtras: () {
                           final homeState =
-                              context.findAncestorStateOfType<_HomeScreenState>();
+                              context.findAncestorStateOfType<HomeScreenState>();
                           homeState?.setState(() => homeState._currentIndex = 2);
                         },
                         onReports: () {
                           final homeState =
-                              context.findAncestorStateOfType<_HomeScreenState>();
+                              context.findAncestorStateOfType<HomeScreenState>();
                           homeState?.setState(() => homeState._currentIndex = 1);
                         },
                         onLive: () => Navigator.push(
@@ -313,7 +319,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         icon: Icons.calendar_month_rounded,
                       ),
                       const SizedBox(height: 10),
-                      _QuickCalendar(orders: _calendarOrders),
+                      RepaintBoundary(child: _QuickCalendar(orders: _calendarOrders)),
 
                       const SizedBox(height: 24),
 
@@ -328,14 +334,14 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                           height: 110,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF1B6B5A), Color(0xFF2A9D8F)],
+                              colors: [Color(0xFF0C4A6E), Color(0xFF1E40AF)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF2A9D8F).withValues(alpha: 0.3),
+                                color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
@@ -804,9 +810,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 ),
               ),
               const SizedBox(height: 16),
-              _HeroCarousel(
-                currentIndex: _carouselIndex,
-                onIndexChanged: (i) => setState(() => _carouselIndex = i),
+              RepaintBoundary(
+                child: _HeroCarousel(
+                  currentIndex: _carouselIndex,
+                  onIndexChanged: (i) => setState(() => _carouselIndex = i),
+                ),
               ),
             ],
           ),
@@ -1502,16 +1510,40 @@ class _QuickCalendar extends StatefulWidget {
 
 class _QuickCalendarState extends State<_QuickCalendar> {
   final ScrollController _ctrl = ScrollController();
+  late Map<String, String> _statusMap;
+  late List<DateTime> _days;
+  late DateTime _todayNorm;
+  static final _dateFmt = DateFormat('yyyy-MM-dd');
+
+  void _recompute() {
+    final today = DateTime.now();
+    _todayNorm = DateTime(today.year, today.month, today.day);
+    _statusMap = {};
+    for (final o in widget.orders) {
+      final date = o['date'] as String?;
+      final status = o['status'] as String?;
+      if (date != null && status != null) {
+        final normalized = date.length >= 10 ? date.substring(0, 10) : date;
+        _statusMap[normalized] = status;
+      }
+    }
+    final start = _todayNorm.subtract(const Duration(days: 14));
+    _days = List.generate(22, (i) => start.add(Duration(days: i)));
+  }
 
   @override
   void initState() {
     super.initState();
+    _recompute();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
   }
 
   @override
   void didUpdateWidget(_QuickCalendar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.orders != widget.orders) {
+      _recompute();
+    }
     if (oldWidget.orders.isEmpty && widget.orders.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
     }
@@ -1537,22 +1569,6 @@ class _QuickCalendarState extends State<_QuickCalendar> {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final todayNorm = DateTime(today.year, today.month, today.day);
-
-    final Map<String, String> statusMap = {};
-    for (final o in widget.orders) {
-      final date = o['date'] as String?;
-      final status = o['status'] as String?;
-      if (date != null && status != null) {
-        final normalized = date.length >= 10 ? date.substring(0, 10) : date;
-        statusMap[normalized] = status;
-      }
-    }
-
-    final start = todayNorm.subtract(const Duration(days: 14));
-    final days = List.generate(22, (i) => start.add(Duration(days: i)));
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -1577,14 +1593,14 @@ class _QuickCalendarState extends State<_QuickCalendar> {
           controller: _ctrl,
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          itemCount: days.length,
+          itemCount: _days.length,
           itemBuilder: (context, i) {
-            final day = days[i];
-            final dateStr = DateFormat('yyyy-MM-dd').format(day);
-            final isToday = day == todayNorm;
-            final isFuture = day.isAfter(todayNorm);
-            final isPast = day.isBefore(todayNorm);
-            final status = statusMap[dateStr];
+            final day = _days[i];
+            final dateStr = _dateFmt.format(day);
+            final isToday = day == _todayNorm;
+            final isFuture = day.isAfter(_todayNorm);
+            final isPast = day.isBefore(_todayNorm);
+            final status = _statusMap[dateStr];
 
             Color? dotColor;
             if (status == 'delivered') {
@@ -1711,7 +1727,7 @@ class _HeroCarousel extends StatelessWidget {
             autoPlay: true,
             autoPlayInterval: const Duration(seconds: 3),
             autoPlayCurve: Curves.easeInOut,
-            autoPlayAnimationDuration: const Duration(milliseconds: 600),
+            autoPlayAnimationDuration: const Duration(milliseconds: 350),
             enableInfiniteScroll: true,
             onPageChanged: (i, _) => onIndexChanged(i),
           ),
@@ -1722,6 +1738,7 @@ class _HeroCarousel extends StatelessWidget {
                 path,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                cacheWidth: 600,
               ),
             );
           }).toList(),
