@@ -225,7 +225,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final images = p['images'];
     if (images is! List || images.isEmpty) return [];
     final all = images.whereType<String>().toList();
-    final cover = p['cover_image'] as String?;
+    final cover = (p['cover_image_large'] ?? p['cover_image_small']) as String?;
     if (cover != null && cover.isNotEmpty && all.contains(cover) && all[0] != cover) {
       return [cover, ...all.where((u) => u != cover)];
     }

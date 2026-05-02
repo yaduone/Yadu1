@@ -333,7 +333,7 @@ class _ProductCard extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    final cover = product['cover_image'] as String?;
+    final cover = (product['cover_image_large'] ?? product['cover_image_small']) as String?;
     final images = product['images'];
     final url = (cover != null && cover.isNotEmpty)
         ? cover

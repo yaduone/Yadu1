@@ -666,7 +666,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                           orElse: () => item,
                         );
                         final name = (fullProduct['name'] ?? item['product_name'] ?? '') as String;
-                        final cover = fullProduct['cover_image'] as String?;
+                        final cover = (fullProduct['cover_image_small'] ?? fullProduct['cover_image_large']) as String?;
                         final images = fullProduct['images'] ?? item['images'];
                         final imageUrl = (cover != null && cover.isNotEmpty)
                             ? cover

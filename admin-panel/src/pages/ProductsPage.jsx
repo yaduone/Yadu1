@@ -8,7 +8,8 @@ import {
 const CATEGORIES = ['curd', 'paneer', 'butter_milk', 'ghee', 'butter', 'lassi', 'cream', 'cheese'];
 
 const EMPTY_FORM = {
-  name: '', category: 'curd', unit: '', price: '', description: '', cover_image: '',
+  name: '', category: 'curd', unit: '', price: '', description: '',
+  cover_image_small: '', cover_image_large: '',
 };
 
 export default function ProductsPage() {
@@ -56,7 +57,10 @@ export default function ProductsPage() {
 
   function startEdit(p) {
     const imgs = Array.isArray(p.images) ? p.images : [];
-    setForm({ name: p.name, category: p.category, unit: p.unit, price: String(p.price), description: p.description || '', cover_image: p.cover_image || imgs[0] || '' });
+    setForm({ name: p.name, category: p.category, unit: p.unit, price: String(p.price), description: p.description || '',
+      cover_image_small: p.cover_image_small || imgs[0] || '',
+      cover_image_large: p.cover_image_large || imgs[0] || '',
+    });
     setExistingImages(imgs);
     setNewFiles([]); setNewPreviews([]); setRemovedUrls([]); setFormError('');
     setEditing(p.id);
@@ -85,10 +89,11 @@ export default function ProductsPage() {
   function removeExistingImage(url) {
     setExistingImages((prev) => {
       const next = prev.filter((u) => u !== url);
-      // If removed image was the cover, auto-assign to first remaining
-      if (form.cover_image === url) {
-        setForm((f) => ({ ...f, cover_image: next[0] || '' }));
-      }
+      setForm((f) => ({
+        ...f,
+        cover_image_small: f.cover_image_small === url ? (next[0] || '') : f.cover_image_small,
+        cover_image_large: f.cover_image_large === url ? (next[0] || '') : f.cover_image_large,
+      }));
       return next;
     });
     setRemovedUrls((prev) => [...prev, url]);
@@ -109,7 +114,8 @@ export default function ProductsPage() {
       fd.append('unit', form.unit.trim());
       fd.append('price', form.price);
       fd.append('description', form.description.trim());
-      if (form.cover_image) fd.append('cover_image', form.cover_image);
+      if (form.cover_image_small) fd.append('cover_image_small', form.cover_image_small);
+      if (form.cover_image_large) fd.append('cover_image_large', form.cover_image_large);
       newFiles.forEach((f) => fd.append('images', f));
       if (editing) {
         if (removedUrls.length > 0) fd.append('remove_images', JSON.stringify(removedUrls));
@@ -265,49 +271,70 @@ export default function ProductsPage() {
               <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png" multiple className="hidden" onChange={handleFileChange} />
 
               {(existingImages.length > 0 || newPreviews.length > 0) && (
-                <div className="mt-3 space-y-2">
-                  {existingImages.length > 0 && (
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                      Click an image to set as cover
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-3">
-                    {existingImages.map((url, idx) => {
-                      const isCover = form.cover_image === url || (!form.cover_image && idx === 0);
-                      return (
-                        <div
-                          key={`ex-${idx}`}
-                          className={`relative group w-20 h-20 cursor-pointer rounded-xl transition-all ${isCover ? 'ring-2 ring-blue-500 ring-offset-1' : 'hover:ring-2 hover:ring-slate-300 hover:ring-offset-1'}`}
-                          onClick={() => setForm((f) => ({ ...f, cover_image: url }))}
-                        >
-                          <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border border-slate-100" onError={(e) => { e.target.src = ''; }} />
-                          <span className={`absolute bottom-0 left-0 right-0 text-center text-[9px] rounded-b-xl py-0.5 ${isCover ? 'bg-blue-600 text-white' : 'bg-slate-600/60 text-white opacity-0 group-hover:opacity-100 transition-opacity'}`}>
-                            {isCover ? 'Cover' : 'Set cover'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); removeExistingImage(url); }}
-                            className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                          >
-                            <X size={10} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                    {newPreviews.map((src, idx) => (
-                      <div key={`new-${idx}`} className="relative group w-20 h-20">
-                        <img src={src} alt="" className="w-20 h-20 object-cover rounded-xl border-2 border-blue-300" />
-                        <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-blue-500 text-white rounded-b-xl py-0.5">New</span>
-                        <button
-                          type="button"
-                          onClick={() => removeNewFile(idx)}
-                          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
-                        >
-                          <X size={10} />
-                        </button>
+                <div className="mt-3 space-y-4">
+                  {/* New uploads (no URL yet — save first to assign as cover) */}
+                  {newPreviews.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">New (save first to set as cover)</p>
+                      <div className="flex flex-wrap gap-3">
+                        {newPreviews.map((src, idx) => (
+                          <div key={`new-${idx}`} className="relative group w-20 h-20">
+                            <img src={src} alt="" className="w-20 h-20 object-cover rounded-xl border-2 border-blue-300" />
+                            <span className="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-blue-500 text-white rounded-b-xl py-0.5">New</span>
+                            <button
+                              type="button"
+                              onClick={() => removeNewFile(idx)}
+                              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
+
+                  {/* Existing images — two cover selectors */}
+                  {existingImages.length > 0 && (['small', 'large']).map((size) => {
+                    const field = size === 'small' ? 'cover_image_small' : 'cover_image_large';
+                    const currentCover = form[field];
+                    const label = size === 'small' ? 'Small Cover — Home screen thumbnail' : 'Large Cover — Products list card';
+                    const activeColor = size === 'small' ? 'ring-violet-500' : 'ring-emerald-500';
+                    const badgeColor = size === 'small' ? 'bg-violet-600' : 'bg-emerald-600';
+                    const hoverBadge = size === 'small' ? 'Set small' : 'Set large';
+                    return (
+                      <div key={size}>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{label}</p>
+                        <div className="flex flex-wrap gap-3">
+                          {existingImages.map((url, idx) => {
+                            const isSelected = currentCover === url || (!currentCover && idx === 0);
+                            return (
+                              <div
+                                key={`${size}-${idx}`}
+                                className={`relative group w-20 h-20 cursor-pointer rounded-xl transition-all ${isSelected ? `ring-2 ${activeColor} ring-offset-1` : 'hover:ring-2 hover:ring-slate-300 hover:ring-offset-1'}`}
+                                onClick={() => setForm((f) => ({ ...f, [field]: url }))}
+                              >
+                                <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border border-slate-100" onError={(e) => { e.target.src = ''; }} />
+                                <span className={`absolute bottom-0 left-0 right-0 text-center text-[9px] rounded-b-xl py-0.5 transition-opacity ${isSelected ? `${badgeColor} text-white` : 'bg-slate-600/60 text-white opacity-0 group-hover:opacity-100'}`}>
+                                  {isSelected ? (size === 'small' ? 'Small' : 'Large') : hoverBadge}
+                                </span>
+                                {/* Delete button only shown in large row to avoid duplication */}
+                                {size === 'large' && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); removeExistingImage(url); }}
+                                    className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -356,7 +383,7 @@ export default function ProductsPage() {
             {[...products].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)).map((p) => (
               <div key={p.id} className={`card p-4 ${!p.is_active ? 'opacity-80' : ''}`}>
                 <div className="flex items-center gap-3">
-                  {p.cover_image || p.images?.[0] ? (
+                  {p.cover_image_large || p.cover_image_small || p.images?.[0] ? (
                     <div className="relative w-12 h-12 rounded-xl shrink-0 overflow-hidden border border-slate-100">
                       <img
                         src={p.images[0]}
@@ -431,7 +458,7 @@ export default function ProductsPage() {
                 {[...products].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)).map((p) => (
                   <tr key={p.id} className={!p.is_active ? 'opacity-80' : ''}>
                     <td>
-                      {p.cover_image || p.images?.[0] ? (
+                      {p.cover_image_large || p.cover_image_small || p.images?.[0] ? (
                         <div className="relative w-10 h-10 rounded-xl overflow-hidden">
                           <img
                             src={p.images[0]}

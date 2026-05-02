@@ -95,18 +95,20 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
     const imageUrls = req.files?.length ? await uploadImages(req.files) : [];
     console.log('[PRODUCT CREATE] Images uploaded', { imageCount: imageUrls.length, urls: imageUrls });
 
-    const { cover_image } = req.body;
-    const resolvedCover = imageUrls.includes(cover_image) ? cover_image : (imageUrls[0] || '');
+    const { cover_image_small, cover_image_large } = req.body;
+    const resolvedSmall = imageUrls.includes(cover_image_small) ? cover_image_small : (imageUrls[0] || '');
+    const resolvedLarge = imageUrls.includes(cover_image_large) ? cover_image_large : (imageUrls[0] || '');
 
     const productData = {
       name,
       category,
       unit,
-      price       : parsedPrice,
-      description : description || '',
-      images      : imageUrls,
-      cover_image : resolvedCover,
-      is_active   : true,
+      price             : parsedPrice,
+      description       : description || '',
+      images            : imageUrls,
+      cover_image_small : resolvedSmall,
+      cover_image_large : resolvedLarge,
+      is_active         : true,
       created_at  : admin.firestore.FieldValue.serverTimestamp(),
       updated_at  : admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -136,7 +138,7 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     if (!productDoc.exists) return notFound(res, 'Product not found');
 
     const existing = productDoc.data();
-    const { name, category, unit, price, description, is_active, replace_images, remove_images, cover_image } = req.body;
+    const { name, category, unit, price, description, is_active, replace_images, remove_images, cover_image_small, cover_image_large } = req.body;
     const updateData = { updated_at: admin.firestore.FieldValue.serverTimestamp() };
 
     if (name        !== undefined) updateData.name        = name;
@@ -174,15 +176,17 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     }
 
     updateData.images = currentImages;
-    // Resolve cover: use provided value if still in images, else keep existing, else fall back to first
-    if (cover_image !== undefined) {
-      updateData.cover_image = currentImages.includes(cover_image) ? cover_image : (currentImages[0] || '');
-    } else if (currentImages.length === 1) {
-      updateData.cover_image = currentImages[0];
-    } else if (!currentImages.includes(existing.cover_image)) {
-      // Previously selected cover was removed
-      updateData.cover_image = currentImages[0] || '';
-    }
+
+    const resolveField = (provided, existingVal) => {
+      if (provided !== undefined) return currentImages.includes(provided) ? provided : (currentImages[0] || '');
+      if (currentImages.length === 1) return currentImages[0];
+      if (!currentImages.includes(existingVal)) return currentImages[0] || '';
+      return undefined; // unchanged
+    };
+    const small = resolveField(cover_image_small, existing.cover_image_small);
+    const large = resolveField(cover_image_large, existing.cover_image_large);
+    if (small !== undefined) updateData.cover_image_small = small;
+    if (large !== undefined) updateData.cover_image_large = large;
     await productRef.update(updateData);
     const updated = await productRef.get();
     return success(res, { product: { id: updated.id, ...updated.data() } });
