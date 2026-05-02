@@ -95,16 +95,20 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
     const imageUrls = req.files?.length ? await uploadImages(req.files) : [];
     console.log('[PRODUCT CREATE] Images uploaded', { imageCount: imageUrls.length, urls: imageUrls });
 
+    const { cover_image } = req.body;
+    const resolvedCover = imageUrls.includes(cover_image) ? cover_image : (imageUrls[0] || '');
+
     const productData = {
       name,
       category,
       unit,
-      price      : parsedPrice,
-      description: description || '',
-      images     : imageUrls,
-      is_active  : true,
-      created_at : admin.firestore.FieldValue.serverTimestamp(),
-      updated_at : admin.firestore.FieldValue.serverTimestamp(),
+      price       : parsedPrice,
+      description : description || '',
+      images      : imageUrls,
+      cover_image : resolvedCover,
+      is_active   : true,
+      created_at  : admin.firestore.FieldValue.serverTimestamp(),
+      updated_at  : admin.firestore.FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection('products').add(productData);
@@ -132,7 +136,7 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     if (!productDoc.exists) return notFound(res, 'Product not found');
 
     const existing = productDoc.data();
-    const { name, category, unit, price, description, is_active, replace_images, remove_images } = req.body;
+    const { name, category, unit, price, description, is_active, replace_images, remove_images, cover_image } = req.body;
     const updateData = { updated_at: admin.firestore.FieldValue.serverTimestamp() };
 
     if (name        !== undefined) updateData.name        = name;
@@ -170,6 +174,15 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     }
 
     updateData.images = currentImages;
+    // Resolve cover: use provided value if still in images, else keep existing, else fall back to first
+    if (cover_image !== undefined) {
+      updateData.cover_image = currentImages.includes(cover_image) ? cover_image : (currentImages[0] || '');
+    } else if (currentImages.length === 1) {
+      updateData.cover_image = currentImages[0];
+    } else if (!currentImages.includes(existing.cover_image)) {
+      // Previously selected cover was removed
+      updateData.cover_image = currentImages[0] || '';
+    }
     await productRef.update(updateData);
     const updated = await productRef.get();
     return success(res, { product: { id: updated.id, ...updated.data() } });

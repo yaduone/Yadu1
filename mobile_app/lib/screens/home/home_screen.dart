@@ -22,6 +22,7 @@ import '../profile/profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../dues/due_screen.dart';
 import '../products/products_screen.dart';
+import '../products/product_detail_screen.dart';
 import '../auth/complete_profile_screen.dart';
 import 'widgets/curved_navbar.dart';
 import 'package:intl/intl.dart';
@@ -49,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SubscriptionProvider>().loadSubscription();
       context.read<CartProvider>().loadTomorrowStatus();
+      context.read<CartProvider>().loadProducts();
     });
   }
 
@@ -277,26 +279,6 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                       _buildHeroSnapshot(context, cart, sub),
                       const SizedBox(height: 24),
 
-                      // ── Tomorrow's Delivery ───────────────────────────
-                      _SectionHeader(
-                        title: "Tomorrow's Delivery",
-                        icon: Icons.local_shipping_outlined,
-                      ),
-                      const SizedBox(height: 10),
-                      _buildDeliveryCard(context, cart),
-
-                      const SizedBox(height: 24),
-
-                      // ── Quick Calendar ────────────────────────────────
-                      _SectionHeader(
-                        title: 'Quick Calendar',
-                        icon: Icons.calendar_month_rounded,
-                      ),
-                      const SizedBox(height: 10),
-                      _QuickCalendar(orders: _calendarOrders),
-
-                      const SizedBox(height: 24),
-
                       // ── Quick Actions ─────────────────────────────────
                       _SectionHeader(title: 'Quick Actions', icon: Icons.flash_on_rounded),
                       const SizedBox(height: 10),
@@ -325,16 +307,13 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
 
                       const SizedBox(height: 24),
 
-                      // ── My Subscription ───────────────────────────────
+                      // ── Quick Calendar ────────────────────────────────
                       _SectionHeader(
-                        title: 'My Subscription',
-                        icon: Icons.water_drop_rounded,
-                        actionLabel: 'Manage',
-                        onAction: () => Navigator.push(
-                            context, SlideUpRoute(page: const SubscriptionScreen())),
+                        title: 'Quick Calendar',
+                        icon: Icons.calendar_month_rounded,
                       ),
                       const SizedBox(height: 10),
-                      _buildSubscriptionCard(context, sub),
+                      _QuickCalendar(orders: _calendarOrders),
 
                       const SizedBox(height: 24),
 
@@ -526,27 +505,312 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoPill(
-                      icon: Icons.water_drop_rounded,
-                      title: '$qty L',
-                      subtitle: 'Daily Qty',
-                      color: _milkTypeColor(milkType),
+              if (!hasSub)
+                SizedBox(
+                  width: double.infinity,
+                  child: Tappable(
+                    onTap: () => Navigator.push(
+                        context, SlideUpRoute(page: const SubscriptionScreen())),
+                    scaleFactor: 0.96,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0F766E), Color(0xFF2A9D8F)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.28),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.water_drop_rounded,
+                              color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Start Subscription',
+                            style: AppType.bodyBold.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.arrow_forward_rounded,
+                              color: Colors.white70, size: 16),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _InfoPill(
-                      icon: isSkipped ? Icons.event_busy_rounded : Icons.verified_rounded,
-                      title: isSkipped ? 'Skipped' : hasSub ? 'Active' : 'Setup',
-                      subtitle: 'Status',
-                      color: isSkipped ? AppColors.error : AppColors.success,
+                )
+              else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _InfoPill(
+                        icon: Icons.water_drop_rounded,
+                        title: '$qty L',
+                        subtitle: 'Daily Qty',
+                        color: _milkTypeColor(milkType),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _InfoPill(
+                        icon: isSkipped
+                            ? Icons.event_busy_rounded
+                            : Icons.verified_rounded,
+                        title: isSkipped ? 'Skipped' : 'Active',
+                        subtitle: 'Status',
+                        color:
+                            isSkipped ? AppColors.error : AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Milk type + price + manage row
+                if (sub.subscription != null) ...[
+                  Tappable(
+                    onTap: () => Navigator.push(
+                        context, SlideUpRoute(page: const SubscriptionScreen())),
+                    scaleFactor: 0.97,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _milkTypeColor(milkType).withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: _milkTypeColor(milkType).withValues(alpha: 0.18)),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            _milkTypeEmoji(milkType),
+                            style: const TextStyle(fontSize: 18),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${_milkTypeLabel(milkType)} Milk',
+                                  style: AppType.bodyBold.copyWith(
+                                    color: const Color(0xFF082F49),
+                                  ),
+                                ),
+                                Text(
+                                  '₹${sub.subscription!['price_per_litre']}/L · Manage',
+                                  style: AppType.micro.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          AnimatedStatusBadge(
+                            label: sub.subscription!['status'].toString(),
+                            color: sub.subscription!['status'] == 'active'
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.chevron_right_rounded,
+                              size: 18, color: Color(0xFF57758A)),
+                        ],
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 10),
                 ],
-              ),
+                // Extra cart items
+                if (cart.extraItems.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.add_shopping_cart_rounded,
+                          size: 13, color: Color(0xFF57758A)),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${cart.extraItems.length} extra ${cart.extraItems.length == 1 ? 'item' : 'items'} in cart',
+                        style: AppType.micro.copyWith(
+                          color: const Color(0xFF57758A),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 86,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: cart.extraItems.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) {
+                        final item = cart.extraItems[i] as Map<String, dynamic>;
+                        final qty = item['quantity'];
+                        final productId = item['product_id'];
+                        final fullProduct = cart.products.firstWhere(
+                          (p) => p['id'] == productId || p['_id'] == productId,
+                          orElse: () => item,
+                        );
+                        final name = (fullProduct['name'] ?? item['product_name'] ?? '') as String;
+                        final cover = fullProduct['cover_image'] as String?;
+                        final images = fullProduct['images'] ?? item['images'];
+                        final imageUrl = (cover != null && cover.isNotEmpty)
+                            ? cover
+                            : (images is List && images.isNotEmpty)
+                                ? images[0] as String?
+                                : null;
+                        return Tappable(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ProductDetailScreen(product: fullProduct),
+                            ),
+                          ),
+                          scaleFactor: 0.93,
+                          child: SizedBox(
+                            width: 66,
+                            child: Column(
+                              children: [
+                                Stack(
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryLight,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: AppColors.border),
+                                      ),
+                                      child: imageUrl != null && imageUrl.isNotEmpty
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(13),
+                                              child: CachedNetworkImage(
+                                                imageUrl: imageUrl,
+                                                fit: BoxFit.cover,
+                                                memCacheWidth: 112,
+                                                memCacheHeight: 112,
+                                                errorWidget: (_, __, ___) =>
+                                                    Center(
+                                                      child: Text(
+                                                        name.isNotEmpty
+                                                            ? name[0].toUpperCase()
+                                                            : '?',
+                                                        style: AppType.h3.copyWith(
+                                                            color: AppColors.primary),
+                                                      ),
+                                                    ),
+                                              ),
+                                            )
+                                          : Center(
+                                              child: Text(
+                                                name.isNotEmpty
+                                                    ? name[0].toUpperCase()
+                                                    : '?',
+                                                style: AppType.h3.copyWith(
+                                                    color: AppColors.primary),
+                                              ),
+                                            ),
+                                    ),
+                                    if (qty != null)
+                                      Positioned(
+                                        right: 0,
+                                        bottom: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 5, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary,
+                                            borderRadius: BorderRadius.circular(7),
+                                          ),
+                                          child: Text(
+                                            'x$qty',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: AppType.micro.copyWith(
+                                    color: AppColors.textSecondary,
+                                    height: 1.2,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                // Add more / Explore products button
+                Tappable(
+                  onTap: () => Navigator.push(
+                      context, SlideRightRoute(page: const ProductsScreen())),
+                  scaleFactor: 0.97,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          cart.extraItems.isNotEmpty
+                              ? Icons.add_shopping_cart_rounded
+                              : Icons.storefront_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          cart.extraItems.isNotEmpty
+                              ? 'Add more products'
+                              : 'Explore products',
+                          style: AppType.small.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.arrow_forward_rounded,
+                            size: 14, color: AppColors.primary.withValues(alpha: 0.6)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               _HeroCarousel(
                 currentIndex: _carouselIndex,
@@ -735,338 +999,6 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
     );
   }
 
-  // ── Delivery Card ─────────────────────────────────────────────────────────────
-
-  Widget _buildDeliveryCard(BuildContext context, CartProvider cart) {
-    if (cart.tomorrowStatus == null) {
-      return const SkeletonCardLoader();
-    }
-
-    final milkType = (cart.effectiveMilk?['milk_type'] as String? ?? '').toLowerCase();
-
-    return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: cart.isSkipped
-                      ? AppColors.error.withValues(alpha: 0.1)
-                      : AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  cart.isSkipped
-                      ? Icons.event_busy_rounded
-                      : Icons.local_shipping_outlined,
-                  color: cart.isSkipped ? AppColors.error : AppColors.primary,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cart.tomorrowStatus!['date'] ?? '',
-                      style: AppType.bodyBold,
-                    ),
-                    if (cart.isSkipped)
-                      Text('Delivery skipped',
-                          style: AppType.small
-                              .copyWith(color: AppColors.error))
-                    else if (cart.effectiveMilk == null)
-                      Text(
-                        'No active subscription',
-                        style: AppType.small
-                            .copyWith(color: AppColors.textHint),
-                      ),
-                  ],
-                ),
-              ),
-              if (!cart.isSkipped)
-                _ghostButton('Edit', Icons.edit_outlined, () {
-                  final homeState =
-                      context.findAncestorStateOfType<_HomeScreenState>();
-                  homeState?.setState(() => homeState._currentIndex = 2);
-                }),
-            ],
-          ),
-
-          if (cart.isSkipped) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  'SKIPPED',
-                  style: AppType.microUpper.copyWith(
-                    color: AppColors.error,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ] else ...[
-            // Milk type chip
-            if (cart.effectiveMilk != null) ...[
-              const SizedBox(height: 12),
-              _MilkTypeChip(
-                milkType: milkType,
-                quantity: cart.effectiveMilk!['quantity_litres'],
-              ),
-            ],
-
-            // Extra items strip
-            if (cart.extraItems.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _ExtraItemsStrip(extraItems: cart.extraItems),
-            ],
-
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.receipt_long_rounded,
-                          size: 16, color: AppColors.primary),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Total',
-                        style: AppType.bodyBold
-                            .copyWith(color: AppColors.primary),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '₹${cart.totalAmount.toStringAsFixed(2)}',
-                    style: AppType.h3.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Subscription Card ─────────────────────────────────────────────────────────
-
-  Widget _buildSubscriptionCard(
-      BuildContext context, SubscriptionProvider sub) {
-    final auth = context.read<AppAuthProvider>();
-
-    if (sub.subscription == null) {
-      return _GlassCard(
-        child: Column(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.water_drop_outlined,
-                  color: AppColors.primary, size: 28),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No active subscription',
-              style: AppType.caption
-                  .copyWith(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Start a subscription to get fresh milk daily',
-              textAlign: TextAlign.center,
-              style: AppType.micro.copyWith(color: AppColors.textHint),
-            ),
-            const SizedBox(height: 16),
-            if (!auth.isProfileComplete)
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: null,
-                      style: ElevatedButton.styleFrom(
-                        disabledBackgroundColor: AppColors.border,
-                        disabledForegroundColor: AppColors.textHint,
-                      ),
-                      child: const Text('Start Subscription'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.info_outline_rounded,
-                          size: 13, color: AppColors.warning),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Complete your profile first',
-                        style: AppType.micro.copyWith(color: AppColors.warning),
-                      ),
-                    ],
-                  ),
-                ],
-              )
-            else
-              ElevatedButton(
-                onPressed: () => Navigator.push(context,
-                    SlideUpRoute(page: const SubscriptionScreen())),
-                child: const Text('Start Subscription'),
-              ),
-          ],
-        ),
-      );
-    }
-
-    final s = sub.subscription!;
-    final isActive = s['status'] == 'active';
-    final milkType = (s['milk_type'] as String? ?? '').toLowerCase();
-    final milkColor = _milkTypeColor(milkType);
-    final statusColor = isActive ? AppColors.success : AppColors.warning;
-
-    return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: milkColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(Icons.water_drop_rounded, color: milkColor, size: 26),
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Text(
-                        _milkTypeEmoji(milkType),
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${_milkTypeLabel(milkType)} Milk',
-                      style: AppType.h3,
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: milkColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${s['quantity_litres']}L/day',
-                            style: AppType.micro.copyWith(
-                              color: milkColor,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            '₹${s['price_per_litre']}/L',
-                            overflow: TextOverflow.ellipsis,
-                            style: AppType.small
-                                .copyWith(color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              AnimatedStatusBadge(
-                label: s['status'].toString(),
-                color: statusColor,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => Navigator.push(
-                  context, SlideUpRoute(page: const SubscriptionScreen())),
-              style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 46)),
-              child: const Text('Manage Subscription'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ghostButton(String label, IconData icon, VoidCallback onTap) {
-    return Tappable(
-      onTap: onTap,
-      scaleFactor: 0.93,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.primaryLight,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppColors.primary),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: AppType.micro.copyWith(
-                  color: AppColors.primary, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   String _greeting() {
     final hour = DateTime.now().hour;
@@ -1300,14 +1232,10 @@ class _HeaderWalletPill extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   final String title;
   final IconData icon;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   const _SectionHeader({
     required this.title,
     required this.icon,
-    this.actionLabel,
-    this.onAction,
   });
 
   @override
@@ -1340,32 +1268,10 @@ class _SectionHeader extends StatelessWidget {
             letterSpacing: -0.2,
           ),
         ),
-        const Spacer(),
-        if (actionLabel != null && onAction != null)
-          Tappable(
-            onTap: onAction!,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.58),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.75)),
-              ),
-              child: Text(
-                actionLabel!,
-                style: AppType.micro.copyWith(
-                  color: const Color(0xFF0F766E),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
 }
-
-// ── Milk Type Chip ────────────────────────────────────────────────────────────
 
 class _MilkTypeChip extends StatelessWidget {
   final String milkType;
@@ -1453,153 +1359,6 @@ class _MilkTypeChip extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Extra Items Strip ─────────────────────────────────────────────────────────
-
-class _ExtraItemsStrip extends StatelessWidget {
-  final List<dynamic> extraItems;
-
-  const _ExtraItemsStrip({required this.extraItems});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.add_shopping_cart_rounded,
-                size: 13, color: AppColors.textSecondary),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                '${extraItems.length} extra ${extraItems.length == 1 ? 'item' : 'items'} added',
-                overflow: TextOverflow.ellipsis,
-                style: AppType.micro.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 88,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: extraItems.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (ctx, i) {
-              final item = extraItems[i] as Map<String, dynamic>;
-              return _ExtraItemThumbnail(item: item);
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExtraItemThumbnail extends StatelessWidget {
-  final Map<String, dynamic> item;
-
-  const _ExtraItemThumbnail({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final name = item['product_name'] as String? ?? '';
-    final qty = item['quantity'];
-    final images = item['images'];
-    final imageUrl =
-        (images is List && images.isNotEmpty) ? images[0] as String? : null;
-
-    return SizedBox(
-      width: 70,
-      child: Column(
-        children: [
-          Stack(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(13),
-                        child: CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 120,
-                          memCacheHeight: 120,
-                          errorWidget: (_, __, ___) =>
-                              _ProductInitial(name: name),
-                        ),
-                      )
-                    : _ProductInitial(name: name),
-              ),
-              if (qty != null)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      'x$qty',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: AppType.micro.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.2,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProductInitial extends StatelessWidget {
-  final String name;
-  const _ProductInitial({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: AppType.h3.copyWith(
-          color: AppColors.primary,
-          fontWeight: FontWeight.w800,
-        ),
       ),
     );
   }

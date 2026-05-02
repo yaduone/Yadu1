@@ -223,10 +223,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   List<String> _imageUrls(dynamic p) {
     final images = p['images'];
-    if (images is List && images.isNotEmpty) {
-      return images.whereType<String>().toList();
+    if (images is! List || images.isEmpty) return [];
+    final all = images.whereType<String>().toList();
+    final cover = p['cover_image'] as String?;
+    if (cover != null && cover.isNotEmpty && all.contains(cover) && all[0] != cover) {
+      return [cover, ...all.where((u) => u != cover)];
     }
-    return [];
+    return all;
   }
 
   Widget _buildImageSlider(dynamic p) {

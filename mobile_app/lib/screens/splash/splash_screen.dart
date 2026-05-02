@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,11 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _taglineFade;
   late final Animation<Offset> _taglineSlide;
   late final Animation<double> _progressFade;
+
+  // Spinning loader
+  late final AnimationController _spinCtrl;
+  late final Animation<double> _spinAngle;
+  late final Animation<double> _spinPulse;
 
   // Out animation (fade entire screen to white)
   late final AnimationController _exitCtrl;
@@ -75,6 +81,18 @@ class _SplashScreenState extends State<SplashScreen>
           parent: _ctrl,
           curve: const Interval(0.65, 0.90, curve: Curves.easeOut)),
     );
+
+    _spinCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+    _spinAngle = Tween<double>(begin: 0.0, end: 2 * math.pi).animate(
+      CurvedAnimation(parent: _spinCtrl, curve: Curves.easeInOut),
+    );
+    _spinPulse = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.7, end: 1.0), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.7), weight: 50),
+    ]).animate(CurvedAnimation(parent: _spinCtrl, curve: Curves.easeInOut));
 
     _exitCtrl = AnimationController(
       vsync: this,
@@ -131,6 +149,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _setStatus(String text, double progress) {
+
     if (!mounted) return;
     setState(() {
       _statusText = text;
@@ -141,6 +160,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _ctrl.dispose();
+    _spinCtrl.dispose();
     _exitCtrl.dispose();
     super.dispose();
   }
@@ -189,8 +209,10 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
 
-            SafeArea(
-              child: Column(
+            SizedBox.expand(
+              child: SafeArea(
+                child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Spacer(flex: 3),
 
@@ -245,37 +267,36 @@ class _SplashScreenState extends State<SplashScreen>
                   // Progress section
                   FadeTransition(
                     opacity: _progressFade,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 48),
-                      child: Column(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 350),
-                              curve: Curves.easeInOut,
-                              height: 3,
-                              child: LinearProgressIndicator(
-                                value: _progress,
-                                backgroundColor: AppColors.border,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColors.primary),
-                                minHeight: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        AnimatedBuilder(
+                          animation: _spinCtrl,
+                          builder: (context, _) => Transform.scale(
+                            scale: _spinPulse.value,
+                            child: Transform.rotate(
+                              angle: _spinAngle.value,
+                              child: CustomPaint(
+                                size: const Size(48, 48),
+                                painter: _ArcSpinnerPainter(
+                                  color: AppColors.primary,
+                                  progress: _progress,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: Text(
-                              _statusText,
-                              key: ValueKey(_statusText),
-                              style: AppType.small
-                                  .copyWith(color: AppColors.textSecondary),
-                            ),
+                        ),
+                        const SizedBox(height: 16),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: Text(
+                            _statusText,
+                            key: ValueKey(_statusText),
+                            style: AppType.small
+                                .copyWith(color: AppColors.textSecondary),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -294,6 +315,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                   const SizedBox(height: 24),
                 ],
+                ),
               ),
             ),
           ],
@@ -301,4 +323,44 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+}
+
+class _ArcSpinnerPainter extends CustomPainter {
+  final Color color;
+  final double progress;
+
+  _ArcSpinnerPainter({required this.color, required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+
+    // Track circle
+    final trackPaint = Paint()
+      ..color = color.withValues(alpha: 0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    // Arc — sweeps from 20% up to full based on progress
+    final sweepAngle = (0.2 + 0.8 * progress) * 2 * math.pi;
+    final arcPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      sweepAngle,
+      false,
+      arcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ArcSpinnerPainter old) =>
+      old.progress != progress || old.color != color;
 }

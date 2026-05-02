@@ -87,7 +87,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ];
           },
           body: products.isEmpty
-              ? _buildLoadingGrid()
+              ? _buildLoadingList()
               : filtered.isEmpty
                   ? Center(
                       child: Column(
@@ -102,16 +102,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ],
                       ),
                     )
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(20),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: 0.72,
-                      ),
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                       itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 16),
                       itemBuilder: (_, i) =>
                           _ProductCard(product: filtered[i]),
                     ),
@@ -176,17 +170,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  Widget _buildLoadingGrid() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(20),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-        childAspectRatio: 0.72,
-      ),
-      itemCount: 6,
-      itemBuilder: (_, __) => const SkeletonLoader(height: 220),
+  Widget _buildLoadingList() {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      itemCount: 4,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (_, __) => const SkeletonLoader(height: 300),
     );
   }
 }
@@ -199,6 +188,10 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = product['is_active'] == true;
+    final name = product['name'] as String? ?? '';
+    final description = (product['description'] as String? ??
+        product['unit'] as String? ?? '');
+    final price = product['price'] as num?;
 
     return GestureDetector(
       onTap: isActive
@@ -209,113 +202,127 @@ class _ProductCard extends StatelessWidget {
                 ),
               )
           : null,
-      child: Opacity(
-        opacity: isActive ? 1.0 : 0.85,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.06),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Image
-              Expanded(
-                flex: 3,
-                child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(20)),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _buildImage(product),
-                      if (!isActive)
-                        Container(
-                          color: const Color(0x80000000),
-                          child: const Center(
-                            child: Text(
-                              'Coming\nSoon',
-                              textAlign: TextAlign.center,
+              // ── Large image area with coming-soon overlay ──
+              Stack(
+                children: [
+                  SizedBox(
+                    height: 220,
+                    width: double.infinity,
+                    child: _buildImage(),
+                  ),
+                  if (!isActive)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Color(0x99000000),
+                        ),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(40),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                  width: 1.5),
+                            ),
+                            child: const Text(
+                              'Coming Soon',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 13,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.5,
-                                height: 1.3,
                               ),
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ),
+                      ),
+                    ),
+                ],
               ),
 
-              // Info
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    mainAxisSize: MainAxisSize.max,
-                    children: [
-                      Column(
+              // ── Title, description & price row ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            product['name'] ?? '',
-                            style: AppType.captionBold,
+                            name,
+                            style: AppType.h3,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (product['unit'] != null) ...[
-                            const SizedBox(height: 2),
+                          if (description.isNotEmpty) ...[
+                            const SizedBox(height: 4),
                             Text(
-                              product['unit'] ?? '',
+                              description,
                               style: AppType.small
                                   .copyWith(color: AppColors.textSecondary),
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ],
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ),
+                    const SizedBox(width: 12),
+                    if (price != null)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '₹${(product['price'] as num).toStringAsFixed(0)}',
+                            '₹${price.toStringAsFixed(0)}',
                             style: AppType.bodyBold.copyWith(
                               color: isActive
                                   ? AppColors.primary
                                   : AppColors.textSecondary,
+                              fontSize: 18,
                             ),
                           ),
                           if (isActive)
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(10),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.add_rounded,
+                                    color: Colors.white, size: 18),
                               ),
-                              child: const Icon(Icons.add_rounded,
-                                  color: Colors.white, size: 18),
                             ),
                         ],
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -325,20 +332,25 @@ class _ProductCard extends StatelessWidget {
     );
   }
 
-  Widget _buildImage(dynamic product) {
+  Widget _buildImage() {
+    final cover = product['cover_image'] as String?;
     final images = product['images'];
-    final url = (images is List && images.isNotEmpty) ? images[0] as String : null;
+    final url = (cover != null && cover.isNotEmpty)
+        ? cover
+        : (images is List && images.isNotEmpty) ? images[0] as String : null;
     if (url == null || url.isEmpty) return _imageFallback();
     return CachedNetworkImage(
       imageUrl: url,
       width: double.infinity,
+      height: 220,
       fit: BoxFit.cover,
-      memCacheWidth: 400,
+      memCacheWidth: 800,
       fadeInDuration: const Duration(milliseconds: 300),
       placeholder: (_, __) => Container(
         color: AppColors.surfaceBg,
         child: const Center(
-          child: Icon(Icons.image_rounded, color: AppColors.textHint, size: 28),
+          child:
+              Icon(Icons.image_rounded, color: AppColors.textHint, size: 36),
         ),
       ),
       errorWidget: (_, __, ___) => _imageFallback(),
@@ -350,7 +362,7 @@ class _ProductCard extends StatelessWidget {
       color: AppColors.surfaceBg,
       child: const Center(
         child: Icon(Icons.local_grocery_store_rounded,
-            color: AppColors.textHint, size: 32),
+            color: AppColors.textHint, size: 48),
       ),
     );
   }

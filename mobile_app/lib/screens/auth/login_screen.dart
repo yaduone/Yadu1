@@ -84,14 +84,15 @@ class _LoginScreenState extends State<LoginScreen>
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // ── Full-bleed carousel (starts at top, bleeds under status bar) ──
+          // ── Full-bleed carousel (bleeds under status bar) ──
           Positioned(
-            top: 0,
+            top: -mq.padding.top,
             left: 0,
             right: 0,
-            child: AuthImageCarousel(height: carouselH),
+            child: AuthImageCarousel(height: carouselH + mq.padding.top),
           ),
 
           // ── Floating login card — rises with keyboard ──────────────────

@@ -111,29 +111,6 @@ class _AuthImageCarouselState extends State<AuthImageCarousel>
             }).toList(),
           ),
 
-          // Bottom fade — covers ~40% of carousel height to hide image text bleed
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: h * 0.40,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.white.withValues(alpha: 0.55),
-                    Colors.white.withValues(alpha: 0.88),
-                    Colors.white,
-                    Colors.white,
-                  ],
-                  stops: const [0.0, 0.35, 0.60, 0.80, 1.0],
-                ),
-              ),
-            ),
-          ),
 
           // Dot indicator
           Positioned(
