@@ -1036,6 +1036,8 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
 
   static String _milkTypeLabel(String milkType) {
     switch (milkType) {
+      case 'toned':
+        return 'Child Pack';
       case 'full_cream':
         return 'Full Cream';
       case 'double_toned':
@@ -1299,6 +1301,8 @@ class _MilkTypeChip extends StatelessWidget {
 
   String get _label {
     switch (milkType) {
+      case 'toned':
+        return 'Child Pack';
       case 'full_cream':
         return 'Full Cream';
       case 'double_toned':

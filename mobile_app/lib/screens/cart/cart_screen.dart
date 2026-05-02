@@ -8,6 +8,7 @@ import '../../widgets/premium_components.dart';
 import '../../widgets/tappable.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../utils/transitions.dart';
+import '../../utils/constants.dart';
 import '../../providers/cart_provider.dart';
 import '../products/products_screen.dart';
 
@@ -461,7 +462,7 @@ class _MilkCardState extends State<_MilkCard> {
                       children: [
                         Flexible(
                           child: Text(
-                            '${(widget.milk['milk_type'] as String).toUpperCase()} Milk',
+                            '${AppConstants.milkTypeLabels[widget.milk['milk_type'] as String] ?? (widget.milk['milk_type'] as String).toUpperCase()} Milk',
                             overflow: TextOverflow.ellipsis,
                             style: AppType.bodyBold,
                           ),
@@ -632,28 +633,121 @@ class _SkippedCardState extends State<_SkippedCard> {
 class _EmptyExtrasCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final cart = context.read<CartProvider>();
     return PremiumCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceBg,
-              borderRadius: BorderRadius.circular(16),
+          Center(
+            child: Column(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceBg,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.local_dining_rounded,
+                      size: 28, color: AppColors.textHint),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Your morning is missing something fresh',
+                  textAlign: TextAlign.center,
+                  style: AppType.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
             ),
-            child: const Icon(Icons.local_dining_rounded,
-                size: 28, color: AppColors.textHint),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Your morning is missing something fresh',
-            textAlign: TextAlign.center,
-            style: AppType.caption
-                .copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
+
+          // ── Product glimpse strip ─────────────────────────────
+          FutureBuilder(
+            future: cart.loadProducts(),
+            builder: (context, _) {
+              final products = cart.products;
+              if (products.isEmpty) {
+                return const SizedBox(
+                  height: 72,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              }
+              final preview = products.take(6).toList();
+              return SizedBox(
+                height: 80,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: preview.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, i) {
+                    final p = preview[i];
+                    final cover = (p['cover_image_small'] ??
+                        p['cover_image_large']) as String?;
+                    final images = p['images'];
+                    final url = (cover != null && cover.isNotEmpty)
+                        ? cover
+                        : (images is List && images.isNotEmpty
+                            ? images[0] as String?
+                            : null);
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: AppColors.border, width: 1),
+                          ),
+                          child: url != null && url.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: CachedNetworkImage(
+                                    imageUrl: url,
+                                    fit: BoxFit.cover,
+                                    memCacheWidth: 96,
+                                    memCacheHeight: 96,
+                                    errorWidget: (_, __, ___) => const Icon(
+                                        Icons.shopping_bag_rounded,
+                                        color: AppColors.primary,
+                                        size: 20),
+                                  ),
+                                )
+                              : const Icon(Icons.shopping_bag_rounded,
+                                  color: AppColors.primary, size: 20),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: 56,
+                          child: Text(
+                            p['name'] ?? '',
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.micro.copyWith(
+                                color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: () => Navigator.push(
               context,

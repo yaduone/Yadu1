@@ -9,11 +9,17 @@ export default function LivestreamsPage() {
   const [editing, setEditing]   = useState(null);
   const [form, setForm]         = useState({ title: '', youtube_url: '' });
 
-  // Lactometer state
-  const [lactReading, setLactReading]   = useState('');
-  const [lactCurrent, setLactCurrent]   = useState(null);
-  const [lactSaving, setLactSaving]     = useState(false);
-  const [lactMsg, setLactMsg]           = useState('');
+  // Lactometer state — morning slot
+  const [morningReading, setMorningReading] = useState('');
+  const [morningCurrent, setMorningCurrent] = useState(undefined);
+  const [morningSaving, setMorningSaving]   = useState(false);
+  const [morningMsg, setMorningMsg]         = useState('');
+
+  // Lactometer state — evening slot
+  const [eveningReading, setEveningReading] = useState('');
+  const [eveningCurrent, setEveningCurrent] = useState(undefined);
+  const [eveningSaving, setEveningSaving]   = useState(false);
+  const [eveningMsg, setEveningMsg]         = useState('');
 
   function loadStreams() {
     setLoading(true);
@@ -27,7 +33,11 @@ export default function LivestreamsPage() {
 
   useEffect(() => {
     api.get('/livestreams/lactometer/admin')
-      .then((res) => setLactCurrent(res.data.data.lactometer_reading))
+      .then((res) => {
+        const d = res.data.data;
+        setMorningCurrent(d.lactometer_morning);
+        setEveningCurrent(d.lactometer_evening);
+      })
       .catch(() => {});
   }, []);
 
@@ -69,19 +79,43 @@ export default function LivestreamsPage() {
     loadStreams();
   }
 
-  async function handleLactSave() {
-    if (!lactReading) return;
-    setLactSaving(true);
-    setLactMsg('');
+  async function handleSlotSave(slot) {
+    const reading  = slot === 'morning' ? morningReading : eveningReading;
+    const setSaving = slot === 'morning' ? setMorningSaving : setEveningSaving;
+    const setMsg    = slot === 'morning' ? setMorningMsg   : setEveningMsg;
+    const setCurrent = slot === 'morning' ? setMorningCurrent : setEveningCurrent;
+    const setInput   = slot === 'morning' ? setMorningReading : setEveningReading;
+
+    if (!reading) return;
+    setSaving(true);
+    setMsg('');
     try {
-      await api.put('/livestreams/lactometer', { reading: lactReading });
-      setLactCurrent(parseFloat(lactReading));
-      setLactReading('');
-      setLactMsg('Updated successfully');
+      await api.put('/livestreams/lactometer', { slot, reading });
+      setCurrent(parseFloat(reading));
+      setInput('');
+      setMsg('Updated successfully');
     } catch (err) {
-      setLactMsg(err.response?.data?.error || 'Failed to update');
+      setMsg(err.response?.data?.error || 'Failed to update');
     } finally {
-      setLactSaving(false);
+      setSaving(false);
+    }
+  }
+
+  async function handleSlotNA(slot) {
+    const setSaving  = slot === 'morning' ? setMorningSaving  : setEveningSaving;
+    const setMsg     = slot === 'morning' ? setMorningMsg     : setEveningMsg;
+    const setCurrent = slot === 'morning' ? setMorningCurrent : setEveningCurrent;
+
+    setSaving(true);
+    setMsg('');
+    try {
+      await api.put('/livestreams/lactometer', { slot, is_na: true });
+      setCurrent(null);
+      setMsg('Marked as N/A');
+    } catch (err) {
+      setMsg(err.response?.data?.error || 'Failed to update');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -92,46 +126,118 @@ export default function LivestreamsPage() {
           <h2 className="page-title">Livestreams</h2>
           <p className="text-xs text-slate-400 mt-0.5">{streams.length} streams configured</p>
         </div>
-        {/* ── Lactometer Reading ───────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
-            <Droplets size={15} className="text-blue-600" />
+        {/* ── Lactometer Readings ──────────────────────────────────────────── */}
+      <div className="space-y-3">
+        {/* Date header */}
+        <div className="flex items-center gap-2">
+          <Droplets size={15} className="text-blue-500" />
+          <p className="text-sm font-semibold text-slate-700">
+            Lactometer Readings —{' '}
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+
+        {/* Morning Slot */}
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+              <Droplets size={15} className="text-amber-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800 text-sm">Morning Slot Lactometer Reading</p>
+              <p className="text-xs text-slate-400">
+                Current:{' '}
+                <span className="font-semibold text-slate-600">
+                  {morningCurrent === undefined ? 'Not updated yet' : morningCurrent === null ? 'N/A' : `${morningCurrent} °LR`}
+                </span>
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-semibold text-slate-800 text-sm">Today's Lactometer Reading</p>
-            {lactCurrent !== null && (
-              <p className="text-xs text-slate-400">Current: <span className="font-semibold text-slate-600">{lactCurrent} °LR</span></p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="e.g. 26.5"
+                value={morningReading}
+                onChange={(e) => { setMorningReading(e.target.value); setMorningMsg(''); }}
+                className="input w-36 pr-10"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">°LR</span>
+            </div>
+            <button
+              onClick={() => handleSlotSave('morning')}
+              disabled={!morningReading || morningSaving}
+              className="btn-primary disabled:opacity-50"
+            >
+              {morningSaving ? 'Saving…' : 'Update'}
+            </button>
+            <button
+              onClick={() => handleSlotNA('morning')}
+              disabled={morningSaving}
+              className="btn-secondary disabled:opacity-50"
+            >
+              Mark N/A
+            </button>
+            {morningMsg && (
+              <span className={`text-xs font-medium ${morningMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
+                {morningMsg}
+              </span>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative">
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              placeholder="e.g. 26.5"
-              value={lactReading}
-              onChange={(e) => { setLactReading(e.target.value); setLactMsg(''); }}
-              className="input w-36 pr-10"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">°LR</span>
+
+        {/* Evening Slot */}
+        <div className="card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <Droplets size={15} className="text-indigo-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800 text-sm">Evening Slot Lactometer Reading</p>
+              <p className="text-xs text-slate-400">
+                Current:{' '}
+                <span className="font-semibold text-slate-600">
+                  {eveningCurrent === undefined ? 'Not updated yet' : eveningCurrent === null ? 'N/A' : `${eveningCurrent} °LR`}
+                </span>
+              </p>
+            </div>
           </div>
-          <button
-            onClick={handleLactSave}
-            disabled={!lactReading || lactSaving}
-            className="btn-primary disabled:opacity-50"
-          >
-            {lactSaving ? 'Saving…' : 'Update'}
-          </button>
-          {lactMsg && (
-            <span className={`text-xs font-medium ${lactMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
-              {lactMsg}
-            </span>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                placeholder="e.g. 26.5"
+                value={eveningReading}
+                onChange={(e) => { setEveningReading(e.target.value); setEveningMsg(''); }}
+                className="input w-36 pr-10"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">°LR</span>
+            </div>
+            <button
+              onClick={() => handleSlotSave('evening')}
+              disabled={!eveningReading || eveningSaving}
+              className="btn-primary disabled:opacity-50"
+            >
+              {eveningSaving ? 'Saving…' : 'Update'}
+            </button>
+            <button
+              onClick={() => handleSlotNA('evening')}
+              disabled={eveningSaving}
+              className="btn-secondary disabled:opacity-50"
+            >
+              Mark N/A
+            </button>
+            {eveningMsg && (
+              <span className={`text-xs font-medium ${eveningMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
+                {eveningMsg}
+              </span>
+            )}
+          </div>
         </div>
-        <p className="text-xs text-slate-400 mt-2">Unit: °LR (Lactometer Reading). Visible to all users in your area.</p>
       </div>
 
       <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary w-fit">

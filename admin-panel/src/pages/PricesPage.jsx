@@ -33,6 +33,7 @@ export default function PricesPage() {
   }
 
   const MILK_ICONS = { cow: '🐄', buffalo: '🐃', toned: '👶' };
+  const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Child Pack' };
 
   return (
     <div className="space-y-5">
@@ -69,7 +70,7 @@ export default function PricesPage() {
                   <td>
                     <div className="flex items-center gap-2.5">
                       <span className="text-xl">{MILK_ICONS[p.milk_type] || '🥛'}</span>
-                      <span className="font-semibold text-slate-800 capitalize">{p.milk_type}</span>
+                      <span className="font-semibold text-slate-800">{MILK_LABELS[p.milk_type] || p.milk_type}</span>
                     </div>
                   </td>
                   <td>

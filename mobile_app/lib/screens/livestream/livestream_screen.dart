@@ -16,7 +16,10 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
   Map<String, dynamic>? _livestream;
   bool _loading = true;
   YoutubePlayerController? _controller;
-  double? _lactometerReading;
+  double? _morningReading;
+  bool _morningNA = false;
+  double? _eveningReading;
+  bool _eveningNA = false;
 
   @override
   void initState() {
@@ -32,7 +35,9 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       ]);
 
       final streamData = results[0]['data']?['livestream'] as Map<String, dynamic>?;
-      final lactValue = results[1]['data']?['lactometer_reading'];
+      final lactData = results[1]['data'] as Map<String, dynamic>?;
+      final morningVal = lactData?['lactometer_morning'];
+      final eveningVal = lactData?['lactometer_evening'];
 
       if (streamData != null) {
         final rawUrl = streamData['youtube_url'] ?? '';
@@ -53,7 +58,10 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       }
       setState(() {
         _livestream = streamData;
-        _lactometerReading = lactValue != null ? (lactValue as num).toDouble() : null;
+        _morningReading = morningVal != null ? (morningVal as num).toDouble() : null;
+        _morningNA = lactData != null && lactData.containsKey('lactometer_morning') && morningVal == null;
+        _eveningReading = eveningVal != null ? (eveningVal as num).toDouble() : null;
+        _eveningNA = lactData != null && lactData.containsKey('lactometer_evening') && eveningVal == null;
         _loading = false;
       });
     } catch (_) {
@@ -246,6 +254,9 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
   }
 
   Widget _lactometerCard() {
+    final now = DateTime.now();
+    final dateStr =
+        '${_weekday(now.weekday)}, ${now.day} ${_month(now.month)} ${now.year}';
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
@@ -261,58 +272,98 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.water_drop_rounded,
-                color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Today's Lactometer Reading",
-                  style: AppType.caption.copyWith(
-                      color: Colors.white70, fontWeight: FontWeight.w600),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 4),
-                _lactometerReading != null
-                    ? RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: _lactometerReading!.toStringAsFixed(1),
-                              style: AppType.h1.copyWith(color: Colors.white),
-                            ),
-                            TextSpan(
-                              text: ' °LR',
-                              style: AppType.body.copyWith(
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Text(
-                        'Not updated yet',
-                        style:
-                            AppType.body.copyWith(color: Colors.white54),
-                      ),
-              ],
-            ),
+                child: const Icon(Icons.water_drop_rounded,
+                    color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lactometer Readings',
+                      style: AppType.caption.copyWith(
+                          color: Colors.white, fontWeight: FontWeight.w700)),
+                  Text(dateStr,
+                      style: AppType.micro
+                          .copyWith(color: Colors.white60)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _slotTile('Morning', _morningReading, _morningNA)),
+              const SizedBox(width: 12),
+              Expanded(child: _slotTile('Evening', _eveningReading, _eveningNA)),
+            ],
           ),
         ],
       ),
     );
   }
+
+  Widget _slotTile(String label, double? reading, bool isNA) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: AppType.micro
+                  .copyWith(color: Colors.white60, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          if (isNA)
+            Text('N/A',
+                style: AppType.body
+                    .copyWith(color: Colors.white54, fontWeight: FontWeight.w600))
+          else if (reading != null)
+            RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: reading.toStringAsFixed(1),
+                    style: AppType.h2.copyWith(color: Colors.white),
+                  ),
+                  TextSpan(
+                    text: ' °LR',
+                    style: AppType.micro.copyWith(
+                        color: Colors.white70, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            )
+          else
+            Text('Not updated',
+                style: AppType.micro.copyWith(color: Colors.white54)),
+        ],
+      ),
+    );
+  }
+
+  String _weekday(int d) =>
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d - 1];
+
+  String _month(int m) => [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ][m - 1];
 
   AppBar _buildAppBar() {
     return AppBar(

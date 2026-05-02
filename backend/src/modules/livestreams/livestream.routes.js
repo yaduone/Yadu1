@@ -5,44 +5,61 @@ const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require(
 const { success, badRequest, notFound, created } = require('../../utils/response');
 const { isValidYoutubeUrl } = require('../../utils/validators');
 
-// GET /api/livestreams/lactometer/admin — Admin: get current lactometer reading
+// GET /api/livestreams/lactometer/admin — Admin: get current lactometer readings
 router.get('/lactometer/admin', authenticateAdmin, async (req, res, next) => {
   try {
     const areaDoc = await db.collection('areas').doc(req.admin.areaId).get();
-    const reading = areaDoc.exists ? (areaDoc.data().lactometer_reading ?? null) : null;
-    return success(res, { lactometer_reading: reading });
+    const data = areaDoc.exists ? areaDoc.data() : {};
+    return success(res, {
+      lactometer_morning: data.lactometer_morning !== undefined ? data.lactometer_morning : undefined,
+      lactometer_evening: data.lactometer_evening !== undefined ? data.lactometer_evening : undefined,
+    });
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/livestreams/lactometer — User: get today's lactometer reading for their area
+// GET /api/livestreams/lactometer — User: get today's lactometer readings for their area
 router.get('/lactometer', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
     const areaDoc = await db.collection('areas').doc(req.user.areaId).get();
-    const reading = areaDoc.exists ? (areaDoc.data().lactometer_reading ?? null) : null;
-    return success(res, { lactometer_reading: reading });
+    const data = areaDoc.exists ? areaDoc.data() : {};
+    return success(res, {
+      lactometer_morning: data.lactometer_morning !== undefined ? data.lactometer_morning : undefined,
+      lactometer_evening: data.lactometer_evening !== undefined ? data.lactometer_evening : undefined,
+    });
   } catch (err) {
     next(err);
   }
 });
 
-// PUT /api/livestreams/lactometer — Admin: update lactometer reading for their area
+// PUT /api/livestreams/lactometer — Admin: update morning or evening lactometer reading
 router.put('/lactometer', authenticateAdmin, async (req, res, next) => {
   try {
-    const { reading } = req.body;
-    if (reading === undefined || reading === null || reading === '') {
-      return badRequest(res, 'reading is required');
+    const { slot, reading, is_na } = req.body;
+    if (slot !== 'morning' && slot !== 'evening') {
+      return badRequest(res, 'slot must be "morning" or "evening"');
     }
-    const value = parseFloat(reading);
-    if (isNaN(value) || value < 0) {
-      return badRequest(res, 'reading must be a valid positive number');
+    const fieldName = slot === 'morning' ? 'lactometer_morning' : 'lactometer_evening';
+
+    let value;
+    if (is_na) {
+      value = null;
+    } else {
+      if (reading === undefined || reading === null || reading === '') {
+        return badRequest(res, 'reading is required');
+      }
+      value = parseFloat(reading);
+      if (isNaN(value) || value < 0) {
+        return badRequest(res, 'reading must be a valid positive number');
+      }
     }
+
     await db.collection('areas').doc(req.admin.areaId).update({
-      lactometer_reading: value,
+      [fieldName]: value,
       lactometer_updated_at: admin.firestore.FieldValue.serverTimestamp(),
     });
-    return success(res, { lactometer_reading: value });
+    return success(res, { [fieldName]: value });
   } catch (err) {
     next(err);
   }

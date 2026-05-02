@@ -90,7 +90,7 @@ class TermsScreen extends StatelessWidget {
               _SubSection(
                 title: 'Creating a Subscription',
                 body:
-                    'You may subscribe to daily milk delivery by selecting a milk type (Cow, Buffalo, or Toned), quantity (0.5L–10L in 0.5L increments), delivery slot (Morning, Evening, or Both), and start date.',
+                    'You may subscribe to daily milk delivery by selecting a milk type (Cow, Buffalo, or Child Pack), quantity (0.5L–10L in 0.5L increments), delivery slot (Morning, Evening, or Both), and start date.',
               ),
               _SubSection(
                 title: 'Pricing',
