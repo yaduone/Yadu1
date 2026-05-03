@@ -5,3 +5,11 @@
 [context.production.environment]
   SECRETS_SCAN_OMIT_KEYS = "PORT"
   VITE_API_URL = "https://yadu1.up.railway.app/api"
+
+# SPA fallback — serve index.html for all routes so client-side
+# routing works on page reload / direct navigation
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
