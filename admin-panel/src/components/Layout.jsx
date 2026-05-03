@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  LayoutDashboard, Users, Package, MapPin, ClipboardList,
+  LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, LogOut,
   ChevronRight, Menu, X,
 } from 'lucide-react';
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard',   group: 'main' },
   { to: '/users',       icon: Users,           label: 'Users',       group: 'main' },
   { to: '/products',    icon: Package,         label: 'Products',    group: 'main' },
+  { to: '/categories',  icon: Tag,             label: 'Categories',  group: 'main' },
   { to: '/orders',      icon: ClipboardList,   label: 'Orders',      group: 'main' },
   { to: '/areas',       icon: MapPin,          label: 'Areas',       group: 'ops'  },
   { to: '/manifests',   icon: FileText,        label: 'Manifests',   group: 'ops'  },

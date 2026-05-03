@@ -14,6 +14,7 @@ import LivestreamsPage from './pages/LivestreamsPage';
 import PricesPage from './pages/PricesPage';
 import DuesPage from './pages/DuesPage';
 import ActivityPage from './pages/ActivityPage';
+import CategoriesPage from './pages/CategoriesPage';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="products" element={<ProductsPage />} />
+            <Route path="categories" element={<CategoriesPage />} />
             <Route path="areas" element={<AreasPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="manifests" element={<ManifestsPage />} />

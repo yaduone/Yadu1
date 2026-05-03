@@ -18,6 +18,16 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 const _milkValues = {'Cow': 'cow', 'Buffalo': 'buffalo', 'Child Pack': 'toned'};
+const _milkLogos = {
+  'Cow': '\u{1F404}',
+  'Buffalo': '\u{1F403}',
+  'Child Pack': '\u{1F476}',
+};
+const _deliverySlotIcons = {
+  'morning': Icons.wb_sunny_rounded,
+  'evening': Icons.nightlight_round,
+  'both': Icons.sync_rounded,
+};
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _selectedMilk = 'cow';
@@ -62,7 +72,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     color: AppColors.warning.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(Icons.person_off_outlined, size: 36, color: AppColors.warning),
+                  child: const Icon(
+                    Icons.person_off_outlined,
+                    size: 36,
+                    color: AppColors.warning,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -130,7 +144,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           child: Column(
             children: [
               StatefulAvatar(
-                name: AppConstants.milkTypeLabels[s['milk_type'] as String] ?? (s['milk_type'] as String).toUpperCase(),
+                name:
+                    AppConstants.milkTypeLabels[s['milk_type'] as String] ??
+                    (s['milk_type'] as String).toUpperCase(),
                 isSubscriptionActive: isActive,
                 size: 64,
               ),
@@ -146,7 +162,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: (isActive ? AppColors.success : AppColors.warning)
                       .withValues(alpha: 0.1),
@@ -181,9 +200,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     final ok = await sub.pauseSubscription();
                     if (!context.mounted) return;
                     if (ok) {
-                      AppSnackbar.success(context, 'Subscription paused successfully.');
+                      AppSnackbar.success(
+                        context,
+                        'Subscription paused successfully.',
+                      );
                     } else {
-                      AppSnackbar.error(context, sub.error ?? 'Failed to pause subscription.');
+                      AppSnackbar.error(
+                        context,
+                        sub.error ?? 'Failed to pause subscription.',
+                      );
                     }
                   },
             icon: sub.isLoading
@@ -204,9 +229,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     final ok = await sub.resumeSubscription();
                     if (!context.mounted) return;
                     if (ok) {
-                      AppSnackbar.success(context, 'Subscription resumed. Deliveries will restart.');
+                      AppSnackbar.success(
+                        context,
+                        'Subscription resumed. Deliveries will restart.',
+                      );
                     } else {
-                      AppSnackbar.error(context, sub.error ?? 'Failed to resume subscription.');
+                      AppSnackbar.error(
+                        context,
+                        sub.error ?? 'Failed to resume subscription.',
+                      );
                     }
                   },
             icon: sub.isLoading
@@ -214,7 +245,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2),
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
                   )
                 : const Icon(Icons.play_circle_outline_rounded),
             label: Text(sub.isLoading ? 'Resuming…' : 'Resume Subscription'),
@@ -237,7 +270,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   if (ok) {
                     Navigator.pop(context);
                   } else {
-                    AppSnackbar.error(context, sub.error ?? 'Failed to cancel subscription.');
+                    AppSnackbar.error(
+                      context,
+                      sub.error ?? 'Failed to cancel subscription.',
+                    );
                   }
                 },
           child: sub.isLoading
@@ -245,7 +281,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
-                      color: AppColors.error, strokeWidth: 2),
+                    color: AppColors.error,
+                    strokeWidth: 2,
+                  ),
                 )
               : Text(
                   'Cancel Subscription',
@@ -271,24 +309,35 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   height: 64,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.primaryLight, AppColors.primary.withValues(alpha: 0.15)],
+                      colors: [
+                        AppColors.primaryLight,
+                        AppColors.primary.withValues(alpha: 0.15),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(Icons.water_drop_outlined,
-                      color: AppColors.primary, size: 32),
+                  child: const Icon(
+                    Icons.water_drop_outlined,
+                    color: AppColors.primary,
+                    size: 32,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
               Center(
-                child: Text('Start Daily Milk Subscription',
-                    style: AppType.h2, textAlign: TextAlign.center),
+                child: Text(
+                  'Start Daily Milk Subscription',
+                  style: AppType.h2,
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 4),
               Center(
                 child: Text(
                   'Choose your preferences below',
-                  style: AppType.caption.copyWith(color: AppColors.textSecondary),
+                  style: AppType.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
 
@@ -301,7 +350,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Row(
                 children: AppConstants.milkTypes.map((type) {
                   final isSelected =
-                      _selectedMilk == (_milkValues[type] ?? type.toLowerCase());
+                      _selectedMilk ==
+                      (_milkValues[type] ?? type.toLowerCase());
                   return Expanded(
                     child: Padding(
                       padding: EdgeInsets.only(
@@ -310,12 +360,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       child: GestureDetector(
                         onTap: () {
                           HapticFeedback.selectionClick();
-                          setState(() => _selectedMilk = _milkValues[type] ?? type.toLowerCase());
+                          setState(
+                            () => _selectedMilk =
+                                _milkValues[type] ?? type.toLowerCase(),
+                          );
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(
-                              vertical: 16, horizontal: 12),
+                            vertical: 16,
+                            horizontal: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.primary
@@ -323,13 +378,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             borderRadius: BorderRadius.circular(16),
                             border: isSelected
                                 ? null
-                                : Border.all(
-                                    color: AppColors.border, width: 1),
+                                : Border.all(color: AppColors.border, width: 1),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: AppColors.primary
-                                          .withValues(alpha: 0.25),
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.25,
+                                      ),
                                       blurRadius: 16,
                                       offset: const Offset(0, 6),
                                     ),
@@ -338,12 +393,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           ),
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.water_drop_rounded,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textSecondary,
-                                size: 28,
+                              Text(
+                                _milkLogos[type] ?? '\u{1F95B}',
+                                style: const TextStyle(fontSize: 30),
+                                semanticsLabel: '$type logo',
                               ),
                               const SizedBox(height: 8),
                               Text(
@@ -384,50 +437,100 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               const SectionLabel('Delivery Slot'),
               const SizedBox(height: 12),
 
-              Row(
+              Column(
                 children: AppConstants.deliverySlots.map((slot) {
-                  final isSelected =
-                      _selectedSlot == slot.toLowerCase();
-                  return Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: slot != AppConstants.deliverySlots.last
-                            ? 10
-                            : 0,
-                      ),
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setState(
-                              () => _selectedSlot = slot.toLowerCase());
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
+                  final isSelected = _selectedSlot == slot.toLowerCase();
+                  final title = AppConstants.deliverySlotLabels[slot] ?? slot;
+                  final time = AppConstants.deliverySlotSubtitles[slot] ?? '';
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: slot != AppConstants.deliverySlots.last ? 10 : 0,
+                    ),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _selectedSlot = slot.toLowerCase());
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primaryLight
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
                             color: isSelected
-                                ? AppColors.primaryLight
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.primary
-                                  : AppColors.border,
-                              width: isSelected ? 2 : 1,
-                            ),
+                                ? AppColors.primary
+                                : AppColors.border,
+                            width: isSelected ? 2 : 1,
                           ),
-                          child: Center(
-                            child: Text(
-                              slot,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppType.captionBold.copyWith(
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color:
+                                    (isSelected
+                                            ? AppColors.primary
+                                            : AppColors.primaryLight)
+                                        .withValues(
+                                          alpha: isSelected ? 1 : 0.7,
+                                        ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                _deliverySlotIcons[slot] ??
+                                    Icons.schedule_rounded,
                                 color: isSelected
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary,
+                                    ? Colors.white
+                                    : AppColors.primary,
+                                size: 21,
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppType.captionBold.copyWith(
+                                      color: isSelected
+                                          ? AppColors.primary
+                                          : AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    time,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppType.caption.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            AnimatedOpacity(
+                              opacity: isSelected ? 1 : 0,
+                              duration: const Duration(milliseconds: 160),
+                              child: const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.primary,
+                                size: 22,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -453,8 +556,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   }
                 },
                 child: PremiumCard(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -464,8 +569,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           color: AppColors.primaryLight,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.calendar_today_rounded,
-                            color: AppColors.primary, size: 20),
+                        child: const Icon(
+                          Icons.calendar_today_rounded,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Text(
@@ -473,8 +581,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         style: AppType.bodyBold,
                       ),
                       const Spacer(),
-                      const Icon(Icons.chevron_right_rounded,
-                          color: AppColors.textHint),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textHint,
+                      ),
                     ],
                   ),
                 ),
@@ -500,7 +610,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2.5))
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
                 : Text(
                     'Confirm · ₹${(_quantity * _getPricePerLitre()).toStringAsFixed(0)}/day',
                     style: AppType.button.copyWith(color: Colors.white),
@@ -513,7 +626,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   double _getPricePerLitre() {
     // rough estimation — your API may provide actual prices
-    return _selectedMilk == 'cow' ? 60 : _selectedMilk == 'buffalo' ? 70 : 65;
+    return _selectedMilk == 'cow'
+        ? 60
+        : _selectedMilk == 'buffalo'
+        ? 70
+        : 65;
   }
 
   Future<void> _handleCreate() async {
@@ -532,15 +649,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   }
 
   Future<bool> _confirmDialog(
-      BuildContext context, String title, String body) async {
+    BuildContext context,
+    String title,
+    String body,
+  ) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: Text(body,
-            style: AppType.caption.copyWith(color: AppColors.textSecondary)),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Text(
+          body,
+          style: AppType.caption.copyWith(color: AppColors.textSecondary),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -548,8 +669,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Confirm',
-                style: TextStyle(color: AppColors.error)),
+            child: Text('Confirm', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),

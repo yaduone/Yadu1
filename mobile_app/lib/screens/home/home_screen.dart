@@ -1713,6 +1713,7 @@ class _HeroCarousel extends StatelessWidget {
     'assets/images/1.png',
     'assets/images/2.png',
     'assets/images/3.png',
+    'assets/images/4.png',
   ];
 
   const _HeroCarousel({

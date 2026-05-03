@@ -18,8 +18,8 @@ class AppConstants {
     'both': 'Morning & Evening',
   };
   static const Map<String, String> deliverySlotSubtitles = {
-    'morning': 'Delivered in the morning',
-    'evening': 'Delivered in the evening',
-    'both': 'Delivered twice daily',
+    'morning': '7:00 am to 12:00 pm',
+    'evening': '5:00 pm to 9:00 pm',
+    'both': '7:00 am to 12:00 pm & 5:00 pm to 9:00 pm',
   };
 }

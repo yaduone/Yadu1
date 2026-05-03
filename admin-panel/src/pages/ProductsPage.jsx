@@ -5,15 +5,14 @@ import {
   AlertTriangle, Package, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 
-const CATEGORIES = ['curd', 'paneer', 'butter_milk', 'ghee', 'butter', 'lassi', 'Snacks', 'cheese'];
-
 const EMPTY_FORM = {
-  name: '', category: 'curd', unit: '', price: '', description: '',
+  name: '', category: '', unit: '', price: '', description: '',
   cover_image_small: '', cover_image_large: '',
 };
 
 export default function ProductsPage() {
   const [products, setProducts]   = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
   const [editing, setEditing]     = useState(null);
@@ -33,8 +32,16 @@ export default function ProductsPage() {
 
   function loadProducts() {
     setLoading(true);
-    api.get('/products/all')
-      .then((res) => setProducts(res.data.data.products || []))
+    Promise.all([
+      api.get('/products/all'),
+      api.get('/categories'),
+    ])
+      .then(([prodRes, catRes]) => {
+        setProducts(prodRes.data.data.products || []);
+        const cats = catRes.data.data.categories || [];
+        setCategories(cats);
+        setForm((f) => ({ ...f, category: f.category || cats[0]?.slug || '' }));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }
@@ -57,7 +64,7 @@ export default function ProductsPage() {
 
   function startEdit(p) {
     const imgs = Array.isArray(p.images) ? p.images : [];
-    setForm({ name: p.name, category: p.category, unit: p.unit, price: String(p.price), description: p.description || '',
+    setForm({ name: p.name, category: p.category || categories[0]?.slug || '', unit: p.unit, price: String(p.price), description: p.description || '',
       cover_image_small: p.cover_image_small || imgs[0] || '',
       cover_image_large: p.cover_image_large || imgs[0] || '',
     });
@@ -205,8 +212,11 @@ export default function ProductsPage() {
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="select"
                 >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+                  {categories.length === 0 && (
+                    <option value="">Loading categories…</option>
+                  )}
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.slug}>{c.label}</option>
                   ))}
                 </select>
               </div>

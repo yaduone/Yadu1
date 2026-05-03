@@ -49,7 +49,7 @@ router.get('/', cache.publicStatic, async (req, res, next) => {
   try {
     let query = db.collection('products');
     if (req.query.category) {
-      if (!isValidProductCategory(req.query.category)) return badRequest(res, 'Invalid category');
+      if (!await isValidProductCategory(req.query.category)) return badRequest(res, 'Invalid category');
       query = query.where('category', '==', req.query.category);
     }
     const snap = await query.get();
@@ -81,7 +81,7 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
       if (req.files?.length) await deleteImages(req.files.map((f) => f.originalname));
       return badRequest(res, 'name, category, unit, and price are required');
     }
-    if (!isValidProductCategory(category)) {
+    if (!await isValidProductCategory(category)) {
       console.log('[PRODUCT CREATE] Invalid category', { category });
       return badRequest(res, 'Invalid category');
     }
@@ -146,7 +146,7 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     if (description !== undefined) updateData.description = description;
     if (is_active   !== undefined) updateData.is_active   = is_active === 'true' || is_active === true;
     if (category    !== undefined) {
-      if (!isValidProductCategory(category)) return badRequest(res, 'Invalid category');
+      if (!await isValidProductCategory(category)) return badRequest(res, 'Invalid category');
       updateData.category = category;
     }
     if (price !== undefined) {

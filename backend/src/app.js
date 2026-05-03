@@ -9,6 +9,7 @@ const config = require('./config');
 const authRoutes = require('./modules/auth/auth.routes');
 const areaRoutes = require('./modules/areas/area.routes');
 const productRoutes = require('./modules/products/product.routes');
+const categoryRoutes = require('./modules/categories/category.routes');
 const subscriptionRoutes = require('./modules/subscriptions/subscription.routes');
 const cartRoutes = require('./modules/cart/cart.routes');
 const tomorrowRoutes = require('./modules/cart/tomorrow.routes');
@@ -57,6 +58,7 @@ app.use('/api/auth', limit.auth, authRoutes);
 
 // Public read endpoints: generous (120 req/min) + cached
 app.use('/api/areas', limit.public, areaRoutes);
+app.use('/api/categories', limit.public, categoryRoutes);
 app.use('/api/products', limit.public, productRoutes);
 app.use('/api/prices', limit.public, priceRoutes);
 

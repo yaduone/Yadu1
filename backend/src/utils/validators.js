@@ -4,8 +4,10 @@ function isValidMilkType(type) {
   return config.milkTypes.includes(type);
 }
 
-function isValidProductCategory(category) {
-  return config.productCategories.includes(category);
+async function isValidProductCategory(category) {
+  const { db } = require('../config/firebase');
+  const snap = await db.collection('categories').where('slug', '==', category).limit(1).get();
+  return !snap.empty;
 }
 
 function isValidQuantity(qty) {
