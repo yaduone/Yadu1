@@ -16,6 +16,8 @@ class CartProvider extends ChangeNotifier {
 
   List<dynamic> _products = [];
   List<dynamic> get products => _products;
+  bool _productsLoaded = false;
+  Future<void>? _productsLoadFuture;
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -42,12 +44,27 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadProducts() async {
+  Future<void> loadProducts({bool forceRefresh = false}) {
+    if (!forceRefresh && _productsLoaded) return Future.value();
+    if (!forceRefresh && _productsLoadFuture != null) {
+      return _productsLoadFuture!;
+    }
+
+    _productsLoadFuture = _loadProducts(forceRefresh: forceRefresh);
+    return _productsLoadFuture!;
+  }
+
+  Future<void> _loadProducts({required bool forceRefresh}) async {
     try {
       final res = await _api.get('/products');
       _products = res['data']?['products'] ?? [];
+      _productsLoaded = true;
       notifyListeners();
-    } catch (_) {}
+    } catch (_) {
+      if (forceRefresh) _productsLoaded = false;
+    } finally {
+      _productsLoadFuture = null;
+    }
   }
 
   Future<bool> modifyQuantity(double quantity) async {

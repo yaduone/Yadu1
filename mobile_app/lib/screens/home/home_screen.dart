@@ -92,7 +92,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
   final ScrollController _scrollCtrl = ScrollController();
-  double _collapseProgress = 0.0;
+  final ValueNotifier<double> _collapseProgress = ValueNotifier<double>(0.0);
 
   static const double _kCollapseStart = 0.0;
   static const double _kCollapseEnd = 60.0;
@@ -119,8 +119,8 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
     final offset = _scrollCtrl.offset.clamp(0.0, double.infinity);
     final progress = ((offset - _kCollapseStart) / (_kCollapseEnd - _kCollapseStart))
         .clamp(0.0, 1.0);
-    if ((progress - _collapseProgress).abs() > 0.008) {
-      setState(() => _collapseProgress = progress);
+    if ((progress - _collapseProgress.value).abs() > 0.008) {
+      _collapseProgress.value = progress;
     }
   }
 
@@ -128,6 +128,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
   void dispose() {
     _scrollCtrl.removeListener(_onScroll);
     _scrollCtrl.dispose();
+    _collapseProgress.dispose();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -206,7 +207,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
           // ── Animated Header ───────────────────────────────────────────────
-          _buildAnimatedHeader(context, firstName),
+          ValueListenableBuilder<double>(
+            valueListenable: _collapseProgress,
+            builder: (context, progress, _) =>
+                _buildAnimatedHeader(context, firstName, progress),
+          ),
 
           // ── Scrollable Content ────────────────────────────────────────
           Expanded(
@@ -824,8 +829,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
 
   // ── Animated Scroll Header ────────────────────────────────────────────────────
 
-  Widget _buildAnimatedHeader(BuildContext context, String firstName) {
-    final p = _collapseProgress;
+  Widget _buildAnimatedHeader(
+    BuildContext context,
+    String firstName,
+    double p,
+  ) {
     final fullFade = (1.0 - (p * 1.6).clamp(0.0, 1.0));
     final stickyFade = ((p - 0.4) / 0.6).clamp(0.0, 1.0);
     final vPad = lerpDouble(14.0, 7.0, p)!;

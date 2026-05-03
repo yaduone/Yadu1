@@ -37,6 +37,7 @@ class _CartScreenState extends State<CartScreen>
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CartProvider>().loadTomorrowStatus();
+      context.read<CartProvider>().loadProducts();
       _fadeCtrl.forward();
     });
   }
@@ -644,7 +645,9 @@ class _SkippedCardState extends State<_SkippedCard> {
 class _EmptyExtrasCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final cart = context.read<CartProvider>();
+    final products = context.select<CartProvider, List<dynamic>>(
+      (cart) => cart.products,
+    );
     return PremiumCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -675,88 +678,7 @@ class _EmptyExtrasCard extends StatelessWidget {
           const SizedBox(height: 16),
 
           // ── Product glimpse strip ─────────────────────────────
-          FutureBuilder(
-            future: cart.loadProducts(),
-            builder: (context, _) {
-              final products = cart.products;
-              if (products.isEmpty) {
-                return const SizedBox(
-                  height: 72,
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                );
-              }
-              final preview = products.take(6).toList();
-              return SizedBox(
-                height: 80,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: preview.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, i) {
-                    final p = preview[i];
-                    final cover = (p['cover_image_small'] ??
-                        p['cover_image_large']) as String?;
-                    final images = p['images'];
-                    final url = (cover != null && cover.isNotEmpty)
-                        ? cover
-                        : (images is List && images.isNotEmpty
-                            ? images[0] as String?
-                            : null);
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: AppColors.border, width: 1),
-                          ),
-                          child: url != null && url.isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: CachedNetworkImage(
-                                    imageUrl: url,
-                                    fit: BoxFit.cover,
-                                    memCacheWidth: 96,
-                                    memCacheHeight: 96,
-                                    errorWidget: (_, __, ___) => const Icon(
-                                        Icons.shopping_bag_rounded,
-                                        color: AppColors.primary,
-                                        size: 20),
-                                  ),
-                                )
-                              : const Icon(Icons.shopping_bag_rounded,
-                                  color: AppColors.primary, size: 20),
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          width: 56,
-                          child: Text(
-                            p['name'] ?? '',
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppType.micro.copyWith(
-                                color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              );
-            },
-          ),
+          _ProductGlimpseStrip(products: products),
 
           const SizedBox(height: 14),
           OutlinedButton.icon(
@@ -778,6 +700,98 @@ class _EmptyExtrasCard extends StatelessWidget {
 }
 
 // ── Extra Item Card ───────────────────────────────────────────────────────────
+
+class _ProductGlimpseStrip extends StatelessWidget {
+  final List<dynamic> products;
+
+  const _ProductGlimpseStrip({required this.products});
+
+  @override
+  Widget build(BuildContext context) {
+    if (products.isEmpty) {
+      return const SizedBox(
+        height: 72,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    final preview = products.take(6).toList();
+    return SizedBox(
+      height: 80,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: preview.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final p = preview[i];
+          final cover =
+              (p['cover_image_small'] ?? p['cover_image_large']) as String?;
+          final images = p['images'];
+          final url = (cover != null && cover.isNotEmpty)
+              ? cover
+              : (images is List && images.isNotEmpty
+                  ? images[0] as String?
+                  : null);
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border, width: 1),
+                ),
+                child: url != null && url.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 96,
+                          memCacheHeight: 96,
+                          errorWidget: (_, __, ___) => const Icon(
+                            Icons.shopping_bag_rounded,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.shopping_bag_rounded,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 56,
+                child: Text(
+                  p['name'] ?? '',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.micro.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
 
 class _ExtraItemCard extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -958,6 +972,12 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
   int get _totalItems => _basket.values.fold(0, (s, q) => s + q);
 
   @override
+  void initState() {
+    super.initState();
+    widget.cart.loadProducts();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
@@ -989,10 +1009,11 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
           const SizedBox(height: 20),
 
           // ── Product chips ─────────────────────────────────────
-          FutureBuilder(
-            future: widget.cart.loadProducts(),
-            builder: (context, snapshot) {
-              if (widget.cart.products.isEmpty) {
+          AnimatedBuilder(
+            animation: widget.cart,
+            builder: (context, _) {
+              final products = widget.cart.products;
+              if (products.isEmpty) {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
@@ -1001,7 +1022,7 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
                 );
               }
 
-              final essentials = widget.cart.products.take(6).toList();
+              final essentials = products.take(6).toList();
               return Wrap(
                 spacing: 10,
                 runSpacing: 10,

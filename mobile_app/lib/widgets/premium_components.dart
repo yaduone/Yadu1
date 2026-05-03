@@ -659,10 +659,13 @@ class _FadeIndexedStackState extends State<FadeIndexedStack>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   late Animation<double> _fade;
+  late List<bool> _mountedTabs;
 
   @override
   void initState() {
     super.initState();
+    _mountedTabs = List<bool>.filled(widget.children.length, false);
+    _markCurrentTabMounted();
     _ctrl = AnimationController(vsync: this, duration: widget.duration);
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _ctrl.forward();
@@ -671,8 +674,21 @@ class _FadeIndexedStackState extends State<FadeIndexedStack>
   @override
   void didUpdateWidget(FadeIndexedStack old) {
     super.didUpdateWidget(old);
+    if (old.children.length != widget.children.length) {
+      _mountedTabs = List<bool>.generate(
+        widget.children.length,
+        (i) => i < _mountedTabs.length && _mountedTabs[i],
+      );
+    }
+    _markCurrentTabMounted();
     if (old.index != widget.index) {
       _ctrl.forward(from: 0);
+    }
+  }
+
+  void _markCurrentTabMounted() {
+    if (widget.index >= 0 && widget.index < _mountedTabs.length) {
+      _mountedTabs[widget.index] = true;
     }
   }
 
@@ -686,7 +702,13 @@ class _FadeIndexedStackState extends State<FadeIndexedStack>
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _fade,
-      child: IndexedStack(index: widget.index, children: widget.children),
+      child: IndexedStack(
+        index: widget.index,
+        children: List.generate(widget.children.length, (i) {
+          if (!_mountedTabs[i]) return const SizedBox.shrink();
+          return RepaintBoundary(child: widget.children[i]);
+        }),
+      ),
     );
   }
 }
