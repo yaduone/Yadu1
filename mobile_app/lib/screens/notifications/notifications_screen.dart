@@ -280,6 +280,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 notification: n,
                 onTap: () => _markRead(n['id']),
               );
+            case 'payment_recorded':
+              return _PaymentRecordedCard(
+                notification: n,
+                onTap: () => _markRead(n['id']),
+              );
+            case 'order_cancelled':
+              return _OrderCancelledCard(
+                notification: n,
+                onTap: () => _markRead(n['id']),
+              );
+            case 'subscription_updated':
+              return _SubscriptionUpdatedCard(
+                notification: n,
+                onTap: () => _markRead(n['id']),
+              );
             default:
               return _GenericCard(
                 notification: n,
@@ -659,6 +674,231 @@ class _GenericCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Payment Recorded Card ─────────────────────────────────────────────────────
+
+class _PaymentRecordedCard extends StatelessWidget {
+  final dynamic notification;
+  final VoidCallback onTap;
+  const _PaymentRecordedCard({required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = notification;
+    final meta = n['meta'] as Map? ?? {};
+    final unread = _isUnread(n);
+    final amount = (meta['amount'] as num?)?.toDouble() ?? 0;
+    final method = meta['method'] as String? ?? '';
+    final remaining = (meta['remaining_due'] as num?)?.toDouble() ?? 0;
+    final date = meta['payment_date'] as String? ?? '';
+    final methodLabel = {'cash': 'Cash', 'upi': 'UPI', 'other': 'Other'}[method] ?? method;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        decoration: BoxDecoration(
+          color: unread ? const Color(0xFFE3F2FD) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: unread ? const Color(0xFF1E88E5).withValues(alpha: 0.4) : AppColors.border,
+          ),
+          boxShadow: unread
+              ? [BoxShadow(color: const Color(0xFF1E88E5).withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 4))]
+              : [],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E88E5).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.payments_rounded, color: Color(0xFF1E88E5), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(n['title'] ?? 'Payment Received',
+                          style: (unread ? AppType.captionBold : AppType.caption).copyWith(color: AppColors.textPrimary)),
+                      Text(_relativeTime(n['created_at']),
+                          style: AppType.micro.copyWith(color: AppColors.textHint)),
+                    ],
+                  ),
+                ),
+                if (unread)
+                  Container(width: 8, height: 8,
+                      decoration: const BoxDecoration(color: Color(0xFF1E88E5), shape: BoxShape.circle)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _InfoRow(icon: Icons.currency_rupee_rounded, iconColor: AppColors.success,
+                      label: 'Amount paid', value: '₹${amount.toStringAsFixed(2)}', bold: true,
+                      valueColor: AppColors.success),
+                  if (methodLabel.isNotEmpty)
+                    _InfoRow(icon: Icons.credit_card_rounded, iconColor: AppColors.textSecondary,
+                        label: 'Method', value: methodLabel),
+                  if (date.isNotEmpty)
+                    _InfoRow(icon: Icons.calendar_today_rounded, iconColor: AppColors.textSecondary,
+                        label: 'Date', value: date),
+                  const Divider(height: 16),
+                  _InfoRow(icon: Icons.account_balance_wallet_rounded,
+                      iconColor: remaining > 0 ? AppColors.error : AppColors.success,
+                      label: 'Remaining due', value: '₹${remaining.toStringAsFixed(2)}',
+                      bold: true, valueColor: remaining > 0 ? AppColors.error : AppColors.success),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Order Cancelled Card ──────────────────────────────────────────────────────
+
+class _OrderCancelledCard extends StatelessWidget {
+  final dynamic notification;
+  final VoidCallback onTap;
+  const _OrderCancelledCard({required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = notification;
+    final meta = n['meta'] as Map? ?? {};
+    final unread = _isUnread(n);
+    final date = meta['date'] as String? ?? '';
+    final amount = (meta['amount'] as num?)?.toDouble() ?? 0;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        decoration: BoxDecoration(
+          color: unread ? const Color(0xFFFFEBEE) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: unread ? AppColors.error.withValues(alpha: 0.4) : AppColors.border,
+          ),
+          boxShadow: unread
+              ? [BoxShadow(color: AppColors.error.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 4))]
+              : [],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.cancel_rounded, color: AppColors.error, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(n['title'] ?? 'Order Cancelled',
+                      style: (unread ? AppType.captionBold : AppType.caption).copyWith(color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  if (date.isNotEmpty || amount > 0)
+                    Text(
+                      date.isNotEmpty
+                          ? (amount > 0 ? 'Order for $date · ₹${amount.toStringAsFixed(2)} not charged' : 'Order for $date cancelled')
+                          : n['body'] ?? '',
+                      style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4),
+                    )
+                  else
+                    Text(n['body'] ?? '',
+                        style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4)),
+                  const SizedBox(height: 4),
+                  Text(_relativeTime(n['created_at']),
+                      style: AppType.micro.copyWith(color: AppColors.textHint)),
+                ],
+              ),
+            ),
+            if (unread)
+              Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(color: AppColors.error, shape: BoxShape.circle)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Subscription Updated Card ─────────────────────────────────────────────────
+
+class _SubscriptionUpdatedCard extends StatelessWidget {
+  final dynamic notification;
+  final VoidCallback onTap;
+  const _SubscriptionUpdatedCard({required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = notification;
+    final unread = _isUnread(n);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: PremiumCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        color: unread ? AppColors.primaryLight : AppColors.cardBg,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.autorenew_rounded, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(n['title'] ?? 'Subscription Updated',
+                      style: (unread ? AppType.captionBold : AppType.caption).copyWith(color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  Text(n['body'] ?? '',
+                      style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4)),
+                  const SizedBox(height: 4),
+                  Text(_relativeTime(n['created_at']),
+                      style: AppType.micro.copyWith(color: AppColors.textHint)),
+                ],
+              ),
+            ),
+            if (unread)
+              Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4),
+                  decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
           ],
         ),
       ),

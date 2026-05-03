@@ -105,4 +105,18 @@ router.put('/read-all', authenticateUser, async (req, res, next) => {
   }
 });
 
+// PUT /api/notifications/device-token — Register or refresh the user's FCM token
+router.put('/device-token', authenticateUser, async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ success: false, error: 'token is required' });
+    }
+    await db.collection('users').doc(req.user.userId).update({ fcm_token: token });
+    return success(res, null, 'Device token registered');
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/api_service.dart';
+import '../services/fcm_service.dart';
 import '../utils/error_handler.dart';
 
 class AppAuthProvider extends ChangeNotifier {
@@ -266,6 +267,7 @@ class AppAuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await FcmService.instance.clearToken();
     await _auth.signOut();
     // _onSignedOut is called by the authStateChanges listener.
   }

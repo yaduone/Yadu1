@@ -68,12 +68,27 @@ router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
     if (!amount) return badRequest(res, 'amount is required');
     if (!method) return badRequest(res, 'method is required (cash, upi, other)');
 
+    const parsedAmount = parseFloat(amount);
     const result = await dueService.recordPayment(req.admin.adminId, user_id, area_id || req.admin.areaId, {
-      amount: parseFloat(amount),
+      amount: parsedAmount,
       method,
       notes,
       payment_date,
     });
+
+    // Notify user their payment has been recorded
+    try {
+      const updatedDue = await dueService.getUserDue(user_id);
+      await notificationService.sendPaymentRecordedNotification(user_id, area_id || req.admin.areaId, {
+        amount: parsedAmount,
+        method,
+        remainingDue: updatedDue.due_amount,
+        paymentDate: payment_date,
+      });
+    } catch (notifErr) {
+      console.warn('[dues] payment notification failed:', notifErr.message);
+    }
+
     return success(res, result, 'Payment recorded');
   } catch (err) {
     next(err);
