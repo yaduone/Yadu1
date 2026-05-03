@@ -120,17 +120,22 @@ export default function LivestreamsPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="page-header">
-        <div>
+    <div className="space-y-4 sm:space-y-5">
+      <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0">
           <h2 className="page-title">Livestreams</h2>
           <p className="text-xs text-slate-400 mt-0.5">{streams.length} streams configured</p>
         </div>
+        <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary w-full justify-center sm:w-fit">
+          <Plus size={16} />
+          {showForm ? 'Cancel' : 'Add Livestream'}
+        </button>
+      </div>
         {/* ── Lactometer Readings ──────────────────────────────────────────── */}
       <div className="space-y-3">
         {/* Date header */}
-        <div className="flex items-center gap-2">
-          <Droplets size={15} className="text-blue-500" />
+        <div className="flex items-start gap-2">
+          <Droplets size={15} className="text-blue-500 mt-0.5 shrink-0" />
           <p className="text-sm font-semibold text-slate-700">
             Lactometer Readings —{' '}
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
@@ -138,12 +143,12 @@ export default function LivestreamsPage() {
         </div>
 
         {/* Morning Slot */}
-        <div className="card p-5">
+        <div className="card p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
               <Droplets size={15} className="text-amber-500" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="font-semibold text-slate-800 text-sm">Morning Slot Lactometer Reading</p>
               <p className="text-xs text-slate-400">
                 Current:{' '}
@@ -153,7 +158,7 @@ export default function LivestreamsPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[9rem_auto_auto_1fr] sm:items-center sm:gap-3">
             <div className="relative">
               <input
                 type="number"
@@ -162,26 +167,26 @@ export default function LivestreamsPage() {
                 placeholder="e.g. 26.5"
                 value={morningReading}
                 onChange={(e) => { setMorningReading(e.target.value); setMorningMsg(''); }}
-                className="input w-36 pr-10"
+                className="input pr-10"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">°LR</span>
             </div>
             <button
               onClick={() => handleSlotSave('morning')}
               disabled={!morningReading || morningSaving}
-              className="btn-primary disabled:opacity-50"
+              className="btn-primary justify-center disabled:opacity-50"
             >
               {morningSaving ? 'Saving…' : 'Update'}
             </button>
             <button
               onClick={() => handleSlotNA('morning')}
               disabled={morningSaving}
-              className="btn-secondary disabled:opacity-50"
+              className="btn-secondary justify-center disabled:opacity-50"
             >
               Mark N/A
             </button>
             {morningMsg && (
-              <span className={`text-xs font-medium ${morningMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
+              <span className={`text-xs font-medium sm:justify-self-start ${morningMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
                 {morningMsg}
               </span>
             )}
@@ -189,12 +194,12 @@ export default function LivestreamsPage() {
         </div>
 
         {/* Evening Slot */}
-        <div className="card p-5">
+        <div className="card p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
               <Droplets size={15} className="text-indigo-500" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="font-semibold text-slate-800 text-sm">Evening Slot Lactometer Reading</p>
               <p className="text-xs text-slate-400">
                 Current:{' '}
@@ -204,7 +209,7 @@ export default function LivestreamsPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[9rem_auto_auto_1fr] sm:items-center sm:gap-3">
             <div className="relative">
               <input
                 type="number"
@@ -213,26 +218,26 @@ export default function LivestreamsPage() {
                 placeholder="e.g. 26.5"
                 value={eveningReading}
                 onChange={(e) => { setEveningReading(e.target.value); setEveningMsg(''); }}
-                className="input w-36 pr-10"
+                className="input pr-10"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium pointer-events-none">°LR</span>
             </div>
             <button
               onClick={() => handleSlotSave('evening')}
               disabled={!eveningReading || eveningSaving}
-              className="btn-primary disabled:opacity-50"
+              className="btn-primary justify-center disabled:opacity-50"
             >
               {eveningSaving ? 'Saving…' : 'Update'}
             </button>
             <button
               onClick={() => handleSlotNA('evening')}
               disabled={eveningSaving}
-              className="btn-secondary disabled:opacity-50"
+              className="btn-secondary justify-center disabled:opacity-50"
             >
               Mark N/A
             </button>
             {eveningMsg && (
-              <span className={`text-xs font-medium ${eveningMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
+              <span className={`text-xs font-medium sm:justify-self-start ${eveningMsg.includes('Failed') ? 'text-red-600' : 'text-emerald-600'}`}>
                 {eveningMsg}
               </span>
             )}
@@ -240,16 +245,10 @@ export default function LivestreamsPage() {
         </div>
       </div>
 
-      <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary w-fit">
-        <Plus size={16} />
-        {showForm ? 'Cancel' : 'Add Livestream'}
-      </button>
-      </div>
-
       {showForm && (
-        <form onSubmit={handleSubmit} className="card p-5 animate-scale-in">
+        <form onSubmit={handleSubmit} className="card p-4 sm:p-5 animate-scale-in">
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
               <Radio size={15} className="text-purple-600" />
             </div>
             <h3 className="font-semibold text-slate-800">{editing ? 'Edit Livestream' : 'New Livestream'}</h3>
@@ -264,9 +263,9 @@ export default function LivestreamsPage() {
               <input placeholder="https://youtube.com/..." value={form.youtube_url} onChange={(e) => setForm({ ...form, youtube_url: e.target.value })} className="input" required />
             </div>
           </div>
-          <div className="flex gap-2 mt-4">
-            <button type="submit" className="btn-primary">{editing ? 'Update' : 'Create'}</button>
-            <button type="button" onClick={resetForm} className="btn-secondary">Cancel</button>
+          <div className="flex flex-col gap-2 mt-4 sm:flex-row">
+            <button type="submit" className="btn-primary justify-center">{editing ? 'Update' : 'Create'}</button>
+            <button type="button" onClick={resetForm} className="btn-secondary justify-center">Cancel</button>
           </div>
         </form>
       )}
@@ -276,7 +275,7 @@ export default function LivestreamsPage() {
           {[...Array(3)].map((_, i) => <div key={i} className="card h-16 animate-pulse bg-slate-50" />)}
         </div>
       ) : streams.length === 0 ? (
-        <div className="card p-16 text-center">
+        <div className="card p-8 text-center sm:p-16">
           <Radio size={40} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-500 font-medium">No livestreams configured</p>
           <p className="text-slate-400 text-sm mt-1">Add a livestream to broadcast to your customers.</p>
@@ -284,7 +283,7 @@ export default function LivestreamsPage() {
       ) : (
         <div className="space-y-3">
           {streams.map((s) => (
-            <div key={s.id} className="card p-4 flex items-center justify-between gap-4">
+            <div key={s.id} className="card p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.is_active ? 'bg-red-50' : 'bg-slate-100'}`}>
                   <Radio size={18} className={s.is_active ? 'text-red-500' : 'text-slate-400'} />
@@ -294,7 +293,7 @@ export default function LivestreamsPage() {
                   <p className="text-xs text-slate-400 truncate">{s.youtube_url}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center justify-between gap-2 shrink-0 sm:justify-end">
                 <button
                   onClick={() => toggleActive(s)}
                   className={`flex items-center gap-1.5 text-xs font-semibold transition-colors ${s.is_active ? 'text-emerald-600' : 'text-slate-400'}`}
