@@ -410,8 +410,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         ),
                       ),
 
-                      const SizedBox(height: 24),
-                      const TrustBadgeRow(),
+
                     ],
                   ),
                   ),
