@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { createElement, useState, useEffect } from 'react';
 import api from '../services/api';
-import { Search, Users, UserCheck, UserX, UserMinus, HelpCircle } from 'lucide-react';
+import { AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus, HelpCircle } from 'lucide-react';
 
 const STATUS_BADGE = {
   active:    'badge badge-green',
@@ -23,6 +23,9 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     Promise.all([api.get('/users/admin/list'), api.get('/dues/admin/list')])
@@ -35,6 +38,32 @@ export default function UsersPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  function openDelete(user) {
+    setDeleteTarget(user);
+    setDeleteError('');
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await api.delete(`/users/admin/${deleteTarget.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      setDueMap((prev) => {
+        const next = { ...prev };
+        delete next[deleteTarget.id];
+        return next;
+      });
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(err.response?.data?.error || 'Failed to delete user.');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const filtered = users.filter((u) => {
     const subStatus = u.subscription?.status ?? 'no_sub';
@@ -66,7 +95,7 @@ export default function UsersPage() {
 
       {/* Summary filter cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        {FILTER_CONFIG.map(({ key, label, icon: Icon, color, bg, border }) => (
+        {FILTER_CONFIG.map(({ key, label, icon, color, bg, border }) => (
           <button
             key={key}
             onClick={() => setFilter(filter === key ? 'all' : key)}
@@ -75,7 +104,7 @@ export default function UsersPage() {
             }`}
           >
             <div className="flex items-center justify-between mb-1.5">
-              <Icon size={15} className={color} />
+              {createElement(icon, { size: 15, className: color })}
               {filter === key && <span className="text-[9px] font-bold text-slate-400 uppercase">Active</span>}
             </div>
             <p className={`text-xl sm:text-2xl font-bold ${color}`}>{counts[key] || 0}</p>
@@ -142,13 +171,24 @@ export default function UsersPage() {
                         <p className="font-semibold text-slate-800 text-sm truncate">
                           {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
                         </p>
-                        {sub ? (
-                          <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
-                            {sub.status}
-                          </span>
-                        ) : (
-                          <span className="badge badge-gray">no sub</span>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {sub ? (
+                            <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
+                              {sub.status}
+                            </span>
+                          ) : (
+                            <span className="badge badge-gray">no sub</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openDelete(user)}
+                            className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
+                            title="Delete user"
+                            aria-label={`Delete ${user.name || user.phone || 'user'}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">{user.phone || '—'}</p>
                       {user.address && (
@@ -188,6 +228,7 @@ export default function UsersPage() {
                   <th>Since</th>
                   <th className="text-right">Due</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -255,6 +296,17 @@ export default function UsersPage() {
                           <span className="badge badge-gray">no sub</span>
                         )}
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => openDelete(user)}
+                          className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
+                          title="Delete user"
+                          aria-label={`Delete ${user.name || user.phone || 'user'}`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -262,6 +314,58 @@ export default function UsersPage() {
             </table>
           </div>
         </>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-scale-in">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-red-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">Delete User Permanently?</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  <span className="font-medium text-slate-700">
+                    {deleteTarget.name || deleteTarget.phone || deleteTarget.id.slice(0, 10)}
+                  </span>
+                  {' '}will be removed from the database with subscriptions, cart, orders, dues, payments, tickets, and notifications. They will need to sign up and complete their profile again.
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mb-4">
+                <AlertTriangle size={14} className="shrink-0" />
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="btn-danger disabled:opacity-60"
+              >
+                {deleting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : 'Delete User'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,0 +1,7 @@
+[dotenv@17.3.1] injecting env (10) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+Dairy Delivery API running on port 3000
+Timezone: Asia/Kolkata
+Manifest cutoff: 21:00
+Manifest cron: 23:00
+[CRON] Nightly manifest job scheduled at 23:00 daily

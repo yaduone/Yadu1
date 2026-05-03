@@ -3,7 +3,68 @@ const router = express.Router();
 const { db } = require('../../config/firebase');
 const { admin: firebaseAdmin } = require('../../config/firebase');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
-const { success, badRequest, notFound } = require('../../utils/response');
+const { success, forbidden, notFound } = require('../../utils/response');
+const { logActivity } = require('../../utils/activityLog');
+
+const MAX_BATCH_WRITES = 450;
+const USER_OWNED_COLLECTIONS = [
+  { collection: 'subscriptions', field: 'user_id' },
+  { collection: 'carts', field: 'user_id' },
+  { collection: 'next_day_overrides', field: 'user_id' },
+  { collection: 'orders', field: 'user_id' },
+  { collection: 'notifications', field: 'user_id' },
+  { collection: 'payments', field: 'user_id' },
+  { collection: 'due_tickets', field: 'user_id' },
+  { collection: 'audit_logs', field: 'actor_id' },
+  { collection: 'admin_logs', field: 'meta.user_id' },
+];
+
+async function deleteUserFirestoreData(userId, userRef) {
+  const queuedPaths = new Set();
+  const deletedByCollection = {};
+  let batch = db.batch();
+  let writes = 0;
+  let totalDeleted = 0;
+
+  async function commitBatch() {
+    if (writes === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    writes = 0;
+  }
+
+  async function queueDelete(ref, collection) {
+    if (queuedPaths.has(ref.path)) return;
+
+    queuedPaths.add(ref.path);
+    batch.delete(ref);
+    writes += 1;
+    totalDeleted += 1;
+    deletedByCollection[collection] = (deletedByCollection[collection] || 0) + 1;
+
+    if (writes >= MAX_BATCH_WRITES) {
+      await commitBatch();
+    }
+  }
+
+  for (const { collection, field } of USER_OWNED_COLLECTIONS) {
+    const snap = await db.collection(collection).where(field, '==', userId).get();
+    for (const doc of snap.docs) {
+      await queueDelete(doc.ref, collection);
+    }
+  }
+
+  const dueRef = db.collection('due_amounts').doc(userId);
+  const dueDoc = await dueRef.get();
+  if (dueDoc.exists) {
+    await queueDelete(dueRef, 'due_amounts');
+  }
+
+  await queueDelete(userRef, 'users');
+  await commitBatch();
+
+  return { total_deleted: totalDeleted, deleted_by_collection: deletedByCollection };
+}
 
 // GET /api/users/profile
 router.get('/profile', authenticateUser, async (req, res, next) => {
@@ -101,6 +162,56 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
     });
 
     return success(res, { users, total: users.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/users/admin/:userId — Admin: permanently delete a user and user-owned records
+router.delete('/admin/:userId', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) return notFound(res, 'User not found');
+
+    const userData = userDoc.data();
+    const canDelete = req.admin.role === 'super_admin' || userData.area_id === req.admin.areaId;
+    if (!canDelete) return forbidden(res, 'Cannot delete a user outside your area');
+
+    const deletion = await deleteUserFirestoreData(userId, userRef);
+
+    let firebaseAuthDeleted = false;
+    if (userData.firebase_uid) {
+      try {
+        await firebaseAdmin.auth().deleteUser(userData.firebase_uid);
+        firebaseAuthDeleted = true;
+      } catch (authErr) {
+        if (authErr.code !== 'auth/user-not-found') {
+          console.error('[deleteUser] Firebase auth delete failed:', authErr.message);
+        }
+      }
+    }
+
+    await logActivity({
+      type: 'user_deleted',
+      title: 'User Deleted',
+      message: `A user account was permanently deleted by ${req.admin.username}.`,
+      areaId: userData.area_id || req.admin.areaId,
+      meta: {
+        deleted_by_admin_id: req.admin.adminId,
+        firebase_auth_deleted: firebaseAuthDeleted,
+        deleted_record_count: deletion.total_deleted,
+        deleted_collections: deletion.deleted_by_collection,
+      },
+    });
+
+    return success(res, {
+      user_id: userId,
+      firebase_auth_deleted: firebaseAuthDeleted,
+      ...deletion,
+    }, 'User deleted permanently');
   } catch (err) {
     next(err);
   }

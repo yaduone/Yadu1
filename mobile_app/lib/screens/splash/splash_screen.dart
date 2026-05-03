@@ -221,11 +221,14 @@ class _SplashScreenState extends State<SplashScreen>
                     opacity: _logoFade,
                     child: ScaleTransition(
                       scale: _logoScale,
-                      child: Image.asset(
-                        'assets/images/image.png',
-                        width: 140,
-                        height: 140,
-                        fit: BoxFit.contain,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(32),
+                        child: Image.asset(
+                          'assets/images/image.png',
+                          width: 140,
+                          height: 140,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),
