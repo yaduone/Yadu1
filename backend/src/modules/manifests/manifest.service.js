@@ -17,6 +17,38 @@ function serializeManifest(doc) {
   };
 }
 
+function aggregateExtraItems(orders) {
+  const itemMap = new Map();
+
+  orders.forEach((order) => {
+    (order.extraItems || []).forEach((item) => {
+      const name = item.product_name || item.name || 'Extra item';
+      const unit = item.unit || '';
+      const quantity = Number(item.quantity) || 0;
+      const key = `${name}::${unit}`;
+
+      if (!itemMap.has(key)) {
+        itemMap.set(key, {
+          product_name: name,
+          unit,
+          quantity: 0,
+        });
+      }
+
+      itemMap.get(key).quantity += quantity;
+    });
+  });
+
+  return Array.from(itemMap.values()).sort((a, b) =>
+    a.product_name.localeCompare(b.product_name)
+  );
+}
+
+function formatExtraItemSummaryLine(item) {
+  const unitText = item.unit ? ` (${item.unit})` : '';
+  return `${item.product_name}${unitText}: ${item.quantity}`;
+}
+
 /**
  * Generate a delivery manifest for a specific area and date.
  * Called by the nightly cron job or manual admin trigger.
@@ -68,7 +100,8 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     // 'both' slot delivers quantity_litres per slot, so count twice
     return sum + o.milk.quantity_litres * (o.deliverySlot === 'both' ? 2 : 1);
   }, 0);
-  const totalExtraItems = orders.reduce((sum, o) => sum + o.extraItems.length, 0);
+  const extraItemsSummary = aggregateExtraItems(orders);
+  const totalExtraItems = extraItemsSummary.reduce((sum, item) => sum + item.quantity, 0);
   const totalAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
 
   const morningUsers = morningOrders.length;
@@ -88,6 +121,7 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     totalUsers,
     totalMilkLitres,
     totalExtraItems,
+    extraItemsSummary,
     totalAmount,
     morningUsers,
     morningMilkLitres,
@@ -117,6 +151,7 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     total_users: totalUsers,
     total_milk_litres: totalMilkLitres,
     total_extra_items: totalExtraItems,
+    extra_items_summary: extraItemsSummary,
     total_amount: totalAmount,
     morning_users: morningUsers,
     morning_milk_litres: morningMilkLitres,
@@ -158,6 +193,8 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
       area_name: area.name,
       total_users: totalUsers,
       total_milk_litres: totalMilkLitres,
+      total_extra_items: totalExtraItems,
+      extra_items_summary: extraItemsSummary,
       generated_by: generatedBy,
     },
   });
@@ -217,6 +254,12 @@ function generatePDF(filePath, data) {
     doc.text(`Total Customers: ${data.totalUsers}`);
     doc.text(`Total Milk: ${data.totalMilkLitres} litres`);
     doc.text(`Total Extra Items: ${data.totalExtraItems}`);
+    if (data.extraItemsSummary.length > 0) {
+      doc.text('Extra Items Breakdown:');
+      data.extraItemsSummary.forEach((item) => {
+        doc.text(`  - ${formatExtraItemSummaryLine(item)}`);
+      });
+    }
     doc.text(`Total Amount: Rs. ${data.totalAmount.toFixed(2)}`);
     doc.moveDown(0.5);
 
