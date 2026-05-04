@@ -295,6 +295,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 notification: n,
                 onTap: () => _markRead(n['id']),
               );
+            case 'livestream_started':
+              return _LivestreamCard(
+                notification: n,
+                onTap: () => _markRead(n['id']),
+              );
             default:
               return _GenericCard(
                 notification: n,
@@ -899,6 +904,99 @@ class _SubscriptionUpdatedCard extends StatelessWidget {
             if (unread)
               Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4),
                   decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Livestream Started Card ───────────────────────────────────────────────────
+
+class _LivestreamCard extends StatelessWidget {
+  final dynamic notification;
+  final VoidCallback onTap;
+  const _LivestreamCard({required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = notification;
+    final meta = n['meta'] as Map? ?? {};
+    final unread = _isUnread(n);
+    final title = meta['title'] as String? ?? 'Live Stream';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        decoration: BoxDecoration(
+          color: unread ? const Color(0xFFFFEDE7) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: unread ? const Color(0xFFE64A19).withValues(alpha: 0.4) : AppColors.border,
+          ),
+          boxShadow: unread
+              ? [BoxShadow(color: const Color(0xFFE64A19).withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 4))]
+              : [],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE64A19).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.live_tv_rounded, color: Color(0xFFE64A19), size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE64A19),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('LIVE',
+                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          n['title'] ?? 'Live Stream Started',
+                          style: (unread ? AppType.captionBold : AppType.caption)
+                              .copyWith(color: AppColors.textPrimary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    title,
+                    style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_relativeTime(n['created_at']),
+                      style: AppType.micro.copyWith(color: AppColors.textHint)),
+                ],
+              ),
+            ),
+            if (unread)
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: const BoxDecoration(color: Color(0xFFE64A19), shape: BoxShape.circle),
+              ),
           ],
         ),
       ),
