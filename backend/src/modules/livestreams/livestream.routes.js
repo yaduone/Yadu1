@@ -4,6 +4,7 @@ const { db, admin } = require('../../config/firebase');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound, created } = require('../../utils/response');
 const { isValidYoutubeUrl } = require('../../utils/validators');
+const notificationService = require('../notifications/notification.service');
 
 // GET /api/livestreams/lactometer/admin — Admin: get current lactometer readings
 router.get('/lactometer/admin', authenticateAdmin, async (req, res, next) => {
@@ -121,6 +122,15 @@ router.post('/', authenticateAdmin, async (req, res, next) => {
     };
 
     const docRef = await db.collection('livestreams').add(data);
+
+    // Broadcast to all users in the area
+    notificationService.sendAreaBroadcast(req.admin.areaId, {
+      type: 'livestream_started',
+      title: '🔴 Live Stream Started',
+      body: `Your dairy is now live: "${title}". Tap to watch.`,
+      meta: { livestream_id: docRef.id, title, youtube_url },
+    }).catch((e) => console.warn('[livestream] broadcast failed:', e.message));
+
     return created(res, { livestream: { id: docRef.id, ...data } });
   } catch (err) {
     next(err);
@@ -144,11 +154,25 @@ router.put('/:id', authenticateAdmin, async (req, res, next) => {
       if (!isValidYoutubeUrl(youtube_url)) return badRequest(res, 'Invalid YouTube URL');
       updateData.youtube_url = youtube_url;
     }
+    const wasInactive = doc.data().is_active === false;
     if (is_active !== undefined) updateData.is_active = is_active;
 
     await ref.update(updateData);
     const updated = await ref.get();
-    return success(res, { livestream: { id: updated.id, ...updated.data() } });
+    const updatedData = updated.data();
+
+    // Notify area when a stream goes live (off → on)
+    if (is_active === true && wasInactive) {
+      const streamTitle = updatedData.title || 'Live Stream';
+      notificationService.sendAreaBroadcast(req.admin.areaId, {
+        type: 'livestream_started',
+        title: '🔴 Live Stream Started',
+        body: `Your dairy is now live: "${streamTitle}". Tap to watch.`,
+        meta: { livestream_id: updated.id, title: streamTitle, youtube_url: updatedData.youtube_url },
+      }).catch((e) => console.warn('[livestream] broadcast failed:', e.message));
+    }
+
+    return success(res, { livestream: { id: updated.id, ...updatedData } });
   } catch (err) {
     next(err);
   }

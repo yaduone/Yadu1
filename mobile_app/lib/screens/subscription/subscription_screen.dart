@@ -35,6 +35,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _selectedSlot = 'morning';
   DateTime _startDate = DateTime.now().add(const Duration(days: 1));
 
+  // Pending quantity for manage view (null = not dirty)
+  double? _pendingQty;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<SubscriptionProvider>().loadPrices(forceRefresh: true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final sub = context.watch<SubscriptionProvider>();
@@ -136,6 +148,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Widget _buildManageView(BuildContext context, SubscriptionProvider sub) {
     final s = sub.subscription!;
     final isActive = s['status'] == 'active';
+    final isManageBusy = sub.isLoading || sub.isActionLoading;
+    final cancelStyle = AppType.caption.copyWith(color: AppColors.error);
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -184,10 +198,179 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
         const SizedBox(height: 20),
 
+        // Quantity controls
+        Builder(builder: (context) {
+          final actualQty = (s['quantity_litres'] as num).toDouble();
+          final displayQty = _pendingQty ?? actualQty;
+          final pricePerLitre = (s['price_per_litre'] as num?)?.toDouble() ?? 0.0;
+          final isDirty = _pendingQty != null && _pendingQty != actualQty;
+
+          return PremiumCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Daily Quantity',
+                              style: AppType.captionBold
+                                  .copyWith(color: AppColors.textSecondary)),
+                          const SizedBox(height: 2),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: isDirty
+                                ? Text(
+                                    '${displayQty % 1 == 0 ? displayQty.toInt() : displayQty}L  ·  ₹${(pricePerLitre * displayQty).toStringAsFixed(0)}/day',
+                                    key: ValueKey(displayQty),
+                                    style: AppType.small
+                                        .copyWith(color: AppColors.primary),
+                                  )
+                                : Text(
+                                    '₹$pricePerLitre/L',
+                                    key: const ValueKey('base'),
+                                    style: AppType.small.copyWith(
+                                        color: AppColors.textSecondary),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        _quantityButton(
+                          icon: Icons.remove_rounded,
+                          onTap: (isManageBusy || displayQty <= 0.5)
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _pendingQty = displayQty - 0.5);
+                                },
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            '${displayQty % 1 == 0 ? displayQty.toInt() : displayQty}L',
+                            style: AppType.h2,
+                          ),
+                        ),
+                        _quantityButton(
+                          icon: Icons.add_rounded,
+                          onTap: (isManageBusy || displayQty >= 10)
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _pendingQty = displayQty + 0.5);
+                                },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // Confirm row — slides in when dirty
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  child: isDirty
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 14),
+                          child: Row(
+                            children: [
+                              TextButton(
+                                onPressed: sub.isUpdatingQuantity
+                                    ? null
+                                    : () => setState(() => _pendingQty = null),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.textSecondary),
+                                child: const Text('Cancel'),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: sub.isUpdatingQuantity
+                                      ? null
+                                      : () async {
+                                          final ok = await sub
+                                              .updateQuantity(_pendingQty!);
+                                          if (!context.mounted) return;
+                                          if (ok) {
+                                            setState(() => _pendingQty = null);
+                                            AppSnackbar.success(context,
+                                                'Daily quantity updated.');
+                                          } else {
+                                            AppSnackbar.error(
+                                                context,
+                                                sub.error ??
+                                                    'Failed to update quantity.');
+                                          }
+                                        },
+                                  style: ElevatedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(40),
+                                  ),
+                                  child: sub.isUpdatingQuantity
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2),
+                                        )
+                                      : Text(
+                                          'Update · ₹${(pricePerLitre * displayQty).toStringAsFixed(0)}/day',
+                                          style: AppType.small.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          );
+        }),
+
+        const SizedBox(height: 12),
+
+        // Skip tomorrow
+        if (isActive)
+          OutlinedButton.icon(
+            onPressed: isManageBusy
+                ? null
+                : () async {
+                    HapticFeedback.mediumImpact();
+                    final confirm = await _confirmDialog(
+                      context,
+                      'Skip Tomorrow\'s Delivery?',
+                      'Your regular delivery will not be made tomorrow.',
+                    );
+                    if (!confirm || !context.mounted) return;
+                    final ok = await sub.skipTomorrow();
+                    if (!context.mounted) return;
+                    if (ok) {
+                      AppSnackbar.success(context, 'Tomorrow\'s delivery skipped.');
+                    } else {
+                      AppSnackbar.error(context, sub.error ?? 'Failed to skip delivery.');
+                    }
+                  },
+            icon: sub.isSkipping
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.skip_next_rounded),
+            label: Text(sub.isSkipping ? 'Skipping...' : 'Skip Tomorrow'),
+          ),
+
+        const SizedBox(height: 12),
+
         // Action buttons
         if (isActive)
           OutlinedButton.icon(
-            onPressed: sub.isLoading
+            onPressed: isManageBusy
                 ? null
                 : () async {
                     HapticFeedback.mediumImpact();
@@ -211,18 +394,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       );
                     }
                   },
-            icon: sub.isLoading
+            icon: sub.isPausing
                 ? const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.pause_circle_outline_rounded),
-            label: Text(sub.isLoading ? 'Pausing…' : 'Pause Subscription'),
+            label: Text(sub.isPausing ? 'Pausing...' : 'Pause Subscription'),
           )
         else
           ElevatedButton.icon(
-            onPressed: sub.isLoading
+            onPressed: isManageBusy
                 ? null
                 : () async {
                     HapticFeedback.mediumImpact();
@@ -240,7 +423,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       );
                     }
                   },
-            icon: sub.isLoading
+            icon: sub.isResuming
                 ? const SizedBox(
                     width: 18,
                     height: 18,
@@ -250,13 +433,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   )
                 : const Icon(Icons.play_circle_outline_rounded),
-            label: Text(sub.isLoading ? 'Resuming…' : 'Resume Subscription'),
+            label: Text(sub.isResuming ? 'Resuming...' : 'Resume Subscription'),
           ),
 
         const SizedBox(height: 12),
 
         TextButton(
-          onPressed: sub.isLoading
+          onPressed: isManageBusy
               ? null
               : () async {
                   final confirm = await _confirmDialog(
@@ -276,19 +459,31 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     );
                   }
                 },
-          child: sub.isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    color: AppColors.error,
-                    strokeWidth: 2,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: sub.isCancelling
+                ? Row(
+                    key: const ValueKey('cancelling'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          color: AppColors.error,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('Cancelling...', style: cancelStyle),
+                    ],
+                  )
+                : Text(
+                    'Cancel Subscription',
+                    key: const ValueKey('cancel'),
+                    style: cancelStyle,
                   ),
-                )
-              : Text(
-                  'Cancel Subscription',
-                  style: AppType.caption.copyWith(color: AppColors.error),
-                ),
+          ),
         ),
       ],
     );
@@ -296,6 +491,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   // ── Create new subscription ──────────────────────────────────
   Widget _buildCreateView(BuildContext context, SubscriptionProvider sub) {
+    final pricePerLitre = sub.priceForMilkType(_selectedMilk);
+    final dailyPrice = _quantity * pricePerLitre;
+    final confirmLabel = sub.isPricesLoading && !sub.pricesLoaded
+        ? 'Confirm · Loading price...'
+        : 'Confirm · ₹${dailyPrice.toStringAsFixed(0)}/day';
+
     return Column(
       children: [
         Expanded(
@@ -615,22 +816,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   )
                 : Text(
-                    'Confirm · ₹${(_quantity * _getPricePerLitre()).toStringAsFixed(0)}/day',
+                    confirmLabel,
                     style: AppType.button.copyWith(color: Colors.white),
                   ),
           ),
         ),
       ],
     );
-  }
-
-  double _getPricePerLitre() {
-    // rough estimation — your API may provide actual prices
-    return _selectedMilk == 'cow'
-        ? 60
-        : _selectedMilk == 'buffalo'
-        ? 70
-        : 65;
   }
 
   Future<void> _handleCreate() async {
@@ -646,6 +838,30 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       HapticFeedback.heavyImpact();
       Navigator.pop(context);
     }
+  }
+
+  Widget _quantityButton({required IconData icon, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: onTap == null ? AppColors.border : AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: onTap == null ? AppColors.border : AppColors.primary,
+            width: 1.5,
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: onTap == null ? AppColors.textHint : AppColors.primary,
+        ),
+      ),
+    );
   }
 
   Future<bool> _confirmDialog(

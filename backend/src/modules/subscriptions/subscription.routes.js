@@ -63,6 +63,20 @@ router.put('/:id/cancel', authenticateUser, requireCompleteProfile, async (req, 
   }
 });
 
+// PUT /api/subscriptions/:id/quantity — Update daily quantity
+router.put('/:id/quantity', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+  try {
+    const { quantity_litres } = req.body;
+    if (quantity_litres === undefined) {
+      return badRequest(res, 'quantity_litres is required');
+    }
+    const result = await subscriptionService.updateQuantity(req.params.id, req.user.userId, quantity_litres);
+    return success(res, result, 'Quantity updated');
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/subscriptions/admin/list — Admin: list by area
 router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
   try {

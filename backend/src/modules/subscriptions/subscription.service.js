@@ -194,6 +194,41 @@ async function cancelSubscription(subscriptionId, userId) {
 }
 
 /**
+ * Update the daily quantity of an active or paused subscription.
+ */
+async function updateQuantity(subscriptionId, userId, quantity_litres) {
+  if (!isValidQuantity(quantity_litres)) {
+    throw Object.assign(new Error('Quantity must be 0.5–10 litres in 0.5 L increments'), { statusCode: 400 });
+  }
+
+  const subRef = db.collection('subscriptions').doc(subscriptionId);
+  const subDoc = await subRef.get();
+
+  if (!subDoc.exists) throw Object.assign(new Error('Subscription not found'), { statusCode: 404 });
+  if (subDoc.data().user_id !== userId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+  if (subDoc.data().status === 'cancelled') {
+    throw Object.assign(new Error('Cannot modify a cancelled subscription'), { statusCode: 400 });
+  }
+
+  await subRef.update({
+    quantity_litres,
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await db.collection('audit_logs').add({
+    actor_type: 'user',
+    actor_id: userId,
+    action: 'subscription.quantity_updated',
+    entity_type: 'subscriptions',
+    entity_id: subscriptionId,
+    details: { quantity_litres },
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { id: subscriptionId, quantity_litres };
+}
+
+/**
  * Admin: list subscriptions for an area.
  */
 async function listByArea(areaId, { status, page = 1, limit = 20 }) {
@@ -216,5 +251,6 @@ module.exports = {
   pauseSubscription,
   resumeSubscription,
   cancelSubscription,
+  updateQuantity,
   listByArea,
 };
