@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing secrets — never commit these
+android/key.properties
+release.jks
+*.jks
+*.keystore
+
+# Firebase config — inject via CI/CD, not source control
+android/app/google-services.json

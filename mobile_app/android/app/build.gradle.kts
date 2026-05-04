@@ -57,10 +57,13 @@ android {
     buildTypes {
         release {
             val hasReleaseKey = keyPropertiesFile.exists() || System.getenv("KEYSTORE_PATH") != null
-            signingConfig = if (hasReleaseKey)
-                signingConfigs.getByName("release")
-            else
-                signingConfigs.getByName("debug")
+            if (!hasReleaseKey) {
+                throw GradleException(
+                    "Release signing key not configured. " +
+                    "Provide android/key.properties or set KEYSTORE_PATH env var."
+                )
+            }
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

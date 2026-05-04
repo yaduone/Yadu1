@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/api_service.dart';
 import '../services/fcm_service.dart';
@@ -260,7 +260,7 @@ class AppAuthProvider extends ChangeNotifier {
       final user = res['data']?['user'];
       if (user != null) _userData = user;
     } catch (e) {
-      debugPrint('loadProfile failed: $e');
+      if (kDebugMode) debugPrint('loadProfile failed: $e');
     }
     _profileLoaded = true;
     notifyListeners();
