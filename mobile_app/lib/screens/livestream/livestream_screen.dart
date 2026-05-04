@@ -170,6 +170,8 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                   const SizedBox(height: 32),
                   _lactometerCard(),
                   const SizedBox(height: 24),
+                  _infoSection(),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -243,6 +245,8 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                     const SizedBox(height: 20),
                     _lactometerCard(),
                     const SizedBox(height: 24),
+                    _infoSection(),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -250,6 +254,30 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _infoSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Info',
+            style: AppType.h3.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(
+              'assets/images/lact.png',
+              width: double.infinity,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

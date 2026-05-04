@@ -84,14 +84,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       const SizedBox(height: 16),
 
-                      // Trust badge
-                      const TrustBadge(
-                        icon: Icons.verified_rounded,
-                        label: 'Quality Guaranteed',
-                      ),
-                      const TrustBadge(
-                        icon: Icons.verified_rounded,
-                        label: 'Freshness Guaranteed',
+                      // Trust badges
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: TrustBadge(
+                              icon: Icons.verified_rounded,
+                              label: 'Quality Guaranteed',
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: TrustBadge(
+                              icon: Icons.verified_rounded,
+                              label: 'Freshness Guaranteed',
+                            ),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(height: 20),

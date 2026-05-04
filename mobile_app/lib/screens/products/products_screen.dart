@@ -31,18 +31,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final cart = context.watch<CartProvider>();
     final products = cart.products;
 
-    // Extract unique categories
-    final categories = <String>{'All'};
+    // Extract unique categories preserving insertion order
+    final catSet = <String>{'All'};
     for (final p in products) {
-      if (p['category'] != null) categories.add(p['category'] as String);
+      if (p['category'] != null) catSet.add(p['category'] as String);
     }
+    final categories = catSet.toList();
+
+    // Clamp selected index in case categories changed
+    final selIdx = categories.indexOf(_selectedCategory).clamp(0, categories.length - 1);
 
     // Filter by category then sort: active first, inactive (coming soon) last
     final categoryFiltered = _selectedCategory == 'All'
         ? products
-        : products
-            .where((p) => p['category'] == _selectedCategory)
-            .toList();
+        : products.where((p) => p['category'] == _selectedCategory).toList();
     final filtered = [...categoryFiltered]
       ..sort((a, b) {
         final aActive = a['is_active'] == true ? 0 : 1;
@@ -50,122 +52,124 @@ class _ProductsScreenState extends State<ProductsScreen> {
         return aActive.compareTo(bActive);
       });
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
-        child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverAppBar(
-                backgroundColor: AppColors.scaffoldBg,
-                floating: true,
-                snap: true,
-                leading: IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.arrow_back_ios_new, size: 16),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                title: Text('Shop', style: AppType.h2),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(56),
-                  child: _buildCategoryTabs(categories),
-                ),
-              ),
-            ];
-          },
-          body: products.isEmpty
-              ? _buildLoadingList()
-              : filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.search_off_rounded,
-                              size: 48, color: AppColors.textHint),
-                          const SizedBox(height: 12),
-                          Text('No products in this category',
-                              style: AppType.caption
-                                  .copyWith(color: AppColors.textSecondary)),
+    return DefaultTabController(
+      key: ValueKey(categories.join(',')),
+      length: categories.length,
+      initialIndex: selIdx,
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBg,
+        body: SafeArea(
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  backgroundColor: AppColors.scaffoldBg,
+                  floating: true,
+                  snap: true,
+                  leading: IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
                         ],
                       ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 16),
-                      itemBuilder: (_, i) =>
-                          _ProductCard(product: filtered[i]),
+                      child: const Icon(Icons.arrow_back_ios_new, size: 16),
                     ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: Text('Shop', style: AppType.h2),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(52),
+                    child: _buildCategoryTabs(categories),
+                  ),
+                ),
+              ];
+            },
+            body: products.isEmpty
+                ? _buildLoadingList()
+                : filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.search_off_rounded,
+                                size: 48, color: AppColors.textHint),
+                            const SizedBox(height: 12),
+                            Text('No products in this category',
+                                style: AppType.caption
+                                    .copyWith(color: AppColors.textSecondary)),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
+                        itemBuilder: (_, i) =>
+                            _ProductCard(product: filtered[i]),
+                      ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCategoryTabs(Set<String> categories) {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        children: categories.map((cat) {
-          final isSelected = _selectedCategory == cat;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _selectedCategory = cat);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primary : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color:
-                                AppColors.primary.withValues(alpha: 0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color:
-                                AppColors.primary.withValues(alpha: 0.06),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                ),
-                child: Center(
-                  child: Text(
-                    cat,
-                    style: AppType.captionBold.copyWith(
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
+  Widget _buildCategoryTabs(List<String> categories) {
+    return Container(
+      height: 52,
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldBg,
+        border: Border(
+          bottom: BorderSide(color: AppColors.border, width: 1),
+        ),
+      ),
+      child: TabBar(
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 5),
+        // Sliding pill indicator
+        indicator: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.28),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
-          );
-        }).toList(),
+          ],
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicatorPadding: EdgeInsets.zero,
+        dividerColor: Colors.transparent,
+        splashBorderRadius: BorderRadius.circular(12),
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
+        labelColor: Colors.white,
+        unselectedLabelColor: AppColors.textSecondary,
+        labelStyle: AppType.captionBold,
+        unselectedLabelStyle: AppType.caption,
+        onTap: (i) {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedCategory = categories[i]);
+        },
+        tabs: categories
+            .map((cat) => Tab(
+                  height: 36,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(cat.toUpperCase()),
+                  ),
+                ))
+            .toList(),
       ),
     );
   }

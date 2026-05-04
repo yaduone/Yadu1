@@ -11,6 +11,7 @@ import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_screen.dart';
 import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
+import 'delivery_logs_screen.dart';
 import '../../utils/transitions.dart';
 import '../home/home_screen.dart';
 
@@ -108,7 +109,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
-                CalendarIconButton(),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const DeliveryLogsScreen()),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.receipt_long_rounded,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text('Logs',
+                            style: AppType.captionBold
+                                .copyWith(color: AppColors.primary)),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
 
@@ -217,6 +250,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+
+            const SizedBox(height: 28),
+
+            // Delivery Calendar
+            const SectionLabel('Delivery Calendar', color: Colors.white70),
+            const SizedBox(height: 12),
+            const DeliveryCalendarCard(),
 
             const SizedBox(height: 28),
 

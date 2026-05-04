@@ -7,7 +7,7 @@ import '../providers/calendar_provider.dart';
 import 'premium_components.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entry point
+// Entry point (kept for backward compat)
 // ─────────────────────────────────────────────────────────────────────────────
 
 void showDeliveryCalendar(BuildContext context) {
@@ -23,7 +23,125 @@ void showDeliveryCalendar(BuildContext context) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reusable calendar icon button
+// Inline calendar card — embed directly in a parent ListView
+// ─────────────────────────────────────────────────────────────────────────────
+
+class DeliveryCalendarCard extends StatefulWidget {
+  const DeliveryCalendarCard({super.key});
+
+  @override
+  State<DeliveryCalendarCard> createState() => _DeliveryCalendarCardState();
+}
+
+class _DeliveryCalendarCardState extends State<DeliveryCalendarCard> {
+  late DateTime _focusedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month);
+    _load();
+  }
+
+  String get _monthKey => DateFormat('yyyy-MM').format(_focusedMonth);
+
+  void _load() {
+    Future.microtask(() {
+      if (mounted) context.read<CalendarProvider>().loadMonth(_monthKey);
+    });
+  }
+
+  void _prevMonth() {
+    setState(() {
+      _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
+    });
+    _load();
+  }
+
+  void _nextMonth() {
+    final now = DateTime.now();
+    final next = DateTime(_focusedMonth.year, _focusedMonth.month + 1);
+    if (next.isAfter(DateTime(now.year, now.month))) return;
+    setState(() => _focusedMonth = next);
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<CalendarProvider>(
+      builder: (context, cal, _) {
+        final loading = cal.isLoading(_monthKey);
+        final days = cal.dayMap(_monthKey);
+        final summary = cal.summary(_monthKey);
+
+        return PremiumCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MonthNavigator(
+                month: _focusedMonth,
+                onPrev: _prevMonth,
+                onNext: _nextMonth,
+                canGoNext: DateTime(_focusedMonth.year, _focusedMonth.month + 1)
+                    .isBefore(DateTime(
+                        DateTime.now().year, DateTime.now().month + 1)),
+              ),
+
+              const SizedBox(height: 12),
+              const _Legend(),
+              const SizedBox(height: 12),
+
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: AppColors.primary),
+                  ),
+                )
+              else if (cal.error != null && days.isEmpty)
+                _ErrorState(
+                    onRetry: () =>
+                        cal.loadMonth(_monthKey, forceRefresh: true))
+              else
+                _CalendarGrid(
+                  month: _focusedMonth,
+                  days: days,
+                  onDayTap: (date, data) =>
+                      _showDayDetail(context, date, data),
+                ),
+
+              if (!loading && summary != null) ...[
+                const SizedBox(height: 14),
+                _SummaryRow(summary: summary),
+              ],
+
+              if (!loading && days.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _MonthStatsCard(days: days),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDayDetail(
+      BuildContext context, DateTime date, Map<String, dynamic>? data) {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _DayDetailSheet(date: date, data: data),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reusable calendar icon button (kept for other screens)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class CalendarIconButton extends StatelessWidget {

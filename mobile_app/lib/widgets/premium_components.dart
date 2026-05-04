@@ -359,12 +359,16 @@ class TrustBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: AppColors.success),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppType.micro.copyWith(
-              color: AppColors.success,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.micro.copyWith(
+                color: AppColors.success,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ],
