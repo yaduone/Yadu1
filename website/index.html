@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YaduONE — Fresh Dairy Delivered Daily</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:       #2563EB;
+      --primary-dark:  #1D4ED8;
+      --primary-light: #EFF6FF;
+      --accent:        #0EA5E9;
+      --green:         #10B981;
+      --amber:         #F59E0B;
+      --red:           #EF4444;
+      --text-primary:  #0F172A;
+      --text-secondary:#475569;
+      --text-muted:    #94A3B8;
+      --surface:       #F8FAFC;
+      --border:        #E2E8F0;
+      --white:         #FFFFFF;
+      --radius-sm:     8px;
+      --radius-md:     16px;
+      --radius-lg:     24px;
+      --radius-xl:     32px;
+      --shadow-sm:     0 1px 3px rgba(0,0,0,.08);
+      --shadow-md:     0 4px 16px rgba(0,0,0,.08);
+      --shadow-lg:     0 12px 40px rgba(37,99,235,.15);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--white);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { text-decoration: none; color: inherit; }
+    img { max-width: 100%; display: block; }
+
+    /* ── Pages ────────────────────────────────────────────────── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Nav ──────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 5vw;
+    }
+    .nav-inner {
+      max-width: 1120px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+    }
+    .nav-logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-logo-icon svg { width: 20px; height: 20px; fill: white; }
+    .nav-logo-text { font-size: 20px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+    .nav-links { display: flex; align-items: center; gap: 8px; }
+    .nav-link {
+      font-size: 14px; font-weight: 500; color: var(--text-secondary);
+      padding: 6px 14px; border-radius: var(--radius-sm);
+      cursor: pointer; transition: all .2s;
+    }
+    .nav-link:hover { color: var(--primary); background: var(--primary-light); }
+    .nav-link.active { color: var(--primary); background: var(--primary-light); }
+    .nav-cta {
+      font-size: 14px; font-weight: 600; color: white;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      padding: 8px 20px; border-radius: var(--radius-sm);
+      cursor: pointer; transition: opacity .2s;
+    }
+    .nav-cta:hover { opacity: .9; }
+
+    /* ── Hero ─────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(160deg, #EFF6FF 0%, #F0F9FF 50%, #ECFDF5 100%);
+      padding: 100px 5vw 80px;
+      overflow: hidden; position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -120px; right: -80px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(37,99,235,.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 1120px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary-light); color: var(--primary);
+      font-size: 12px; font-weight: 600; letter-spacing: .5px;
+      padding: 6px 14px; border-radius: 100px; margin-bottom: 20px;
+      border: 1px solid rgba(37,99,235,.15);
+    }
+    .hero-badge-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; }
+    .hero h1 {
+      font-size: clamp(36px, 4.5vw, 58px);
+      font-weight: 900; line-height: 1.1;
+      letter-spacing: -1.5px; margin-bottom: 20px;
+    }
+    .hero h1 span { color: var(--primary); }
+    .hero p {
+      font-size: 18px; color: var(--text-secondary);
+      line-height: 1.7; margin-bottom: 36px; max-width: 480px;
+    }
+    .hero-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white; font-size: 15px; font-weight: 600;
+      padding: 14px 28px; border-radius: var(--radius-md);
+      cursor: pointer; transition: all .2s;
+      box-shadow: 0 4px 20px rgba(37,99,235,.3);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(37,99,235,.4); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: white; color: var(--text-primary);
+      font-size: 15px; font-weight: 600;
+      padding: 14px 28px; border-radius: var(--radius-md);
+      cursor: pointer; transition: all .2s;
+      border: 1.5px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-2px); }
+    .hero-stats {
+      display: flex; gap: 32px; margin-top: 44px;
+    }
+    .stat { }
+    .stat-number { font-size: 28px; font-weight: 800; color: var(--primary); letter-spacing: -1px; }
+    .stat-label { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+    /* hero visual */
+    .hero-visual {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
+    }
+    .phone-mockup {
+      width: 260px; height: 520px;
+      background: linear-gradient(160deg, var(--primary-dark) 0%, var(--primary) 100%);
+      border-radius: 40px;
+      box-shadow: 0 32px 80px rgba(37,99,235,.35), 0 0 0 8px rgba(37,99,235,.1);
+      display: flex; flex-direction: column;
+      overflow: hidden; position: relative; z-index: 2;
+    }
+    .phone-notch {
+      width: 80px; height: 22px;
+      background: rgba(0,0,0,.4);
+      border-radius: 0 0 14px 14px;
+      margin: 0 auto 16px;
+    }
+    .phone-screen { padding: 0 16px; flex: 1; }
+    .phone-greeting {
+      color: rgba(255,255,255,.7); font-size: 12px;
+    }
+    .phone-name { color: white; font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .phone-card {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 18px; padding: 14px; margin-bottom: 12px;
+    }
+    .phone-card-label { color: rgba(255,255,255,.6); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .phone-card-value { color: white; font-size: 22px; font-weight: 800; }
+    .phone-card-sub { color: rgba(255,255,255,.6); font-size: 11px; }
+    .phone-products { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .phone-product {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 14px; padding: 10px; text-align: center;
+    }
+    .phone-product-emoji { font-size: 22px; margin-bottom: 4px; }
+    .phone-product-name { color: white; font-size: 10px; font-weight: 600; }
+    .phone-product-price { color: rgba(255,255,255,.6); font-size: 10px; }
+
+    .hero-float-1, .hero-float-2, .hero-float-3 {
+      position: absolute;
+      background: white;
+      border-radius: 14px;
+      padding: 10px 14px;
+      box-shadow: var(--shadow-md);
+      font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+      z-index: 3;
+    }
+    .hero-float-1 { top: 10%; right: -20px; animation: float1 3s ease-in-out infinite; }
+    .hero-float-2 { bottom: 20%; left: -30px; animation: float2 3.5s ease-in-out infinite; }
+    .hero-float-3 { top: 55%; right: -25px; animation: float1 4s ease-in-out infinite; }
+    .float-icon { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    @keyframes float1 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    @keyframes float2 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(8px)} }
+
+    /* ── Section helpers ──────────────────────────────────────── */
+    section { padding: 80px 5vw; }
+    .section-inner { max-width: 1120px; margin: 0 auto; }
+    .section-tag {
+      display: inline-block;
+      background: var(--primary-light); color: var(--primary);
+      font-size: 12px; font-weight: 700; letter-spacing: .8px;
+      text-transform: uppercase;
+      padding: 6px 14px; border-radius: 100px; margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 3.5vw, 42px); font-weight: 800;
+      letter-spacing: -1px; line-height: 1.15; margin-bottom: 12px;
+    }
+    .section-subtitle {
+      font-size: 17px; color: var(--text-secondary);
+      max-width: 560px; line-height: 1.7; margin-bottom: 48px;
+    }
+    .text-center { text-align: center; }
+    .text-center .section-subtitle { margin-left: auto; margin-right: auto; }
+
+    /* ── Feature Cards ────────────────────────────────────────── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .feature-card {
+      background: var(--white);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px;
+      transition: all .25s;
+    }
+    .feature-card:hover {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-4px);
+    }
+    .feature-icon {
+      width: 52px; height: 52px; border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 18px;
+    }
+    .feature-icon.blue   { background: #EFF6FF; }
+    .feature-icon.green  { background: #ECFDF5; }
+    .feature-icon.amber  { background: #FFFBEB; }
+    .feature-icon.purple { background: #F5F3FF; }
+    .feature-icon.rose   { background: #FFF1F2; }
+    .feature-icon.cyan   { background: #ECFEFF; }
+    .feature-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .feature-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.65; }
+
+    /* ── How it works ─────────────────────────────────────────── */
+    .how-section { background: var(--surface); }
+    .steps-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; position: relative;
+    }
+    .steps-grid::before {
+      content: '';
+      position: absolute; top: 32px; left: calc(12.5% + 16px); right: calc(12.5% + 16px);
+      height: 2px;
+      background: repeating-linear-gradient(90deg, var(--primary) 0, var(--primary) 8px, transparent 8px, transparent 16px);
+      pointer-events: none;
+    }
+    .step { text-align: center; padding: 0 10px; }
+    .step-num {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white; font-size: 22px; font-weight: 800;
+      border-radius: 50%; margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 1;
+      box-shadow: 0 4px 16px rgba(37,99,235,.3);
+    }
+    .step-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .step-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── Products ─────────────────────────────────────────────── */
+    .products-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .product-card {
+      background: white; border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); padding: 20px;
+      text-align: center; transition: all .25s;
+    }
+    .product-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .product-emoji { font-size: 40px; margin-bottom: 12px; }
+    .product-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .product-desc { font-size: 13px; color: var(--text-muted); }
+
+    /* ── Trust / Safety ───────────────────────────────────────── */
+    .trust-section { background: linear-gradient(160deg, #0F172A, #1E3A5F); }
+    .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .trust-card {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-lg); padding: 28px;
+    }
+    .trust-icon { font-size: 32px; margin-bottom: 16px; }
+    .trust-title { font-size: 17px; font-weight: 700; color: white; margin-bottom: 8px; }
+    .trust-desc { font-size: 14px; color: rgba(255,255,255,.6); line-height: 1.65; }
+
+    /* ── CTA Banner ───────────────────────────────────────────── */
+    .cta-section {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      text-align: center; padding: 80px 5vw;
+    }
+    .cta-section h2 { color: white; font-size: clamp(28px,3.5vw,44px); font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
+    .cta-section p { color: rgba(255,255,255,.8); font-size: 17px; margin-bottom: 32px; }
+    .btn-white {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: white; color: var(--primary);
+      font-size: 15px; font-weight: 700;
+      padding: 14px 32px; border-radius: var(--radius-md);
+      cursor: pointer; transition: all .2s;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15);
+    }
+    .btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    footer {
+      background: var(--text-primary);
+      padding: 48px 5vw 32px;
+    }
+    .footer-inner { max-width: 1120px; margin: 0 auto; }
+    .footer-grid {
+      display: grid; grid-template-columns: 2fr 1fr 1fr;
+      gap: 48px; margin-bottom: 48px;
+    }
+    .footer-brand-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .footer-brand-logo span { font-size: 20px; font-weight: 800; color: white; }
+    .footer-brand-desc { font-size: 14px; color: rgba(255,255,255,.5); line-height: 1.7; max-width: 280px; }
+    .footer-contact { margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+    .footer-contact-item { font-size: 13px; color: rgba(255,255,255,.5); display: flex; align-items: center; gap: 8px; }
+    .footer-contact-item strong { color: rgba(255,255,255,.8); }
+    .footer-col-title { font-size: 13px; font-weight: 700; color: white; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 16px; }
+    .footer-links { display: flex; flex-direction: column; gap: 10px; }
+    .footer-link { font-size: 14px; color: rgba(255,255,255,.5); cursor: pointer; transition: color .2s; }
+    .footer-link:hover { color: white; }
+    .footer-bottom {
+      border-top: 1px solid rgba(255,255,255,.08);
+      padding-top: 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-copy { font-size: 13px; color: rgba(255,255,255,.35); }
+
+    /* ── Legal Pages ──────────────────────────────────────────── */
+    .legal-page { background: var(--surface); min-height: 100vh; padding: 48px 5vw 80px; }
+    .legal-inner { max-width: 800px; margin: 0 auto; }
+    .legal-header {
+      background: white; border: 1.5px solid var(--border);
+      border-radius: var(--radius-xl); padding: 40px;
+      text-align: center; margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+    }
+    .legal-header-icon {
+      width: 72px; height: 72px; border-radius: 22px;
+      background: var(--primary-light); color: var(--primary);
+      font-size: 32px; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .legal-header h1 { font-size: 28px; font-weight: 800; margin-bottom: 10px; letter-spacing: -.5px; }
+    .legal-header p { font-size: 15px; color: var(--text-secondary); line-height: 1.65; max-width: 500px; margin: 0 auto 16px; }
+    .legal-date {
+      display: inline-block;
+      background: var(--surface); color: var(--text-muted);
+      font-size: 12px; padding: 6px 14px; border-radius: 8px;
+    }
+    .legal-section {
+      background: white; border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg); padding: 28px;
+      margin-bottom: 16px; box-shadow: var(--shadow-sm);
+    }
+    .legal-section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .legal-num {
+      width: 30px; height: 30px; border-radius: 9px;
+      background: var(--primary); color: white;
+      font-size: 13px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .legal-section-title { font-size: 17px; font-weight: 700; }
+    .legal-subsection { margin-bottom: 16px; }
+    .legal-subsection-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .legal-body { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+    .legal-bullet {
+      display: flex; align-items: flex-start; gap: 12px;
+      margin-bottom: 12px;
+    }
+    .legal-bullet-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: var(--primary-light); color: var(--primary);
+      font-size: 14px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .legal-bullet-text { font-size: 14px; color: var(--text-secondary); line-height: 1.65; padding-top: 7px; }
+    .legal-contact-card {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: var(--radius-lg); padding: 28px; margin-top: 8px;
+    }
+    .legal-contact-card h3 { color: white; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .legal-contact-card p { color: rgba(255,255,255,.8); font-size: 14px; line-height: 1.65; margin-bottom: 16px; }
+    .legal-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+    .legal-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.15); color: white;
+      border: 1px solid rgba(255,255,255,.25);
+      font-size: 13px; font-weight: 600;
+      padding: 8px 14px; border-radius: 10px;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media(max-width:900px){
+      .hero-inner { grid-template-columns: 1fr; text-align: center; }
+      .hero p { max-width: 100%; }
+      .hero-btns { justify-content: center; }
+      .hero-stats { justify-content: center; }
+      .hero-visual { display: none; }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .steps-grid { grid-template-columns: 1fr 1fr; }
+      .steps-grid::before { display: none; }
+      .products-grid { grid-template-columns: 1fr 1fr; }
+      .trust-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    }
+    @media(max-width:560px){
+      .features-grid { grid-template-columns: 1fr; }
+      .products-grid { grid-template-columns: 1fr 1fr; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .nav-links .nav-link:not(.nav-link-primary) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo" onclick="showPage('home')">
+      <div class="nav-logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M20 3H4v10c0 3.309 2.691 6 6 6h4c3.309 0 6-2.691 6-6V3zm-2 10c0 2.206-1.794 4-4 4h-4c-2.206 0-4-1.794-4-4V5h12v8z"/><path d="M9 8h6v2H9z"/></svg>
+      </div>
+      <span class="nav-logo-text">YaduONE</span>
+    </div>
+    <div class="nav-links">
+      <span class="nav-link active" id="nav-home" onclick="showPage('home')">Home</span>
+      <span class="nav-link" id="nav-privacy" onclick="showPage('privacy')">Privacy Policy</span>
+      <span class="nav-link" id="nav-terms" onclick="showPage('terms')">Terms of Service</span>
+      <span class="nav-cta">Download App</span>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════════════════════ HOME PAGE -->
+<div class="page active" id="page-home">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="hero-badge-dot"></span>
+          Now serving Rajendranagar &amp; Satellite
+        </div>
+        <h1>Fresh Dairy<br><span>Delivered to</span><br>Your Door</h1>
+        <p>Subscribe once. Get fresh milk, curd, paneer &amp; ghee delivered every morning before you wake up. Manage everything from your phone.</p>
+        <div class="hero-btns">
+          <div class="btn-primary">
+            📱 Get the App
+          </div>
+          <div class="btn-secondary" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">
+            See Features →
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-number">500+</div>
+            <div class="stat-label">Happy Families</div>
+          </div>
+          <div class="stat">
+            <div class="stat-number">99%</div>
+            <div class="stat-label">On-time Delivery</div>
+          </div>
+          <div class="stat">
+            <div class="stat-number">6</div>
+            <div class="stat-label">Products</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="phone-greeting">Good morning 🌅</div>
+            <div class="phone-name">Ankit's Deliveries</div>
+            <div class="phone-card">
+              <div class="phone-card-label">Today's Cart</div>
+              <div class="phone-card-value">2L Cow Milk</div>
+              <div class="phone-card-sub">Morning slot · ₹110</div>
+            </div>
+            <div class="phone-products">
+              <div class="phone-product">
+                <div class="phone-product-emoji">🥛</div>
+                <div class="phone-product-name">Cow Milk</div>
+                <div class="phone-product-price">₹55/L</div>
+              </div>
+              <div class="phone-product">
+                <div class="phone-product-emoji">🧀</div>
+                <div class="phone-product-name">Paneer</div>
+                <div class="phone-product-price">₹80/200g</div>
+              </div>
+              <div class="phone-product">
+                <div class="phone-product-emoji">🫙</div>
+                <div class="phone-product-name">Curd</div>
+                <div class="phone-product-price">₹40/500g</div>
+              </div>
+              <div class="phone-product">
+                <div class="phone-product-emoji">🧈</div>
+                <div class="phone-product-name">Ghee</div>
+                <div class="phone-product-price">₹520/kg</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-float-1">
+          <div class="float-icon" style="background:#ECFDF5">🚚</div>
+          <div>
+            <div style="font-size:11px;color:#6B7280">Delivered</div>
+            <div>6:14 AM today</div>
+          </div>
+        </div>
+        <div class="hero-float-2">
+          <div class="float-icon" style="background:#EFF6FF">💳</div>
+          <div>
+            <div style="font-size:11px;color:#6B7280">Due Balance</div>
+            <div>₹340</div>
+          </div>
+        </div>
+        <div class="hero-float-3">
+          <div class="float-icon" style="background:#FFF7ED">📦</div>
+          <div>
+            <div style="font-size:11px;color:#6B7280">Subscription</div>
+            <div>Active</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="section-inner">
+      <div class="text-center">
+        <span class="section-tag">Features</span>
+        <h2 class="section-title">Everything you need for<br>hassle-free dairy</h2>
+        <p class="section-subtitle">From flexible subscriptions to real-time delivery tracking — YaduONE is built for the way modern families get their dairy.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon blue">📅</div>
+          <div class="feature-title">Flexible Subscriptions</div>
+          <div class="feature-desc">Choose cow, buffalo, or child pack milk. Set quantity from 0.5L to 10L in 0.5L steps. Pick morning, evening, or both slots.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">✏️</div>
+          <div class="feature-title">Next-Day Overrides</div>
+          <div class="feature-desc">Modify tomorrow's quantity or skip a delivery until 9 PM. Changes are instant, free, and don't affect your base subscription.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber">🛒</div>
+          <div class="feature-title">Extra Product Ordering</div>
+          <div class="feature-desc">Add curd, paneer, ghee, and butter to your daily cart. Delivered alongside your milk, no separate order needed.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">💰</div>
+          <div class="feature-title">Dues & Payment Tracking</div>
+          <div class="feature-desc">Post-paid dues model. See your live balance, full transaction history, and payment logs all in one screen.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon rose">📊</div>
+          <div class="feature-title">Delivery Reports</div>
+          <div class="feature-desc">Monthly delivery log with every order, modification, and skip. Know exactly what was delivered and when.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon cyan">🔔</div>
+          <div class="feature-title">Smart Notifications</div>
+          <div class="feature-desc">Get delivery confirmations, payment reminders, and order cutoff alerts. Stay informed without opening the app.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">🔐</div>
+          <div class="feature-title">OTP-Based Login</div>
+          <div class="feature-desc">No passwords to remember. Secure sign-in with Firebase OTP on your mobile number — done in seconds.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">🎥</div>
+          <div class="feature-title">Farm Livestream</div>
+          <div class="feature-desc">Watch live from the dairy farm. See where your milk comes from and how it's packaged — total transparency.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber">🎧</div>
+          <div class="feature-title">Help & Support</div>
+          <div class="feature-desc">Raise support tickets directly in-app. Report missed deliveries, billing issues, or anything else — our team responds fast.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="how-section">
+    <div class="section-inner">
+      <div class="text-center">
+        <span class="section-tag">How It Works</span>
+        <h2 class="section-title">Up and running in 4 steps</h2>
+        <p class="section-subtitle">From install to first delivery in under 5 minutes.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-title">Download &amp; Register</div>
+          <div class="step-desc">Install YaduONE, verify your phone number with OTP, and complete your profile with your delivery address.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-title">Set Up Subscription</div>
+          <div class="step-desc">Choose your milk type, quantity, delivery slot, and start date. Your base delivery is locked in.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-title">Customise Daily Cart</div>
+          <div class="step-desc">Add extra products, adjust milk quantity, or skip a day — all changes apply to the next morning's delivery.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-title">Receive &amp; Pay</div>
+          <div class="step-desc">Milk arrives at your door. Your dues accumulate and you settle with your area delivery person at your convenience.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Products -->
+  <section>
+    <div class="section-inner">
+      <div class="text-center">
+        <span class="section-tag">Products</span>
+        <h2 class="section-title">Pure. Fresh. Daily.</h2>
+        <p class="section-subtitle">A curated range of dairy essentials, sourced from trusted local farms and delivered fresh every day.</p>
+      </div>
+      <div class="products-grid">
+        <div class="product-card">
+          <div class="product-emoji">🐄</div>
+          <div class="product-name">Cow Milk</div>
+          <div class="product-desc">Low-fat, easily digestible. From ₹55/L</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">🐃</div>
+          <div class="product-name">Buffalo Milk</div>
+          <div class="product-desc">Rich &amp; creamy. From ₹65/L</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">👶</div>
+          <div class="product-name">Child Pack</div>
+          <div class="product-desc">Fortified blend for growing kids</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">🫙</div>
+          <div class="product-name">Curd</div>
+          <div class="product-desc">Thick set, probiotic-rich. 500g</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">🧀</div>
+          <div class="product-name">Paneer</div>
+          <div class="product-desc">Fresh-pressed daily. 200g blocks</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">🧈</div>
+          <div class="product-name">Butter</div>
+          <div class="product-desc">Churned from fresh cream. 100g</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">✨</div>
+          <div class="product-name">Ghee</div>
+          <div class="product-desc">Slow-cooked clarified butter. 500g</div>
+        </div>
+        <div class="product-card">
+          <div class="product-emoji">🥛</div>
+          <div class="product-name">Lassi</div>
+          <div class="product-desc">Traditional sweet &amp; salted. 250ml</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust & Security -->
+  <section class="trust-section">
+    <div class="section-inner">
+      <div class="text-center">
+        <span class="section-tag" style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.8)">Security &amp; Trust</span>
+        <h2 class="section-title" style="color:white">Your data is safe with us</h2>
+        <p class="section-subtitle" style="color:rgba(255,255,255,.6)">We collect only what's needed to deliver your milk. Everything else stays private.</p>
+      </div>
+      <div class="trust-grid">
+        <div class="trust-card">
+          <div class="trust-icon">🔐</div>
+          <div class="trust-title">Firebase Auth</div>
+          <div class="trust-desc">OTP-based authentication via Google Firebase. No passwords stored. Industry-standard session management with JWT tokens.</div>
+        </div>
+        <div class="trust-card">
+          <div class="trust-icon">🔒</div>
+          <div class="trust-title">Encrypted in Transit</div>
+          <div class="trust-desc">All data transmitted over HTTPS/TLS. Admin panel uses bcrypt-hashed passwords with 24-hour JWT expiry and rate limiting.</div>
+        </div>
+        <div class="trust-card">
+          <div class="trust-icon">🇮🇳</div>
+          <div class="trust-title">Hosted in India</div>
+          <div class="trust-desc">Your data lives in Google Cloud infrastructure in India — on Firestore and Firebase Storage. Governed by Indian data laws.</div>
+        </div>
+        <div class="trust-card">
+          <div class="trust-icon">🚫</div>
+          <div class="trust-title">Zero Data Selling</div>
+          <div class="trust-desc">We never sell, rent, or trade your personal information. Data is shared only with Google Firebase — our core infrastructure provider.</div>
+        </div>
+        <div class="trust-card">
+          <div class="trust-icon">👤</div>
+          <div class="trust-title">You're in Control</div>
+          <div class="trust-desc">View, edit, or delete your data at any time. Account deletion processed within 30 days. Notification opt-out from device settings.</div>
+        </div>
+        <div class="trust-card">
+          <div class="trust-icon">📋</div>
+          <div class="trust-title">Transparent Policy</div>
+          <div class="trust-desc">Our privacy policy is written in plain language — no legalese. Read exactly what we collect, why, and who can see it.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="section-inner">
+      <h2>Start your daily delivery today</h2>
+      <p>Join hundreds of families in Rajendranagar and Satellite who never run out of fresh dairy.</p>
+      <div class="btn-white">📱 Download on Android</div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand-logo">
+            <div class="nav-logo-icon">
+              <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:white"><path d="M20 3H4v10c0 3.309 2.691 6 6 6h4c3.309 0 6-2.691 6-6V3zm-2 10c0 2.206-1.794 4-4 4h-4c-2.206 0-4-1.794-4-4V5h12v8z"/><path d="M9 8h6v2H9z"/></svg>
+            </div>
+            <span>YaduONE</span>
+          </div>
+          <p class="footer-brand-desc">Fresh dairy subscription and delivery for modern families. Subscribe once, receive daily.</p>
+          <div class="footer-contact">
+            <div class="footer-contact-item">📧 <strong>yaduone111@gmail.com</strong></div>
+            <div class="footer-contact-item">📞 <strong>+91 92867 34980</strong></div>
+            <div class="footer-contact-item">📍 Bareilly, UP, India</div>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">App</div>
+          <div class="footer-links">
+            <span class="footer-link">Download for Android</span>
+            <span class="footer-link">Features</span>
+            <span class="footer-link">Products</span>
+            <span class="footer-link">Service Areas</span>
+          </div>
+        </div>
+        <div>
+          <div class="footer-col-title">Legal</div>
+          <div class="footer-links">
+            <span class="footer-link" onclick="showPage('privacy')">Privacy Policy</span>
+            <span class="footer-link" onclick="showPage('terms')">Terms of Service</span>
+            <span class="footer-link">Cookie Policy</span>
+            <span class="footer-link">Data Deletion</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span class="footer-copy">© 2026 YaduONE. All rights reserved.</span>
+        <span class="footer-copy">Made with ❤️ in Bareilly</span>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /page-home -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ PRIVACY POLICY PAGE -->
+<div class="page" id="page-privacy">
+  <div class="legal-page">
+    <div class="legal-inner">
+
+      <div class="legal-header">
+        <div class="legal-header-icon">🛡️</div>
+        <h1>Privacy Policy</h1>
+        <p>We collect only what we need to deliver your milk. Here's exactly what we do with your data.</p>
+        <span class="legal-date">Last updated: May 5, 2026</span>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">1</div>
+          <div class="legal-section-title">Information We Collect</div>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Account Information</div>
+          <p class="legal-body">When you register, we collect your mobile phone number for OTP-based authentication via Firebase. We do not collect email addresses or passwords.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Profile Information</div>
+          <p class="legal-body">To deliver to your door, we collect your full name, delivery area, and address (street, landmark, pincode). This is required to process your orders.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Order &amp; Subscription Data</div>
+          <p class="legal-body">We store your milk subscription preferences (type, quantity, delivery slot), daily cart modifications, order history, and payment dues. This data powers your delivery experience.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Device &amp; Usage Data</div>
+          <p class="legal-body">We collect basic device information (OS version, app version) and usage logs to diagnose errors and improve the app. We do not track your location in the background.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">2</div>
+          <div class="legal-section-title">How We Use Your Information</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">🚚</div>
+          <div class="legal-bullet-text">Process and deliver your daily milk and product orders</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">🔔</div>
+          <div class="legal-bullet-text">Send delivery reminders, order confirmations, and service updates</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">💳</div>
+          <div class="legal-bullet-text">Track and manage your payment dues and transaction history</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">🎧</div>
+          <div class="legal-bullet-text">Respond to your support tickets and resolve disputes</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">📊</div>
+          <div class="legal-bullet-text">Generate anonymised delivery reports for operational efficiency</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">🔒</div>
+          <div class="legal-bullet-text">Detect and prevent fraud, abuse, and unauthorised access</div>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">3</div>
+          <div class="legal-section-title">Data Storage &amp; Security</div>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Where Your Data Lives</div>
+          <p class="legal-body">Your data is stored in Google Firebase Firestore and Firebase Authentication, hosted on Google Cloud infrastructure in India. Product images are stored in Firebase Storage.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">How We Protect It</div>
+          <p class="legal-body">All data is transmitted over HTTPS/TLS. Authentication uses Firebase's industry-standard OTP system. Admin access is protected by bcrypt-hashed passwords and JWT tokens with 24-hour expiry. We apply rate limiting to prevent brute-force attacks.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Retention</div>
+          <p class="legal-body">Order history is retained for 2 years for accounting purposes. If you delete your account, your personal profile and subscription data are removed within 30 days. Order records may be retained in anonymised form for reporting.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">4</div>
+          <div class="legal-section-title">Sharing Your Information</div>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">We Do Not Sell Your Data</div>
+          <p class="legal-body">YaduONE does not sell, rent, or trade your personal information to any third party for marketing purposes.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Service Providers</div>
+          <p class="legal-body">We share data only with trusted service providers who help us operate the app: Google Firebase (authentication, database, storage) and Google Cloud (hosting). These providers are bound by strict data processing agreements.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Legal Requirements</div>
+          <p class="legal-body">We may disclose your information if required by law, court order, or government authority, or to protect the rights and safety of YaduONE, our users, or the public.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Delivery Personnel</div>
+          <p class="legal-body">Your name, address, and order details are shared with the area delivery team (managed by your area admin) solely for the purpose of completing your delivery.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">5</div>
+          <div class="legal-section-title">Your Rights</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">👁️</div>
+          <div class="legal-bullet-text"><strong>Access:</strong> View all your personal data through the Profile screen in the app</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">✏️</div>
+          <div class="legal-bullet-text"><strong>Correction:</strong> Update your name, address, and area at any time from your profile</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">🗑️</div>
+          <div class="legal-bullet-text"><strong>Deletion:</strong> Request account deletion by raising a support ticket — we'll process it within 30 days</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">📥</div>
+          <div class="legal-bullet-text"><strong>Portability:</strong> Request a copy of your order history and account data via support</div>
+        </div>
+        <div class="legal-bullet">
+          <div class="legal-bullet-icon">🚫</div>
+          <div class="legal-bullet-text"><strong>Opt-out:</strong> Disable notifications at any time from your device settings</div>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">6</div>
+          <div class="legal-section-title">Cookies &amp; Tracking</div>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Mobile App</div>
+          <p class="legal-body">The YaduONE mobile app does not use browser cookies. We use Firebase Analytics (anonymised) to understand feature usage and improve the app. No cross-app tracking is performed.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Push Notifications</div>
+          <p class="legal-body">We may send push notifications for delivery updates and reminders. You can disable these at any time in your device's notification settings.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">7</div>
+          <div class="legal-section-title">Children's Privacy</div>
+        </div>
+        <p class="legal-body">YaduONE is not directed at children under 13 years of age. We do not knowingly collect personal information from children. If you believe a child has provided us with personal data, please contact us and we will delete it promptly.</p>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header">
+          <div class="legal-num">8</div>
+          <div class="legal-section-title">Changes to This Policy</div>
+        </div>
+        <p class="legal-body">We may update this Privacy Policy from time to time. When we make significant changes, we will notify you via an in-app notification. Continued use of the app after changes constitutes acceptance of the updated policy. The "Last updated" date at the top reflects the most recent revision.</p>
+      </div>
+
+      <div class="legal-contact-card">
+        <h3>Questions about your privacy?</h3>
+        <p>If you have any questions about this Privacy Policy or how we handle your data, visit Help &amp; Support from your Profile, raise a support ticket from the Dues screen, or contact us directly.</p>
+        <div class="legal-chips">
+          <div class="legal-chip">📧 yaduone111@gmail.com</div>
+          <div class="legal-chip">📞 +91 92867 34980</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div><!-- /page-privacy -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ TERMS PAGE -->
+<div class="page" id="page-terms">
+  <div class="legal-page">
+    <div class="legal-inner">
+
+      <div class="legal-header">
+        <div class="legal-header-icon">⚖️</div>
+        <h1>Terms of Service</h1>
+        <p>By using YaduONE, you agree to these terms. They're written in plain language — please read them.</p>
+        <span class="legal-date">Last updated: May 5, 2026</span>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">1</div><div class="legal-section-title">Acceptance of Terms</div></div>
+        <p class="legal-body" style="margin-bottom:12px">By downloading, installing, or using the YaduONE mobile application ("App"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, please do not use the App.</p>
+        <p class="legal-body">These Terms apply to all users of the App, including customers who subscribe to milk delivery and order dairy products.</p>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">2</div><div class="legal-section-title">About YaduONE</div></div>
+        <p class="legal-body" style="margin-bottom:12px">YaduONE ("we", "us", "our") is a dairy delivery platform that enables customers to subscribe to daily milk delivery and order fresh dairy products (curd, paneer, ghee, butter, etc.) for home delivery.</p>
+        <p class="legal-body">The App operates on an area-based model. Delivery is available only in serviceable areas (currently Rajendranagar and Satellite). Availability may change without prior notice.</p>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">3</div><div class="legal-section-title">Account Registration</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">📱</div><div class="legal-bullet-text">You must provide a valid Indian mobile number to register. OTP verification is mandatory.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">👤</div><div class="legal-bullet-text">You must complete your profile (name, area, delivery address) before placing orders or creating a subscription.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🔒</div><div class="legal-bullet-text">You are responsible for maintaining the security of your account. Do not share your OTP with anyone.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">⚠️</div><div class="legal-bullet-text">One account per mobile number. Creating multiple accounts to abuse promotions or credits is prohibited.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🔞</div><div class="legal-bullet-text">You must be at least 18 years old to create an account and place orders.</div></div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">4</div><div class="legal-section-title">Subscriptions</div></div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Creating a Subscription</div>
+          <p class="legal-body">You may subscribe to daily milk delivery by selecting a milk type (Cow, Buffalo, or Child Pack), quantity (0.5L–10L in 0.5L increments), delivery slot (Morning, Evening, or Both), and start date.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Pricing</div>
+          <p class="legal-body">The price per litre is locked at the time you create your subscription. Future price changes by YaduONE will not affect your existing subscription until you cancel and re-subscribe.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Modifying Delivery</div>
+          <p class="legal-body">You may modify tomorrow's milk quantity or skip a delivery until the cutoff time (9:00 PM IST). Changes after the cutoff apply to the day after tomorrow. Modifications are free of charge.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Pausing &amp; Cancellation</div>
+          <p class="legal-body">You may pause your subscription at any time. A paused subscription stops milk delivery but retains your preferences. Cancellation is permanent — you must create a new subscription to resume delivery.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">One Active Subscription</div>
+          <p class="legal-body">Only one active or paused subscription is permitted per account at any time.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">5</div><div class="legal-section-title">Orders &amp; Extra Products</div></div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Placing Orders</div>
+          <p class="legal-body">In addition to your subscription milk, you may add extra dairy products (curd, paneer, ghee, etc.) to your daily cart. Extra items are added to the same delivery as your milk.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Order Cutoff</div>
+          <p class="legal-body">All cart modifications must be made before 9:00 PM IST to apply to the next day's delivery. Orders are finalised by the nightly processing job.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Order Confirmation</div>
+          <p class="legal-body">Orders are confirmed after the nightly processing job runs (approximately 11:00 PM IST). You will receive an in-app notification once your order is confirmed.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">6</div><div class="legal-section-title">Payments &amp; Dues</div></div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Payment Method</div>
+          <p class="legal-body">YaduONE operates on a post-paid dues model. Your delivery charges accumulate as a due balance, which is settled periodically with your area delivery person (cash, UPI, or other methods as agreed).</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Non-Payment</div>
+          <p class="legal-body">YaduONE reserves the right to suspend or cancel your subscription if dues remain unpaid for an extended period. We will notify you before taking such action.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Price Changes</div>
+          <p class="legal-body">YaduONE may update milk prices at any time. New prices apply to new subscriptions only. You will be notified of price changes via in-app notification.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">7</div><div class="legal-section-title">Delivery</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🚚</div><div class="legal-bullet-text">Delivery is performed by area-specific delivery personnel managed by your area admin.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">⏰</div><div class="legal-bullet-text">Morning slot: approximately 5–7 AM. Evening slot: approximately 5–7 PM. Exact times may vary.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">📍</div><div class="legal-bullet-text">Delivery is only available within serviceable areas. We are not responsible for failed deliveries due to incorrect or inaccessible addresses.</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🔄</div><div class="legal-bullet-text">If a delivery is missed due to our error, please raise a support ticket within 24 hours for resolution.</div></div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">8</div><div class="legal-section-title">Prohibited Conduct</div></div>
+        <p class="legal-body" style="margin-bottom:12px">You agree not to:</p>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🚫</div><div class="legal-bullet-text">Use the App for any unlawful purpose or in violation of any applicable laws</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🐛</div><div class="legal-bullet-text">Attempt to hack, reverse-engineer, or disrupt the App or its backend services</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🎭</div><div class="legal-bullet-text">Impersonate another user, admin, or YaduONE representative</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">🤖</div><div class="legal-bullet-text">Use automated scripts or bots to interact with the App</div></div>
+        <div class="legal-bullet"><div class="legal-bullet-icon">📢</div><div class="legal-bullet-text">Submit false or misleading information in your profile or support tickets</div></div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">9</div><div class="legal-section-title">Intellectual Property</div></div>
+        <p class="legal-body" style="margin-bottom:12px">All content in the YaduONE App — including the name, logo, design, text, graphics, and software — is the property of YaduONE and is protected by applicable intellectual property laws.</p>
+        <p class="legal-body">You may not copy, reproduce, distribute, or create derivative works from any part of the App without our prior written consent.</p>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">10</div><div class="legal-section-title">Disclaimers &amp; Limitation of Liability</div></div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Service Availability</div>
+          <p class="legal-body">The App is provided "as is". We do not guarantee uninterrupted or error-free service. We may perform maintenance that temporarily affects availability.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Product Quality</div>
+          <p class="legal-body">While we strive to deliver fresh, high-quality dairy products, YaduONE is not liable for any health issues arising from product consumption. Please inspect your delivery upon receipt and raise a ticket immediately if there is a quality concern.</p>
+        </div>
+        <div class="legal-subsection">
+          <div class="legal-subsection-title">Limitation of Liability</div>
+          <p class="legal-body">To the maximum extent permitted by law, YaduONE's total liability to you for any claim arising from use of the App shall not exceed the amount you paid for the specific order in question.</p>
+        </div>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">11</div><div class="legal-section-title">Termination</div></div>
+        <p class="legal-body" style="margin-bottom:12px">You may stop using the App at any time. You may request account deletion by raising a support ticket.</p>
+        <p class="legal-body" style="margin-bottom:12px">We reserve the right to suspend or terminate your account without notice if you violate these Terms, engage in fraudulent activity, or if we discontinue the service in your area.</p>
+        <p class="legal-body">Upon termination, your subscription will be cancelled and any outstanding dues remain payable.</p>
+      </div>
+
+      <div class="legal-section">
+        <div class="legal-section-header"><div class="legal-num">12</div><div class="legal-section-title">Governing Law</div></div>
+        <p class="legal-body">These Terms are governed by the laws of India. Any disputes arising from these Terms or your use of the App shall be subject to the exclusive jurisdiction of the courts in Ahmedabad, Gujarat, India.</p>
+      </div>
+
+      <div class="legal-contact-card">
+        <h3>Need help with these Terms?</h3>
+        <p>If you have questions about these Terms or need to report a violation, visit Help &amp; Support from your Profile, raise a support ticket from the Dues screen, or contact us directly.</p>
+        <div class="legal-chips">
+          <div class="legal-chip">📧 yaduone111@gmail.com</div>
+          <div class="legal-chip">📞 +91 92867 34980</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div><!-- /page-terms -->
+
+
+<script>
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    const navEl = document.getElementById('nav-' + name);
+    if (navEl) navEl.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+</script>
+
+</body>
+</html>
