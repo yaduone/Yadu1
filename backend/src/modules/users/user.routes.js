@@ -237,6 +237,8 @@ router.put('/profile', authenticateUser, requireCompleteProfile, async (req, res
 router.post('/request-deletion', authenticateUser, async (req, res, next) => {
   try {
     const userId = req.user.userId;
+    if (!userId) return notFound(res, 'User not found');
+
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) return notFound(res, 'User not found');
