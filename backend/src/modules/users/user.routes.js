@@ -233,4 +233,36 @@ router.put('/profile', authenticateUser, requireCompleteProfile, async (req, res
   }
 });
 
+// POST /api/users/request-deletion — User: request own account deletion
+router.post('/request-deletion', authenticateUser, async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) return notFound(res, 'User not found');
+
+    const userData = userDoc.data();
+    if (userData.deletion_requested) {
+      return success(res, {}, 'Deletion request already submitted. We will process it within 30 days.');
+    }
+
+    await userRef.update({
+      deletion_requested: true,
+      deletion_requested_at: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logActivity({
+      type: 'deletion_requested',
+      title: 'Account Deletion Requested',
+      message: `User ${userData.name || userId} requested account deletion.`,
+      areaId: userData.area_id || null,
+      meta: { user_id: userId },
+    });
+
+    return success(res, {}, 'Deletion request received. Your account and personal data will be removed within 30 days.');
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
