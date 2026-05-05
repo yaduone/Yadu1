@@ -139,6 +139,8 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
         area_id: u.area_id,
         is_profile_complete: !!(u.name && u.area_id && u.address),
         created_at: u.created_at,
+        deletion_requested: u.deletion_requested || false,
+        deletion_requested_at: u.deletion_requested_at || null,
         subscription: sub ? {
           id: sub.id,
           milk_type: sub.milk_type,

@@ -1,6 +1,6 @@
 import { createElement, useState, useEffect } from 'react';
 import api from '../services/api';
-import { AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus, HelpCircle } from 'lucide-react';
+import { AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus, HelpCircle, ShieldAlert } from 'lucide-react';
 
 const STATUS_BADGE = {
   active:    'badge badge-green',
@@ -11,10 +11,11 @@ const STATUS_BADGE = {
 const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Child Pack' };
 
 const FILTER_CONFIG = [
-  { key: 'active',    label: 'Active',    icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-  { key: 'paused',    label: 'Paused',    icon: UserMinus, color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200'   },
-  { key: 'cancelled', label: 'Cancelled', icon: UserX,     color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-200'     },
-  { key: 'no_sub',    label: 'No Sub',    icon: HelpCircle,color: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200'   },
+  { key: 'active',             label: 'Active',           icon: UserCheck,   color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  { key: 'paused',             label: 'Paused',           icon: UserMinus,   color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200'   },
+  { key: 'cancelled',          label: 'Cancelled',        icon: UserX,       color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-200'     },
+  { key: 'no_sub',             label: 'No Sub',           icon: HelpCircle,  color: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200'   },
+  { key: 'deletion_requested', label: 'Delete Requests',  icon: ShieldAlert, color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-300'    },
 ];
 
 export default function UsersPage() {
@@ -26,6 +27,9 @@ export default function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [acceptTarget, setAcceptTarget] = useState(null);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
 
   useEffect(() => {
     Promise.all([api.get('/users/admin/list'), api.get('/dues/admin/list')])
@@ -65,7 +69,24 @@ export default function UsersPage() {
     }
   }
 
+  async function confirmAcceptDeletion() {
+    if (!acceptTarget) return;
+    setAccepting(true);
+    setAcceptError('');
+    try {
+      await api.delete(`/users/admin/${acceptTarget.id}`);
+      setUsers((prev) => prev.filter((u) => u.id !== acceptTarget.id));
+      setDueMap((prev) => { const next = { ...prev }; delete next[acceptTarget.id]; return next; });
+      setAcceptTarget(null);
+    } catch (err) {
+      setAcceptError(err.response?.data?.error || 'Failed to delete user.');
+    } finally {
+      setAccepting(false);
+    }
+  }
+
   const filtered = users.filter((u) => {
+    if (filter === 'deletion_requested') return u.deletion_requested === true;
     const subStatus = u.subscription?.status ?? 'no_sub';
     if (filter !== 'all' && subStatus !== filter) return false;
     if (search) {
@@ -82,6 +103,7 @@ export default function UsersPage() {
   const counts = users.reduce((acc, u) => {
     const s = u.subscription?.status ?? 'no_sub';
     acc[s] = (acc[s] || 0) + 1;
+    if (u.deletion_requested) acc.deletion_requested = (acc.deletion_requested || 0) + 1;
     return acc;
   }, {});
 
@@ -94,7 +116,7 @@ export default function UsersPage() {
       </div>
 
       {/* Summary filter cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
         {FILTER_CONFIG.map(({ key, label, icon, color, bg, border }) => (
           <button
             key={key}
@@ -135,6 +157,7 @@ export default function UsersPage() {
           <option value="paused">Paused</option>
           <option value="cancelled">Cancelled</option>
           <option value="no_sub">No Sub</option>
+          <option value="deletion_requested">Delete Requests</option>
         </select>
       </div>
 
@@ -159,7 +182,7 @@ export default function UsersPage() {
               const sub = user.subscription;
               const due = dueMap[user.id] ?? null;
               return (
-                <div key={user.id} className="card p-4">
+                <div key={user.id} className={`card p-4 ${user.deletion_requested ? 'border border-rose-200 bg-rose-50/30' : ''}`}>
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
                       <span className="text-white text-sm font-bold">
@@ -172,6 +195,9 @@ export default function UsersPage() {
                           {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {user.deletion_requested && (
+                            <span className="badge badge-red">delete req</span>
+                          )}
                           {sub ? (
                             <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
                               {sub.status}
@@ -179,15 +205,27 @@ export default function UsersPage() {
                           ) : (
                             <span className="badge badge-gray">no sub</span>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => openDelete(user)}
-                            className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
-                            title="Delete user"
-                            aria-label={`Delete ${user.name || user.phone || 'user'}`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {user.deletion_requested ? (
+                            <button
+                              type="button"
+                              onClick={() => { setAcceptTarget(user); setAcceptError(''); }}
+                              className="btn-icon text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                              title="Accept deletion request"
+                              aria-label={`Accept deletion for ${user.name || user.phone || 'user'}`}
+                            >
+                              <ShieldAlert size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openDelete(user)}
+                              className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
+                              title="Delete user"
+                              aria-label={`Delete ${user.name || user.phone || 'user'}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">{user.phone || '—'}</p>
@@ -235,7 +273,7 @@ export default function UsersPage() {
                 {filtered.map((user) => {
                   const sub = user.subscription;
                   return (
-                    <tr key={user.id}>
+                    <tr key={user.id} className={user.deletion_requested ? 'bg-rose-50/40' : ''}>
                       <td>
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
@@ -288,24 +326,42 @@ export default function UsersPage() {
                         })()}
                       </td>
                       <td className="whitespace-nowrap">
-                        {sub ? (
-                          <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
-                            {sub.status}
-                          </span>
-                        ) : (
-                          <span className="badge badge-gray">no sub</span>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {user.deletion_requested && (
+                            <span className="badge badge-red">delete req</span>
+                          )}
+                          {sub ? (
+                            <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
+                              {sub.status}
+                            </span>
+                          ) : (
+                            <span className="badge badge-gray">no sub</span>
+                          )}
+                        </div>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          onClick={() => openDelete(user)}
-                          className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
-                          title="Delete user"
-                          aria-label={`Delete ${user.name || user.phone || 'user'}`}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {user.deletion_requested && (
+                            <button
+                              type="button"
+                              onClick={() => { setAcceptTarget(user); setAcceptError(''); }}
+                              className="btn-icon text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                              title="Accept deletion request"
+                              aria-label={`Accept deletion for ${user.name || user.phone || 'user'}`}
+                            >
+                              <ShieldAlert size={14} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => openDelete(user)}
+                            className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
+                            title="Delete user"
+                            aria-label={`Delete ${user.name || user.phone || 'user'}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -314,6 +370,65 @@ export default function UsersPage() {
             </table>
           </div>
         </>
+      )}
+
+      {acceptTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 animate-scale-in">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+                <ShieldAlert size={18} className="text-rose-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">Accept Account Deletion Request?</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  <span className="font-medium text-slate-700">
+                    {acceptTarget.name || acceptTarget.phone || acceptTarget.id.slice(0, 10)}
+                  </span>
+                  {' '}requested deletion of their account. Accepting will permanently remove their profile, subscription, orders, dues, payments, and all associated data. This cannot be undone.
+                </p>
+                {acceptTarget.deletion_requested_at && (
+                  <p className="text-xs text-rose-500 mt-2 font-medium">
+                    Requested: {new Date(acceptTarget.deletion_requested_at._seconds
+                      ? acceptTarget.deletion_requested_at._seconds * 1000
+                      : acceptTarget.deletion_requested_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {acceptError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5 mb-4">
+                <AlertTriangle size={14} className="shrink-0" />
+                {acceptError}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setAcceptTarget(null)}
+                disabled={accepting}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmAcceptDeletion}
+                disabled={accepting}
+                className="btn-danger disabled:opacity-60"
+              >
+                {accepting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : 'Accept & Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteTarget && (
