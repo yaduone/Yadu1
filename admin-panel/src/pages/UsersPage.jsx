@@ -1,6 +1,9 @@
 import { createElement, useState, useEffect } from 'react';
 import api from '../services/api';
-import { AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus, HelpCircle, ShieldAlert } from 'lucide-react';
+import {
+  AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus,
+  HelpCircle, ShieldAlert, ShoppingCart, X, Package, Milk, Loader2,
+} from 'lucide-react';
 
 const STATUS_BADGE = {
   active:    'badge badge-green',
@@ -9,6 +12,11 @@ const STATUS_BADGE = {
 };
 
 const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Child Pack' };
+const MILK_COLORS = {
+  cow:     'bg-amber-50 text-amber-700 ring-amber-100',
+  buffalo: 'bg-blue-50 text-blue-700 ring-blue-100',
+  toned:   'bg-emerald-50 text-emerald-700 ring-emerald-100',
+};
 
 const FILTER_CONFIG = [
   { key: 'active',             label: 'Active',           icon: UserCheck,   color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
@@ -17,6 +25,170 @@ const FILTER_CONFIG = [
   { key: 'no_sub',             label: 'No Sub',           icon: HelpCircle,  color: 'text-slate-500',   bg: 'bg-slate-50',   border: 'border-slate-200'   },
   { key: 'deletion_requested', label: 'Delete Requests',  icon: ShieldAlert, color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-300'    },
 ];
+
+function CartModal({ user, onClose }) {
+  const [cart, setCart]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+
+  useEffect(() => {
+    api.get(`/cart/admin/user/${user.id}`)
+      .then((res) => setCart(res.data.data))
+      .catch(() => setError('Failed to load cart.'))
+      .finally(() => setLoading(false));
+  }, [user.id]);
+
+  const milkColorCls = cart?.effective_milk
+    ? (MILK_COLORS[cart.effective_milk.milk_type] || 'bg-slate-50 text-slate-700 ring-slate-100')
+    : '';
+
+  const dateLabel = cart?.date
+    ? new Date(cart.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+    : '';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
+              <span className="text-white text-xs font-bold">{user.name ? user.name[0].toUpperCase() : '?'}</span>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800 text-sm leading-tight">{user.name || user.phone || 'Unknown'}</p>
+              <p className="text-[10px] text-slate-400">{user.phone || user.id.slice(0, 12)}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn-icon text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          {loading && (
+            <div className="flex items-center justify-center py-10 text-slate-400 gap-2">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-sm">Loading cart...</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={14} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {cart && (
+            <>
+              {/* Date & lock status */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500">{dateLabel}</p>
+                {cart.is_locked && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Locked</span>
+                )}
+              </div>
+
+              {/* Milk section */}
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Milk Delivery</p>
+                {cart.is_skipped ? (
+                  <div className="rounded-xl bg-slate-50 ring-1 ring-slate-100 px-4 py-3 text-sm text-slate-500 italic">
+                    Delivery skipped for this day
+                  </div>
+                ) : cart.effective_milk ? (
+                  <div className={`rounded-xl ring-1 px-4 py-3 ${milkColorCls}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Milk size={14} />
+                      <span className="font-semibold capitalize">
+                        {MILK_LABELS[cart.effective_milk.milk_type] || cart.effective_milk.milk_type}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      {/* Base quantity */}
+                      {cart.subscription && (
+                        <span className="opacity-70">
+                          Base: {cart.subscription.base_quantity}L
+                        </span>
+                      )}
+                      {/* Override indicator */}
+                      {cart.override && (
+                        <>
+                          <span className="opacity-40">→</span>
+                          <span className="font-bold">
+                            Modified: {cart.effective_milk.quantity_litres}L
+                            {cart.subscription && (
+                              <span className="ml-1 font-normal opacity-70">
+                                ({cart.effective_milk.quantity_litres > cart.subscription.base_quantity ? '+' : ''}
+                                {(cart.effective_milk.quantity_litres - cart.subscription.base_quantity).toFixed(1)}L)
+                              </span>
+                            )}
+                          </span>
+                        </>
+                      )}
+                      {!cart.override && (
+                        <span className="font-bold">{cart.effective_milk.quantity_litres}L</span>
+                      )}
+                      <span className="ml-auto font-bold">₹{cart.effective_milk.total?.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-slate-50 ring-1 ring-slate-100 px-4 py-3 text-sm text-slate-400 italic">
+                    No active subscription
+                  </div>
+                )}
+              </div>
+
+              {/* Extra items */}
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Extra Items
+                  {cart.extra_items.length > 0 && (
+                    <span className="ml-1.5 text-blue-600 normal-case font-bold">{cart.extra_items.length} item{cart.extra_items.length !== 1 ? 's' : ''}</span>
+                  )}
+                </p>
+                {cart.extra_items.length === 0 ? (
+                  <div className="rounded-xl bg-slate-50 ring-1 ring-slate-100 px-4 py-3 text-sm text-slate-400 italic">
+                    No extra items in cart
+                  </div>
+                ) : (
+                  <div className="rounded-xl ring-1 ring-slate-100 overflow-hidden divide-y divide-slate-50">
+                    {cart.extra_items.map((item) => (
+                      <div key={item.product_id} className="flex items-center gap-3 px-4 py-2.5">
+                        <Package size={14} className="text-slate-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 truncate">{item.product_name}</p>
+                          {item.unit && <p className="text-[10px] text-slate-400">{item.unit} · ₹{item.price} each</p>}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-slate-800">×{item.quantity}</p>
+                          <p className="text-xs text-slate-500">₹{item.total?.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Total */}
+              {(cart.effective_milk || cart.extra_items.length > 0) && (
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <p className="text-sm font-semibold text-slate-600">Total for this delivery</p>
+                  <p className="text-lg font-bold text-slate-800">₹{cart.total_amount?.toFixed(2)}</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-slate-100 flex justify-end">
+          <button onClick={onClose} className="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function UsersPage() {
   const [users, setUsers]     = useState([]);
@@ -30,6 +202,7 @@ export default function UsersPage() {
   const [acceptTarget, setAcceptTarget] = useState(null);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState('');
+  const [cartUser, setCartUser] = useState(null);
 
   useEffect(() => {
     Promise.all([api.get('/users/admin/list'), api.get('/dues/admin/list')])
@@ -205,6 +378,15 @@ export default function UsersPage() {
                           ) : (
                             <span className="badge badge-gray">no sub</span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => setCartUser(user)}
+                            className="btn-icon text-blue-400 hover:text-blue-600 hover:bg-blue-50"
+                            title="View cart"
+                            aria-label={`View cart for ${user.name || user.phone || 'user'}`}
+                          >
+                            <ShoppingCart size={14} />
+                          </button>
                           {user.deletion_requested ? (
                             <button
                               type="button"
@@ -341,6 +523,15 @@ export default function UsersPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setCartUser(user)}
+                            className="btn-icon text-blue-400 hover:text-blue-600 hover:bg-blue-50"
+                            title="View cart"
+                            aria-label={`View cart for ${user.name || user.phone || 'user'}`}
+                          >
+                            <ShoppingCart size={14} />
+                          </button>
                           {user.deletion_requested && (
                             <button
                               type="button"
@@ -371,6 +562,9 @@ export default function UsersPage() {
           </div>
         </>
       )}
+
+      {/* Cart modal */}
+      {cartUser && <CartModal user={cartUser} onClose={() => setCartUser(null)} />}
 
       {acceptTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
