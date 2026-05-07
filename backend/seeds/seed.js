@@ -15,7 +15,7 @@ async function seed() {
   // 1. Seed Areas
   console.log('Seeding areas...');
   const areas = [
-    { name: 'Rajendranagar', slug: 'rajendranagar', is_active: true },
+    { name: 'Bareilly', slug: 'bareilly', is_active: true },
     { name: 'Satellite', slug: 'satellite', is_active: true },
   ];
 
@@ -41,10 +41,10 @@ async function seed() {
   console.log('\nSeeding admins...');
   const admins = [
     {
-      username: 'rajendra_admin',
-      password: 'Raj@1234',
-      name: 'Rajendranagar Admin',
-      area_slug: 'rajendranagar',
+      username: 'bareilly_admin',
+      password: 'Bar@1234',
+      name: 'Bareilly Admin',
+      area_slug: 'bareilly',
       role: 'area_admin',
     },
     {
@@ -130,7 +130,7 @@ async function seed() {
 
   console.log('\nSeed completed successfully!');
   console.log('\nDemo admin credentials:');
-  console.log('  Rajendranagar: rajendra_admin / Raj@1234');
+  console.log('  Bareilly: bareilly_admin / Bar@1234');
   console.log('  Satellite: satellite_admin / Sat@1234');
   process.exit(0);
 }

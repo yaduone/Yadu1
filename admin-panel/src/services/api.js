@@ -37,7 +37,7 @@ api.interceptors.response.use(
       return fallbackApi.request(retryConfig);
     }
 
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 && localStorage.getItem('admin_token')) {
       localStorage.removeItem('admin_token');
       localStorage.removeItem('admin_data');
       window.location.href = '/login';
