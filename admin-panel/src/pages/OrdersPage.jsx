@@ -14,10 +14,23 @@ const STATUS_ICON = {
   cancelled: <XCircle size={13} className="text-red-400" />,
 };
 
+function formatDateInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function relativeDate(daysFromToday) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromToday);
+  return formatDateInput(date);
+}
+
 export default function OrdersPage() {
   const [orders, setOrders]             = useState([]);
   const [loading, setLoading]           = useState(true);
-  const [date, setDate]                 = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate]                 = useState(() => relativeDate(1));
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
 
@@ -61,6 +74,8 @@ export default function OrdersPage() {
 
   const pendingOrders = orders.filter((o) => o.status === 'pending');
   const counts = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
+  const today = relativeDate(0);
+  const tomorrow = relativeDate(1);
 
   return (
     <div className="space-y-4">
@@ -80,6 +95,20 @@ export default function OrdersPage() {
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setDate(today)}
+          className={`btn-sm ${date === today ? 'btn-primary' : 'btn-ghost'}`}
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          onClick={() => setDate(tomorrow)}
+          className={`btn-sm ${date === tomorrow ? 'btn-primary' : 'btn-ghost'}`}
+        >
+          Next Day
+        </button>
         <input
           type="date"
           value={date}

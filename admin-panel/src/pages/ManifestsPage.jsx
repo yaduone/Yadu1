@@ -133,6 +133,7 @@ export default function ManifestsPage() {
                         : '—'}
                       {' · '}{nextDay.manifest.total_users} customers
                       {' · '}{nextDay.manifest.total_milk_litres}L milk
+                      {' · '}{nextDay.manifest.total_extra_items ?? 0} extras
                       {' · '}₹{nextDay.manifest.total_amount?.toFixed(2)}
                     </p>
                     <div className="flex gap-4 mt-1">
