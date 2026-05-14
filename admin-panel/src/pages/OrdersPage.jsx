@@ -56,7 +56,7 @@ function money(amount) {
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(() => relativeDate(1));
+  const [date, setDate] = useState(() => relativeDate(0));
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('milk');
@@ -107,16 +107,15 @@ export default function OrdersPage() {
   const milkOrders = orders.filter((o) => o.milk);
   const productOrders = orders.filter((o) => getExtras(o).length > 0);
   const visibleOrders = activeTab === 'milk' ? milkOrders : productOrders;
-  const pendingOrders = visibleOrders.filter((o) => o.status === 'pending');
+  const milkLitres = milkOrders.reduce((sum, o) => sum + (Number(o.milk?.quantity_litres) || 0), 0);
+  const productUnits = productOrders.reduce((sum, o) => sum + getExtrasQuantity(o), 0);
+  const today = relativeDate(0);
+  const canMarkDelivered = date <= today;
+  const pendingOrders = visibleOrders.filter((o) => o.status === 'pending' && canMarkDelivered);
   const counts = visibleOrders.reduce((acc, o) => {
     acc[o.status] = (acc[o.status] || 0) + 1;
     return acc;
   }, {});
-
-  const milkLitres = milkOrders.reduce((sum, o) => sum + (Number(o.milk?.quantity_litres) || 0), 0);
-  const productUnits = productOrders.reduce((sum, o) => sum + getExtrasQuantity(o), 0);
-  const today = relativeDate(0);
-  const tomorrow = relativeDate(1);
   const activeLabel = activeTab === 'milk' ? 'milk deliveries' : 'product orders';
 
   return (
@@ -128,7 +127,7 @@ export default function OrdersPage() {
             {visibleOrders.length} {activeLabel} - {date}
           </p>
         </div>
-        {selectedOrders.length > 0 && (
+        {selectedOrders.length > 0 && canMarkDelivered && (
           <button onClick={markSelectedDelivered} className="btn-primary btn-sm animate-fade-in shrink-0">
             <CheckSquare size={14} />
             Mark {selectedOrders.length} Delivered
@@ -143,13 +142,6 @@ export default function OrdersPage() {
           className={`btn-sm ${date === today ? 'btn-primary' : 'btn-ghost'}`}
         >
           Today
-        </button>
-        <button
-          type="button"
-          onClick={() => setDate(tomorrow)}
-          className={`btn-sm ${date === tomorrow ? 'btn-primary' : 'btn-ghost'}`}
-        >
-          Next Day
         </button>
         <input
           type="date"
@@ -235,6 +227,7 @@ export default function OrdersPage() {
                 order={order}
                 activeTab={activeTab}
                 selected={selectedOrders.includes(order.id)}
+                canMarkDelivered={canMarkDelivered}
                 onSelect={(checked) => setSelectedOrders(
                   checked
                     ? [...selectedOrders, order.id]
@@ -272,6 +265,7 @@ export default function OrdersPage() {
                     order={order}
                     activeTab={activeTab}
                     selected={selectedOrders.includes(order.id)}
+                    canMarkDelivered={canMarkDelivered}
                     onSelect={(checked) => setSelectedOrders(
                       checked
                         ? [...selectedOrders, order.id]
@@ -360,12 +354,12 @@ function StatusBadge({ status }) {
   );
 }
 
-function OrderCard({ order, activeTab, selected, onSelect, onDelivered }) {
+function OrderCard({ order, activeTab, selected, canMarkDelivered, onSelect, onDelivered }) {
   return (
     <div className={`card p-4 ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
-          {order.status === 'pending' && (
+          {order.status === 'pending' && canMarkDelivered && (
             <input
               type="checkbox"
               checked={selected}
@@ -387,7 +381,7 @@ function OrderCard({ order, activeTab, selected, onSelect, onDelivered }) {
           </span>
         </div>
       </div>
-      {order.status === 'pending' && (
+      {order.status === 'pending' && canMarkDelivered && (
         <button
           onClick={onDelivered}
           className="btn btn-sm bg-emerald-600 text-white w-full justify-center mt-3"
@@ -400,11 +394,11 @@ function OrderCard({ order, activeTab, selected, onSelect, onDelivered }) {
   );
 }
 
-function OrderRow({ order, activeTab, selected, onSelect, onDelivered }) {
+function OrderRow({ order, activeTab, selected, canMarkDelivered, onSelect, onDelivered }) {
   return (
     <tr className={selected ? 'bg-blue-50/60' : ''}>
       <td className="text-center">
-        {order.status === 'pending' && (
+        {order.status === 'pending' && canMarkDelivered && (
           <input
             type="checkbox"
             checked={selected}
@@ -426,7 +420,7 @@ function OrderRow({ order, activeTab, selected, onSelect, onDelivered }) {
         <StatusBadge status={order.status} />
       </td>
       <td>
-        {order.status === 'pending' && (
+        {order.status === 'pending' && canMarkDelivered && (
           <button
             onClick={onDelivered}
             className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700"

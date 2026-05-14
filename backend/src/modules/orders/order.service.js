@@ -1,6 +1,7 @@
 const { db, admin } = require('../../config/firebase');
 const dueService = require('../dues/due.service');
 const notificationService = require('../notifications/notification.service');
+const dateUtil = require('../../utils/date');
 
 /**
  * Create an order from subscription + cart data (called by nightly job).
@@ -143,7 +144,16 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
   const orderDoc = await orderRef.get();
 
   if (!orderDoc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
-  if (orderDoc.data().area_id !== areaId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+  const order = orderDoc.data();
+  if (order.area_id !== areaId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+
+  if (newStatus === order.status) {
+    return { id: orderId, status: newStatus };
+  }
+
+  if (newStatus === 'delivered' && order.date > dateUtil.today()) {
+    throw Object.assign(new Error('Orders can only be marked delivered on or after the delivery date'), { statusCode: 400 });
+  }
 
   await orderRef.update({
     status: newStatus,
@@ -152,7 +162,6 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
 
   // When delivered: add order total to user's due amount, then notify the user
   if (newStatus === 'delivered') {
-    const order = orderDoc.data();
     await dueService.incrementDue(order.user_id, order.area_id, order.total_amount);
 
     // Fetch updated due balance so the notification can show the accurate total
