@@ -155,12 +155,25 @@ export default function OrdersPage() {
                         </p>
                         <p className="text-xs text-slate-400 truncate">{o.user_name ? (o.user_phone || o.user_id?.slice(0, 16) + '…') : o.user_id?.slice(0, 16) + '…'}</p>
                       {o.milk && (
-                        <p className="text-sm font-semibold text-slate-700 mt-0.5 capitalize">
-                          {o.milk.milk_type} · {o.milk.quantity_litres}L
-                        </p>
+                        <div className="mt-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Milk Subscription</p>
+                          <p className="text-sm font-semibold text-slate-700 capitalize">
+                            {o.milk.milk_type} · {o.milk.quantity_litres}L
+                          </p>
+                        </div>
                       )}
                       {o.extra_items?.length > 0 && (
-                        <p className="text-xs text-slate-400 mt-0.5">+{o.extra_items.length} extra items</p>
+                        <div className="mt-1.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Extra Items</p>
+                          <ul className="mt-0.5 space-y-0.5">
+                            {o.extra_items.map((item, idx) => (
+                              <li key={idx} className="text-xs text-slate-600">
+                                {item.name || item.product_name || item.product_id}
+                                {item.quantity ? ` × ${item.quantity}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -241,12 +254,25 @@ export default function OrdersPage() {
                     </td>
                     <td className="text-slate-700">
                       {o.milk ? (
-                        <span className="font-medium capitalize">{o.milk.milk_type} <span className="text-slate-400">{o.milk.quantity_litres}L</span></span>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">Milk Subscription</p>
+                          <span className="font-medium capitalize">{o.milk.milk_type} <span className="text-slate-400">{o.milk.quantity_litres}L</span></span>
+                        </div>
                       ) : '—'}
                     </td>
                     <td>
                       {o.extra_items?.length > 0 ? (
-                        <span className="badge badge-blue">{o.extra_items.length} items</span>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">Extra Items</p>
+                          <ul className="space-y-0.5">
+                            {o.extra_items.map((item, idx) => (
+                              <li key={idx} className="text-xs text-slate-600">
+                                {item.name || item.product_name || item.product_id}
+                                {item.quantity ? ` × ${item.quantity}` : ''}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       ) : <span className="text-slate-300">—</span>}
                     </td>
                     <td className="font-semibold text-slate-800">₹{o.total_amount?.toFixed(2)}</td>
