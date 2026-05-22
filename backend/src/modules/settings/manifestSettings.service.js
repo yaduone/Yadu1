@@ -11,6 +11,7 @@ function defaultTime(hour) {
 function defaultSettings(areaId = null) {
   return {
     area_id: areaId,
+    area_doc_id: areaId,
     cutoff_time: defaultTime(config.manifestCutoffHour),
     generation_time: defaultTime(config.manifestCronHour),
     timezone: config.timezone,
@@ -41,23 +42,49 @@ function isExactMinute(time, current = dateUtil.now()) {
   return current.format('HH:mm') === time;
 }
 
-function settingsFromAreaDoc(areaId, area = {}) {
-  const fallback = defaultSettings(areaId);
+async function findAreaDocByIdOrSlug(areaId) {
+  if (!areaId || typeof areaId !== 'string') return null;
+
+  const directDoc = await db.collection('areas').doc(areaId).get();
+  if (directDoc.exists) return directDoc;
+
+  const slugSnap = await db
+    .collection('areas')
+    .where('slug', '==', areaId)
+    .limit(1)
+    .get();
+  if (!slugSnap.empty) return slugSnap.docs[0];
+
+  return null;
+}
+
+function settingsFromAreaDoc(areaDocId, area = {}, requestedAreaId = areaDocId) {
+  const fallback = defaultSettings(requestedAreaId);
   return {
-    area_id: areaId,
+    area_id: requestedAreaId,
+    area_doc_id: areaDocId,
+    area_name: area.name || null,
     cutoff_time: area.manifest_cutoff_time || fallback.cutoff_time,
     generation_time: area.manifest_generation_time || fallback.generation_time,
     timezone: config.timezone,
+    is_default: !area.manifest_cutoff_time && !area.manifest_generation_time,
+    is_area_record_missing: false,
   };
 }
 
 async function getAreaManifestSettings(areaId) {
-  const areaDoc = await db.collection('areas').doc(areaId).get();
-  if (!areaDoc.exists) {
-    throw Object.assign(new Error('Area not found'), { statusCode: 404 });
+  const areaDoc = await findAreaDocByIdOrSlug(areaId);
+  if (!areaDoc) {
+    return {
+      ...defaultSettings(areaId),
+      area_doc_id: null,
+      area_name: null,
+      is_default: true,
+      is_area_record_missing: true,
+    };
   }
 
-  return settingsFromAreaDoc(areaDoc.id, areaDoc.data());
+  return settingsFromAreaDoc(areaDoc.id, areaDoc.data(), areaId);
 }
 
 async function updateAreaManifestSettings(areaId, { cutoff_time, generation_time }, adminId) {
@@ -68,13 +95,12 @@ async function updateAreaManifestSettings(areaId, { cutoff_time, generation_time
     throw Object.assign(new Error('generation_time must be the same as or after cutoff_time'), { statusCode: 400 });
   }
 
-  const areaRef = db.collection('areas').doc(areaId);
-  const areaDoc = await areaRef.get();
-  if (!areaDoc.exists) {
+  const areaDoc = await findAreaDocByIdOrSlug(areaId);
+  if (!areaDoc) {
     throw Object.assign(new Error('Area not found'), { statusCode: 404 });
   }
 
-  await areaRef.update({
+  await areaDoc.ref.update({
     manifest_cutoff_time: cutoffTime,
     manifest_generation_time: generationTime,
     manifest_schedule_updated_by: adminId || null,
@@ -119,6 +145,7 @@ module.exports = {
   minutesFromTime,
   isAtOrPast,
   isExactMinute,
+  findAreaDocByIdOrSlug,
   settingsFromAreaDoc,
   getAreaManifestSettings,
   updateAreaManifestSettings,

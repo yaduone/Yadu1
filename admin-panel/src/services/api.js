@@ -30,8 +30,13 @@ fallbackApi.interceptors.request.use(requestInterceptor);
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
+    const requestUrl = err.config?.url || '';
+    const shouldRetryRouteOnFallback =
+      err.response?.status === 404 &&
+      !err.config?._retried &&
+      requestUrl.startsWith('/settings/');
     // Network-level failure (no response) — retry once with fallback
-    if (!err.response && !err.config?._retried) {
+    if ((!err.response && !err.config?._retried) || shouldRetryRouteOnFallback) {
       const retryConfig = { ...err.config, _retried: true };
       delete retryConfig.baseURL;
       return fallbackApi.request(retryConfig);

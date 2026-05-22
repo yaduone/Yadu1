@@ -55,8 +55,8 @@ function formatExtraItemSummaryLine(item) {
  */
 async function generateManifest(areaId, date, generatedBy = 'system') {
   // 1. Get area info
-  const areaDoc = await db.collection('areas').doc(areaId).get();
-  if (!areaDoc.exists) throw new Error(`Area ${areaId} not found`);
+  const areaDoc = await manifestSettings.findAreaDocByIdOrSlug(areaId);
+  if (!areaDoc) throw new Error(`Area ${areaId} not found`);
   const area = areaDoc.data();
 
   // 2. Get all orders for this area + date
@@ -110,7 +110,8 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
   const eveningMilkLitres = eveningOrders.reduce((sum, o) => sum + (o.milk ? o.milk.quantity_litres : 0), 0);
 
   // 5. Generate PDF to a temp file, then upload to Firebase Storage
-  const fileName = `${area.slug}_${date}.pdf`;
+  const areaFileSlug = String(area.slug || areaDoc.id || areaId || 'area').replace(/[^a-z0-9_-]/gi, '_');
+  const fileName = `${areaFileSlug}_${date}.pdf`;
   const filePath = path.join(os.tmpdir(), fileName);
 
   await generatePDF(filePath, {
