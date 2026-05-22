@@ -1,5 +1,5 @@
 const { db, admin } = require('../../config/firebase');
-const dateUtil = require('../../utils/date');
+const manifestSettings = require('../settings/manifestSettings.service');
 
 /**
  * Add an extra product to the target date cart (cartTargetDate — day-after-tomorrow if past cutoff).
@@ -16,7 +16,7 @@ async function addItem(userId, areaId, { product_id, quantity }) {
   }
 
   const product = productDoc.data();
-  const targetDate = dateUtil.cartTargetDate();
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
   const cartSnap = await db
     .collection('carts')
@@ -67,12 +67,12 @@ async function addItem(userId, areaId, { product_id, quantity }) {
 /**
  * Update quantity of an extra product in the target date cart.
  */
-async function updateItem(userId, { product_id, quantity }) {
+async function updateItem(userId, areaId, { product_id, quantity }) {
   if (!product_id || quantity === undefined) {
     throw Object.assign(new Error('product_id and quantity are required'), { statusCode: 400 });
   }
 
-  const targetDate = dateUtil.cartTargetDate();
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
   const cartSnap = await db
     .collection('carts')
@@ -111,8 +111,8 @@ async function updateItem(userId, { product_id, quantity }) {
 /**
  * Remove an extra product from the target date cart.
  */
-async function removeItem(userId, productId) {
-  const targetDate = dateUtil.cartTargetDate();
+async function removeItem(userId, areaId, productId) {
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
   const cartSnap = await db
     .collection('carts')

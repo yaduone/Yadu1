@@ -7,7 +7,7 @@ const { success, badRequest } = require('../../utils/response');
 // GET /api/tomorrow/status — Get tomorrow's delivery status
 router.get('/status', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
-    const status = await tomorrowService.getTomorrowStatus(req.user.userId);
+    const status = await tomorrowService.getTomorrowStatus(req.user.userId, null, req.user.areaId);
     return success(res, status);
   } catch (err) {
     next(err);
@@ -68,7 +68,7 @@ router.post('/skip', authenticateUser, requireCompleteProfile, async (req, res, 
 // DELETE /api/tomorrow/override — Revert tomorrow's override
 router.delete('/override', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
-    const result = await tomorrowService.revertOverride(req.user.userId);
+    const result = await tomorrowService.revertOverride(req.user.userId, req.user.areaId);
     return success(res, result, 'Override reverted to default');
   } catch (err) {
     next(err);

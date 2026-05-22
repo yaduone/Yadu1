@@ -3,7 +3,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const dateUtil = require('../../utils/date');
+const manifestSettings = require('../settings/manifestSettings.service');
 const { logActivity } = require('../../utils/activityLog');
 
 function serializeManifest(doc) {
@@ -350,7 +350,7 @@ async function getManifestSignedUrl(manifestId, areaId) {
  * Returns the manifest record if it exists, along with window info.
  */
 async function getNextDayStatus(areaId) {
-  const window = dateUtil.nextDayManifestWindow();
+  const window = await manifestSettings.getNextDayManifestWindow(areaId);
 
   const snap = await db
     .collection('manifests')
@@ -364,7 +364,10 @@ async function getNextDayStatus(areaId) {
   return {
     delivery_date: window.deliveryDate,
     is_ready: window.isReady,
+    cutoff_time: window.cutoffTime,
     cron_time: window.cronTime,
+    generation_time: window.generationTime,
+    timezone: window.timezone,
     manifest: manifest || null,
   };
 }

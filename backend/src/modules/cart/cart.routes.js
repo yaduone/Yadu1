@@ -5,14 +5,14 @@ const tomorrowService = require('./tomorrow.service');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound } = require('../../utils/response');
 const { db } = require('../../config/firebase');
-const dateUtil = require('../../utils/date');
+const manifestSettings = require('../settings/manifestSettings.service');
 
 const { cache, invalidateOn } = require('../../middleware/cache');
 
 // GET /api/cart/tomorrow — Get complete cart for the active target date — cached 30s
 router.get('/tomorrow', authenticateUser, requireCompleteProfile, cache.userPrivate, async (req, res, next) => {
   try {
-    const status = await tomorrowService.getTomorrowStatus(req.user.userId);
+    const status = await tomorrowService.getTomorrowStatus(req.user.userId, null, req.user.areaId);
     return success(res, status);
   } catch (err) {
     next(err);
@@ -27,7 +27,7 @@ router.post('/tomorrow/add-item', authenticateUser, requireCompleteProfile, asyn
       return badRequest(res, 'product_id and quantity are required');
     }
     await cartService.addItem(req.user.userId, req.user.areaId, { product_id, quantity });
-    const status = await tomorrowService.getTomorrowStatus(req.user.userId);
+    const status = await tomorrowService.getTomorrowStatus(req.user.userId, null, req.user.areaId);
     return success(res, status, 'Item added to cart');
   } catch (err) {
     next(err);
@@ -41,8 +41,8 @@ router.put('/tomorrow/update-item', authenticateUser, requireCompleteProfile, as
     if (!product_id || quantity === undefined) {
       return badRequest(res, 'product_id and quantity are required');
     }
-    await cartService.updateItem(req.user.userId, { product_id, quantity });
-    const status = await tomorrowService.getTomorrowStatus(req.user.userId);
+    await cartService.updateItem(req.user.userId, req.user.areaId, { product_id, quantity });
+    const status = await tomorrowService.getTomorrowStatus(req.user.userId, null, req.user.areaId);
     return success(res, status, 'Cart updated');
   } catch (err) {
     next(err);
@@ -52,8 +52,8 @@ router.put('/tomorrow/update-item', authenticateUser, requireCompleteProfile, as
 // DELETE /api/cart/tomorrow/remove-item/:productId — Remove extra product
 router.delete('/tomorrow/remove-item/:productId', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
-    await cartService.removeItem(req.user.userId, req.params.productId);
-    const status = await tomorrowService.getTomorrowStatus(req.user.userId);
+    await cartService.removeItem(req.user.userId, req.user.areaId, req.params.productId);
+    const status = await tomorrowService.getTomorrowStatus(req.user.userId, null, req.user.areaId);
     return success(res, status, 'Item removed from cart');
   } catch (err) {
     next(err);
@@ -64,8 +64,9 @@ router.delete('/tomorrow/remove-item/:productId', authenticateUser, requireCompl
 router.get('/admin/summary', authenticateAdmin, async (req, res, next) => {
   try {
     const areaId = req.admin.areaId;
-    const targetDate = dateUtil.cartTargetDate();
-    const isPastCutoff = dateUtil.isPastCutoff();
+    const settings = await manifestSettings.getAreaManifestSettings(areaId);
+    const targetDate = manifestSettings.cartTargetDateFromSettings(settings);
+    const isPastCutoff = manifestSettings.isAtOrPast(settings.cutoff_time);
 
     // Active subscriptions in area
     const activeSnap = await db
@@ -130,6 +131,8 @@ router.get('/admin/summary', authenticateAdmin, async (req, res, next) => {
     return success(res, {
       target_date: targetDate,
       is_past_cutoff: isPastCutoff,
+      cutoff_time: settings.cutoff_time,
+      generation_time: settings.generation_time,
       total_milk_litres: Math.round(totalMilkLitres * 100) / 100,
       total_deliveries: totalDeliveries,
       milk_type_breakdown: milkTypeBreakdown,
@@ -153,7 +156,7 @@ router.get('/admin/user/:userId', authenticateAdmin, async (req, res, next) => {
       return notFound(res, 'User not found');
     }
 
-    const status = await tomorrowService.getTomorrowStatus(userId);
+    const status = await tomorrowService.getTomorrowStatus(userId, null, req.admin.areaId);
     return success(res, { user_id: userId, ...status });
   } catch (err) {
     next(err);

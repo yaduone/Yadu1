@@ -160,7 +160,7 @@ export default function ManifestsPage() {
                       <span className="font-semibold text-gray-700">{nextDay.cron_time}</span> tonight.
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Customer modifications are locked after {nextDay.cron_time.replace('23', '21')}.
+                      Customer modifications are locked after {nextDay.cutoff_time || nextDay.cron_time}.
                     </p>
                   </div>
                 )}

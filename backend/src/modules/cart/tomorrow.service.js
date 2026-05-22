@@ -1,14 +1,20 @@
 const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const { isValidQuantity } = require('../../utils/validators');
+const manifestSettings = require('../settings/manifestSettings.service');
 
 /**
  * Get the complete cart status for a user for the given target date.
  * This is the CORE computed view: subscription + overrides + extra items.
  */
-async function getTomorrowStatus(userId, targetDate) {
-  const date = targetDate || dateUtil.cartTargetDate();
-  const isLocked = dateUtil.isPastCutoff() && date === dateUtil.tomorrow();
+async function getTomorrowStatus(userId, targetDate, areaId) {
+  const settings = areaId ? await manifestSettings.getAreaManifestSettings(areaId) : null;
+  const date = targetDate || (settings
+    ? manifestSettings.cartTargetDateFromSettings(settings)
+    : dateUtil.cartTargetDate());
+  const isLocked = settings
+    ? manifestSettings.isAtOrPast(settings.cutoff_time) && date === dateUtil.tomorrow()
+    : dateUtil.isPastCutoff() && date === dateUtil.tomorrow();
 
   // 1. Get active subscription
   const subSnap = await db
@@ -111,7 +117,7 @@ async function modifyTomorrow(userId, subscriptionId, areaId, modifiedQuantity) 
     throw Object.assign(new Error('Quantity must be 0.5-10 litres in 0.5L increments'), { statusCode: 400 });
   }
 
-  const targetDate = dateUtil.cartTargetDate();
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
   // Upsert override
   const existingSnap = await db
@@ -138,14 +144,14 @@ async function modifyTomorrow(userId, subscriptionId, areaId, modifiedQuantity) 
     });
   }
 
-  return getTomorrowStatus(userId, targetDate);
+  return getTomorrowStatus(userId, targetDate, areaId);
 }
 
 /**
  * Skip a delivery (targets cartTargetDate — day-after-tomorrow if past cutoff).
  */
 async function skipTomorrow(userId, subscriptionId, areaId) {
-  const targetDate = dateUtil.cartTargetDate();
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
   const existingSnap = await db
     .collection('next_day_overrides')
@@ -171,14 +177,14 @@ async function skipTomorrow(userId, subscriptionId, areaId) {
     });
   }
 
-  return getTomorrowStatus(userId, targetDate);
+  return getTomorrowStatus(userId, targetDate, areaId);
 }
 
 /**
  * Revert an override back to default subscription (targets cartTargetDate).
  */
-async function revertOverride(userId) {
-  const targetDate = dateUtil.cartTargetDate();
+async function revertOverride(userId, areaId) {
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
   const overrideSnap = await db
     .collection('next_day_overrides')
@@ -191,7 +197,7 @@ async function revertOverride(userId) {
     await overrideSnap.docs[0].ref.delete();
   }
 
-  return getTomorrowStatus(userId, targetDate);
+  return getTomorrowStatus(userId, targetDate, areaId);
 }
 
 module.exports = { getTomorrowStatus, modifyTomorrow, skipTomorrow, revertOverride };

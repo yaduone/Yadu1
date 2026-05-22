@@ -1,6 +1,15 @@
 const { db, admin } = require('../../config/firebase');
 const { isValidMilkType, isValidQuantity, isValidSlot } = require('../../utils/validators');
-const dateUtil = require('../../utils/date');
+const manifestSettings = require('../settings/manifestSettings.service');
+
+async function ensureBeforeCutoff(areaId) {
+  if (await manifestSettings.isPastCutoff(areaId)) {
+    throw Object.assign(
+      new Error('Subscription changes are closed for the next delivery. Please update the next available cart instead.'),
+      { statusCode: 400 }
+    );
+  }
+}
 
 /**
  * Create a new milk subscription for a user.
@@ -16,9 +25,9 @@ async function createSubscription(userId, areaId, { milk_type, quantity_litres, 
     throw Object.assign(new Error('delivery_slot must be morning, evening, or both'), { statusCode: 400 });
   }
 
-  const tomorrow = dateUtil.tomorrow();
-  if (start_date < tomorrow) {
-    throw Object.assign(new Error('Start date must be tomorrow or later'), { statusCode: 400 });
+  const earliestStartDate = await manifestSettings.getCartTargetDate(areaId);
+  if (start_date < earliestStartDate) {
+    throw Object.assign(new Error(`Start date must be ${earliestStartDate} or later`), { statusCode: 400 });
   }
 
   // Guard: verify the user's Firestore profile is fully complete before allowing subscription
@@ -116,6 +125,7 @@ async function pauseSubscription(subscriptionId, userId) {
   if (subDoc.data().status !== 'active') {
     throw Object.assign(new Error('Only active subscriptions can be paused'), { statusCode: 400 });
   }
+  await ensureBeforeCutoff(subDoc.data().area_id);
 
   await subRef.update({
     status: 'paused',
@@ -124,11 +134,11 @@ async function pauseSubscription(subscriptionId, userId) {
   });
 
   // Clean up tomorrow override
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = await manifestSettings.getCartTargetDate(subDoc.data().area_id);
   const overrideSnap = await db
     .collection('next_day_overrides')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .limit(1)
     .get();
   if (!overrideSnap.empty) {
@@ -150,6 +160,7 @@ async function resumeSubscription(subscriptionId, userId) {
   if (subDoc.data().status !== 'paused') {
     throw Object.assign(new Error('Only paused subscriptions can be resumed'), { statusCode: 400 });
   }
+  await ensureBeforeCutoff(subDoc.data().area_id);
 
   await subRef.update({
     status: 'active',
@@ -172,6 +183,7 @@ async function cancelSubscription(subscriptionId, userId) {
   if (subDoc.data().status === 'cancelled') {
     throw Object.assign(new Error('Subscription is already cancelled'), { statusCode: 400 });
   }
+  await ensureBeforeCutoff(subDoc.data().area_id);
 
   await subRef.update({
     status: 'cancelled',
@@ -180,11 +192,11 @@ async function cancelSubscription(subscriptionId, userId) {
   });
 
   // Clean up tomorrow overrides
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = await manifestSettings.getCartTargetDate(subDoc.data().area_id);
   const overrideSnap = await db
     .collection('next_day_overrides')
     .where('user_id', '==', userId)
-    .where('date', '==', tomorrow)
+    .where('date', '==', targetDate)
     .get();
   const batch = db.batch();
   overrideSnap.docs.forEach((doc) => batch.delete(doc.ref));
@@ -209,6 +221,7 @@ async function updateQuantity(subscriptionId, userId, quantity_litres) {
   if (subDoc.data().status === 'cancelled') {
     throw Object.assign(new Error('Cannot modify a cancelled subscription'), { statusCode: 400 });
   }
+  await ensureBeforeCutoff(subDoc.data().area_id);
 
   await subRef.update({
     quantity_litres,

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, LogOut,
-  ChevronRight, Menu, X,
+  ChevronRight, Menu, X, Settings,
 } from 'lucide-react';
 
 const navItems = [
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/orders',      icon: ClipboardList,   label: 'Orders',      group: 'main' },
   { to: '/areas',       icon: MapPin,          label: 'Areas',       group: 'ops'  },
   { to: '/manifests',   icon: FileText,        label: 'Manifests',   group: 'ops'  },
+  { to: '/manifest-settings', icon: Settings,  label: 'Schedule',    group: 'ops'  },
   { to: '/reports',     icon: BarChart3,       label: 'Reports',     group: 'ops'  },
   { to: '/livestreams', icon: Radio,           label: 'Livestreams', group: 'ops'  },
   { to: '/prices',      icon: IndianRupee,     label: 'Prices',      group: 'fin'  },

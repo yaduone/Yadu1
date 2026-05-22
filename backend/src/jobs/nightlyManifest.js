@@ -4,16 +4,23 @@ const config = require('../config');
 const dateUtil = require('../utils/date');
 const orderService = require('../modules/orders/order.service');
 const manifestService = require('../modules/manifests/manifest.service');
+const manifestSettings = require('../modules/settings/manifestSettings.service');
 
 /**
  * Nightly job: process all areas, create orders, generate manifests.
  * Runs at configured hour (default 11 PM IST).
  */
-async function runNightlyJob() {
+async function runNightlyJob(areaId = null) {
   const deliveryDate = dateUtil.tomorrow();
   console.log(`[CRON] Starting nightly manifest job for delivery date: ${deliveryDate}`);
 
   try {
+    if (areaId) {
+      await processArea(areaId, deliveryDate);
+      console.log(`[CRON] Nightly job completed for area ${areaId} on ${deliveryDate}`);
+      return;
+    }
+
     // Get all active areas
     const areasSnap = await db.collection('areas').where('is_active', '==', true).get();
 
@@ -33,6 +40,36 @@ async function runNightlyJob() {
     console.log(`[CRON] Nightly job completed for ${deliveryDate}`);
   } catch (err) {
     console.error('[CRON] Fatal error in nightly job:', err);
+  }
+}
+
+/**
+ * Every-minute scheduler: generate each area's manifest at its configured time.
+ */
+async function runScheduledManifestCheck() {
+  const current = dateUtil.now();
+  const currentTime = current.format('HH:mm');
+  const deliveryDate = dateUtil.tomorrow();
+
+  try {
+    const areasSnap = await db.collection('areas').where('is_active', '==', true).get();
+
+    for (const areaDoc of areasSnap.docs) {
+      const area = areaDoc.data();
+      const settings = manifestSettings.settingsFromAreaDoc(areaDoc.id, area);
+      if (!manifestSettings.isExactMinute(settings.generation_time, current)) continue;
+
+      console.log(`[CRON] ${area.name || areaDoc.id} reached manifest time ${currentTime}; delivery date ${deliveryDate}`);
+
+      try {
+        await processArea(areaDoc.id, deliveryDate);
+        console.log(`[CRON] Completed scheduled manifest for ${area.name || areaDoc.id}`);
+      } catch (err) {
+        console.error(`[CRON] Error processing scheduled manifest for ${area.name || areaDoc.id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[CRON] Fatal error in scheduled manifest check:', err);
   }
 }
 
@@ -140,6 +177,42 @@ async function processArea(areaId, deliveryDate) {
     ordersCreated++;
   }
 
+  // Include extra-product-only carts that were not covered by an active subscription.
+  const extraOnlyCartsSnap = await db
+    .collection('carts')
+    .where('area_id', '==', areaId)
+    .where('date', '==', deliveryDate)
+    .get();
+
+  for (const cartDoc of extraOnlyCartsSnap.docs) {
+    const cart = cartDoc.data();
+    const userId = cart.user_id;
+    const extraItems = cart.items || [];
+    if (!userId || extraItems.length === 0) continue;
+
+    const existingOrder = await db
+      .collection('orders')
+      .where('user_id', '==', userId)
+      .where('date', '==', deliveryDate)
+      .limit(1)
+      .get();
+
+    if (!existingOrder.empty) continue;
+
+    const extrasTotal = extraItems.reduce((sum, item) => sum + item.total, 0);
+    await orderService.createOrder({
+      userId,
+      areaId,
+      date: deliveryDate,
+      milk: null,
+      deliverySlot: 'morning',
+      extraItems,
+      totalAmount: extrasTotal,
+    });
+
+    ordersCreated++;
+  }
+
   console.log(`[CRON] Created ${ordersCreated} orders for area ${areaId}`);
 
   // 6. Generate manifest PDF
@@ -183,16 +256,16 @@ async function processArea(areaId, deliveryDate) {
  * Initialize the cron job schedule.
  */
 function initCronJobs() {
-  const cronHour = config.manifestCronHour;
-  // Run at XX:00 every day
-  const cronExpression = `0 ${cronHour} * * *`;
+  const cronExpression = '* * * * *';
 
   cron.schedule(cronExpression, () => {
     console.log(`[CRON] Triggered at ${new Date().toISOString()}`);
-    runNightlyJob();
+    runScheduledManifestCheck();
+  }, {
+    timezone: config.timezone,
   });
 
-  console.log(`[CRON] Nightly manifest job scheduled at ${cronHour}:00 daily`);
+  console.log(`[CRON] Manifest scheduler checks every minute in ${config.timezone}`);
 }
 
-module.exports = { initCronJobs, runNightlyJob, processArea };
+module.exports = { initCronJobs, runNightlyJob, runScheduledManifestCheck, processArea };

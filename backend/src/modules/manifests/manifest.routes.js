@@ -5,6 +5,7 @@ const { runNightlyJob } = require('../../jobs/nightlyManifest');
 const { authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound, forbidden } = require('../../utils/response');
 const dateUtil = require('../../utils/date');
+const manifestSettings = require('../settings/manifestSettings.service');
 
 // GET /api/manifests/next-day — Status of the next-day manifest
 // Returns whether the manifest is ready and the manifest record if it exists.
@@ -42,8 +43,8 @@ router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
     const tomorrow = dateUtil.tomorrow();
 
     // Block download if this is tomorrow's manifest and cron hasn't run yet
-    if (manifestDate === tomorrow && !dateUtil.isPastCronHour()) {
-      const window = dateUtil.nextDayManifestWindow();
+    const window = await manifestSettings.getNextDayManifestWindow(req.admin.areaId);
+    if (manifestDate === tomorrow && !window.isReady) {
       return forbidden(
         res,
         `Tomorrow's manifest is not yet available. It will be ready after ${window.cronTime} tonight.`
@@ -64,15 +65,15 @@ router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
 // Gate: only allowed after the cron hour (in case the scheduled job missed)
 router.post('/trigger', authenticateAdmin, async (req, res, next) => {
   try {
-    if (!dateUtil.isPastCronHour()) {
-      const window = dateUtil.nextDayManifestWindow();
+    const window = await manifestSettings.getNextDayManifestWindow(req.admin.areaId);
+    if (!window.isReady) {
       return forbidden(
         res,
         `Manifest generation is not allowed before ${window.cronTime}. The nightly job will run automatically at ${window.cronTime}.`
       );
     }
 
-    await runNightlyJob();
+    await runNightlyJob(req.admin.areaId);
     const status = await manifestService.getNextDayStatus(req.admin.areaId);
     return success(res, status, 'Manifest generated successfully');
   } catch (err) {

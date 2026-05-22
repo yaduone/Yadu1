@@ -9,6 +9,7 @@ import ProductsPage from './pages/ProductsPage';
 import AreasPage from './pages/AreasPage';
 import OrdersPage from './pages/OrdersPage';
 import ManifestsPage from './pages/ManifestsPage';
+import ManifestSettingsPage from './pages/ManifestSettingsPage';
 import ReportsPage from './pages/ReportsPage';
 import LivestreamsPage from './pages/LivestreamsPage';
 import PricesPage from './pages/PricesPage';
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="areas" element={<AreasPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="manifests" element={<ManifestsPage />} />
+            <Route path="manifest-settings" element={<ManifestSettingsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="livestreams" element={<LivestreamsPage />} />
             <Route path="prices" element={<PricesPage />} />

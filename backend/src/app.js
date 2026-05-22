@@ -23,6 +23,7 @@ const userRoutes = require('./modules/users/user.routes');
 const dueRoutes = require('./modules/dues/due.routes');
 const adminRoutes = require('./modules/admins/admin.routes');
 const debugRoutes = require('./modules/debug/debug.routes');
+const settingsRoutes = require('./modules/settings/settings.routes');
 
 // Initialize Redis connection early
 require('./config/redis').getRedisClient();
@@ -72,6 +73,7 @@ app.use('/api/users', limit.medium, userRoutes);
 app.use('/api/dues', limit.medium, dueRoutes);
 app.use('/api/livestreams', limit.medium, livestreamRoutes);
 app.use('/api/admins', limit.medium, adminRoutes);
+app.use('/api/settings', limit.medium, settingsRoutes);
 
 // Heavy endpoints: aggressive (10 req/min) — PDF generation, file uploads, reports
 app.use('/api/manifests', limit.heavy, manifestRoutes);

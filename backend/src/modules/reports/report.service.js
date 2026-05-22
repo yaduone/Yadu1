@@ -1,5 +1,6 @@
 const { db } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
+const manifestSettings = require('../settings/manifestSettings.service');
 
 /**
  * Get user's personal report/insights.
@@ -58,7 +59,7 @@ async function getUserSummary(userId) {
  * Get admin dashboard data for an area.
  */
 async function getAdminDashboard(areaId) {
-  const tomorrow = dateUtil.tomorrow();
+  const targetDate = await manifestSettings.getCartTargetDate(areaId);
   const thisMonth = dateUtil.now().format('YYYY-MM');
   const monthStart = `${thisMonth}-01`;
 
@@ -85,13 +86,13 @@ async function getAdminDashboard(areaId) {
 
   for (const subDoc of activeSnap.docs) {
     const sub = subDoc.data();
-    if (sub.start_date > tomorrow) continue;
+    if (sub.start_date > targetDate) continue;
 
     // Check override
     const overrideSnap = await db
       .collection('next_day_overrides')
       .where('user_id', '==', sub.user_id)
-      .where('date', '==', tomorrow)
+      .where('date', '==', targetDate)
       .limit(1)
       .get();
 
@@ -130,7 +131,7 @@ async function getAdminDashboard(areaId) {
   });
 
   // Product demand (from recent carts)
-  const cartsSnap = await db.collection('carts').where('area_id', '==', areaId).where('date', '==', tomorrow).get();
+  const cartsSnap = await db.collection('carts').where('area_id', '==', areaId).where('date', '==', targetDate).get();
 
   const productDemand = {};
   cartsSnap.docs.forEach((doc) => {
@@ -148,6 +149,7 @@ async function getAdminDashboard(areaId) {
     total_users: usersSnap.size,
     tomorrow_total_litres: tomorrowTotalLitres,
     tomorrow_order_count: tomorrowOrderCount,
+    target_date: targetDate,
     revenue_this_month: Math.round(revenueThisMonth * 100) / 100,
     milk_type_breakdown: milkTypeBreakdown,
     product_demand: Object.entries(productDemand)
