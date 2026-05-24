@@ -85,6 +85,7 @@ async function processArea(areaId, deliveryDate) {
     .get();
 
   let ordersCreated = 0;
+  let ordersUpdated = 0;
 
   for (const subDoc of subSnap.docs) {
     const sub = subDoc.data();
@@ -101,8 +102,6 @@ async function processArea(areaId, deliveryDate) {
       .where('date', '==', deliveryDate)
       .limit(1)
       .get();
-
-    if (!existingOrder.empty) continue;
 
     // 2. Check for overrides
     const overrideSnap = await db
@@ -155,6 +154,16 @@ async function processArea(areaId, deliveryDate) {
       extraItems = cartSnap.docs[0].data().items || [];
     }
 
+    // An earlier generation attempt may already have produced a milk-only order.
+    // When the source cart still exists, reconcile only extras on pending orders.
+    if (!existingOrder.empty) {
+      if (!cartSnap.empty) {
+        const sync = await orderService.syncPendingOrderExtras(existingOrder.docs[0], extraItems);
+        if (sync.updated) ordersUpdated++;
+      }
+      continue;
+    }
+
     // 4. Skip if nothing to deliver
     if (isSkipped && extraItems.length === 0) continue;
 
@@ -164,7 +173,7 @@ async function processArea(areaId, deliveryDate) {
     const totalAmount = milkTotal + extrasTotal;
 
     // 5. Create order
-    await orderService.createOrder({
+    const generatedOrder = await orderService.createOrder({
       userId,
       areaId,
       date: deliveryDate,
@@ -174,7 +183,7 @@ async function processArea(areaId, deliveryDate) {
       totalAmount,
     });
 
-    ordersCreated++;
+    if (generatedOrder.created) ordersCreated++;
   }
 
   // Include extra-product-only carts that were not covered by an active subscription.
@@ -197,10 +206,14 @@ async function processArea(areaId, deliveryDate) {
       .limit(1)
       .get();
 
-    if (!existingOrder.empty) continue;
+    if (!existingOrder.empty) {
+      const sync = await orderService.syncPendingOrderExtras(existingOrder.docs[0], extraItems);
+      if (sync.updated) ordersUpdated++;
+      continue;
+    }
 
     const extrasTotal = extraItems.reduce((sum, item) => sum + item.total, 0);
-    await orderService.createOrder({
+    const generatedOrder = await orderService.createOrder({
       userId,
       areaId,
       date: deliveryDate,
@@ -210,10 +223,10 @@ async function processArea(areaId, deliveryDate) {
       totalAmount: extrasTotal,
     });
 
-    ordersCreated++;
+    if (generatedOrder.created) ordersCreated++;
   }
 
-  console.log(`[CRON] Created ${ordersCreated} orders for area ${areaId}`);
+  console.log(`[CRON] Created ${ordersCreated} and reconciled ${ordersUpdated} orders for area ${areaId}`);
 
   // 6. Generate manifest PDF
   await manifestService.generateManifest(areaId, deliveryDate, 'system');
@@ -247,7 +260,7 @@ async function processArea(areaId, deliveryDate) {
     action: 'manifest.generated',
     entity_type: 'manifests',
     entity_id: areaId,
-    details: { date: deliveryDate, orders_created: ordersCreated },
+    details: { date: deliveryDate, orders_created: ordersCreated, orders_updated: ordersUpdated },
     created_at: admin.firestore.FieldValue.serverTimestamp(),
   });
 }

@@ -166,7 +166,9 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
 
   let manifestId;
   if (existingSnap.empty) {
-    const docRef = await db.collection('manifests').add(manifestData);
+    const generatedId = ['delivery', areaId, date].map((part) => encodeURIComponent(part)).join('_');
+    const docRef = db.collection('manifests').doc(generatedId);
+    await docRef.set(manifestData);
     manifestId = docRef.id;
   } else {
     manifestId = existingSnap.docs[0].id;

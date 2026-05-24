@@ -21,8 +21,60 @@ async function createOrder({ userId, areaId, date, milk, deliverySlot, extraItem
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   };
 
-  const docRef = await db.collection('orders').add(orderData);
-  return { id: docRef.id, ...orderData };
+  const orderId = ['delivery', areaId, date, userId].map((part) => encodeURIComponent(part)).join('_');
+  const docRef = db.collection('orders').doc(orderId);
+  let created = false;
+  let savedOrder = orderData;
+
+  await db.runTransaction(async (tx) => {
+    created = false;
+    const existing = await tx.get(docRef);
+    if (existing.exists) {
+      savedOrder = existing.data();
+      return;
+    }
+    tx.create(docRef, orderData);
+    created = true;
+  });
+
+  return { id: docRef.id, ...savedOrder, created };
+}
+
+function extrasTotal(extraItems = []) {
+  return extraItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+}
+
+function orderTotal(milk, extraItems = []) {
+  return (Number(milk?.total) || 0) + extrasTotal(extraItems);
+}
+
+function equalExtraItems(existing = [], next = []) {
+  return JSON.stringify(existing) === JSON.stringify(next);
+}
+
+/**
+ * Synchronize a cart snapshot into a generated order that has not been delivered yet.
+ * This is intentionally extras-only: subscription overrides may already have been consumed.
+ */
+async function syncPendingOrderExtras(orderDoc, extraItems = []) {
+  const order = orderDoc.data();
+  if (order.status !== 'pending') {
+    return { updated: false, reason: 'finalized' };
+  }
+
+  const nextItems = Array.isArray(extraItems) ? extraItems : [];
+  const nextTotal = orderTotal(order.milk, nextItems);
+  if (equalExtraItems(order.extra_items || [], nextItems) && Number(order.total_amount) === nextTotal) {
+    return { updated: false, reason: 'unchanged' };
+  }
+
+  await orderDoc.ref.update({
+    extra_items: nextItems,
+    total_amount: nextTotal,
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { updated: true, reason: 'cart_reconciled', total_amount: nextTotal };
 }
 
 /**
@@ -141,40 +193,45 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
   }
 
   const orderRef = db.collection('orders').doc(orderId);
-  const orderDoc = await orderRef.get();
+  let deliveredOrder = null;
 
-  if (!orderDoc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
-  const order = orderDoc.data();
-  if (order.area_id !== areaId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+  await db.runTransaction(async (tx) => {
+    deliveredOrder = null;
+    const orderDoc = await tx.get(orderRef);
+    if (!orderDoc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
-  if (newStatus === order.status) {
-    return { id: orderId, status: newStatus };
-  }
+    const order = orderDoc.data();
+    if (order.area_id !== areaId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+    if (newStatus === order.status) return;
+    if (order.status !== 'pending') {
+      throw Object.assign(new Error('Finalized orders cannot be changed'), { statusCode: 400 });
+    }
+    if (newStatus === 'delivered' && order.date > dateUtil.today()) {
+      throw Object.assign(new Error('Orders can only be marked delivered on or after the delivery date'), { statusCode: 400 });
+    }
 
-  if (newStatus === 'delivered' && order.date > dateUtil.today()) {
-    throw Object.assign(new Error('Orders can only be marked delivered on or after the delivery date'), { statusCode: 400 });
-  }
+    if (newStatus === 'delivered') {
+      await dueService.incrementDueInTransaction(tx, order.user_id, order.area_id, order.total_amount);
+      deliveredOrder = order;
+    }
 
-  await orderRef.update({
-    status: newStatus,
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    tx.update(orderRef, {
+      status: newStatus,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
   });
 
-  // When delivered: add order total to user's due amount, then notify the user
-  if (newStatus === 'delivered') {
-    await dueService.incrementDue(order.user_id, order.area_id, order.total_amount);
-
-    // Fetch updated due balance so the notification can show the accurate total
+  if (deliveredOrder) {
     try {
-      const updatedDue = await dueService.getUserDue(order.user_id);
+      const updatedDue = await dueService.getUserDue(deliveredOrder.user_id);
       await notificationService.sendDeliveryNotification(
-        order.user_id,
-        order.area_id,
-        order,
+        deliveredOrder.user_id,
+        deliveredOrder.area_id,
+        deliveredOrder,
         updatedDue.due_amount,
       );
     } catch (notifErr) {
-      // Non-fatal — log but don't block the status update response
+      // Notifications are non-critical after the billing transaction commits.
       console.error('[updateOrderStatus] delivery notification failed:', notifErr.message);
     }
   }
@@ -182,4 +239,13 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
   return { id: orderId, status: newStatus };
 }
 
-module.exports = { createOrder, getUserOrders, getOrderById, getAreaOrders, updateOrderStatus };
+module.exports = {
+  createOrder,
+  extrasTotal,
+  orderTotal,
+  syncPendingOrderExtras,
+  getUserOrders,
+  getOrderById,
+  getAreaOrders,
+  updateOrderStatus,
+};

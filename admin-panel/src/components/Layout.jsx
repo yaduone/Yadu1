@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { createElement, useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, LogOut,
   ChevronRight, Menu, X, Settings,
+  FlaskConical,
 } from 'lucide-react';
 
 const navItems = [
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/areas',       icon: MapPin,          label: 'Areas',       group: 'ops'  },
   { to: '/manifests',   icon: FileText,        label: 'Manifests',   group: 'ops'  },
   { to: '/manifest-settings', icon: Settings,  label: 'Schedule',    group: 'ops'  },
+  { to: '/flow-tests',   icon: FlaskConical,    label: 'Flow Tests',  group: 'ops'  },
   { to: '/reports',     icon: BarChart3,       label: 'Reports',     group: 'ops'  },
   { to: '/livestreams', icon: Radio,           label: 'Livestreams', group: 'ops'  },
   { to: '/prices',      icon: IndianRupee,     label: 'Prices',      group: 'fin'  },
@@ -73,7 +75,7 @@ function SidebarContent({ onClose, admin, onLogout, initials }) {
               <p className="px-5 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 {label}
               </p>
-              {items.map(({ to, icon: Icon, label: itemLabel }) => (
+              {items.map(({ to, icon, label: itemLabel }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -85,7 +87,7 @@ function SidebarContent({ onClose, admin, onLogout, initials }) {
                 >
                   {({ isActive }) => (
                     <>
-                      <Icon size={17} className={isActive ? 'opacity-100' : 'opacity-70'} />
+                      {createElement(icon, { size: 17, className: isActive ? 'opacity-100' : 'opacity-70' })}
                       <span className="flex-1">{itemLabel}</span>
                       {isActive && <ChevronRight size={13} className="opacity-60" />}
                     </>

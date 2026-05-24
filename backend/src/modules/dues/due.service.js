@@ -13,30 +13,32 @@ async function getDueDoc(userId) {
 
 /**
  * Increment due when an order is marked delivered.
- * Called from order.service after status update.
+ * Transaction form is used with the order status update to prevent double billing.
  */
-async function incrementDue(userId, areaId, amount) {
+async function incrementDueInTransaction(tx, userId, areaId, amount) {
   const ref = db.collection('due_amounts').doc(userId);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists) {
-      tx.set(ref, {
-        user_id: userId,
-        area_id: areaId,
-        total_billed: amount,
-        total_paid: 0,
-        due_amount: amount,
-        last_updated: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    } else {
-      const d = snap.data();
-      tx.update(ref, {
-        total_billed: (d.total_billed || 0) + amount,
-        due_amount: (d.due_amount || 0) + amount,
-        last_updated: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-  });
+  const snap = await tx.get(ref);
+  if (!snap.exists) {
+    tx.set(ref, {
+      user_id: userId,
+      area_id: areaId,
+      total_billed: amount,
+      total_paid: 0,
+      due_amount: amount,
+      last_updated: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } else {
+    const d = snap.data();
+    tx.update(ref, {
+      total_billed: (d.total_billed || 0) + amount,
+      due_amount: (d.due_amount || 0) + amount,
+      last_updated: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+}
+
+async function incrementDue(userId, areaId, amount) {
+  await db.runTransaction((tx) => incrementDueInTransaction(tx, userId, areaId, amount));
 }
 
 /**
@@ -215,6 +217,7 @@ async function resolveTicket(ticketId, areaId, { status, admin_notes }) {
 }
 
 module.exports = {
+  incrementDueInTransaction,
   incrementDue,
   recordPayment,
   listAreaDues,
