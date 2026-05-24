@@ -29,8 +29,10 @@ jest.mock('../src/modules/dues/due.service', () => ({
 }));
 
 const mockSendDeliveryNotification = jest.fn().mockResolvedValue(undefined);
+const mockSendOrderCancelledNotification = jest.fn().mockResolvedValue(undefined);
 jest.mock('../src/modules/notifications/notification.service', () => ({
   sendDeliveryNotification: mockSendDeliveryNotification,
+  sendOrderCancelledNotification: mockSendOrderCancelledNotification,
 }));
 
 const { createOrder, updateOrderStatus } = require('../src/modules/orders/order.service');
@@ -117,6 +119,28 @@ describe('delivery status billing transaction', () => {
     expect(mockIncrementDueInTransaction).not.toHaveBeenCalled();
     expect(mockTransaction.update).not.toHaveBeenCalled();
     expect(mockSendDeliveryNotification).not.toHaveBeenCalled();
+  });
+
+  test('notifies a customer when a pending delivery is cancelled without billing', async () => {
+    mockTransaction.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        area_id: 'area-1',
+        user_id: 'user-1',
+        date: '2026-01-01',
+        total_amount: 125,
+        status: 'pending',
+      }),
+    });
+
+    await updateOrderStatus('order-1', 'area-1', 'cancelled');
+
+    expect(mockIncrementDueInTransaction).not.toHaveBeenCalled();
+    expect(mockSendOrderCancelledNotification).toHaveBeenCalledWith(
+      'user-1',
+      'area-1',
+      { date: '2026-01-01', amount: 125 },
+    );
   });
 
   test('rejects a change from delivered to cancelled without reversing billing', async () => {

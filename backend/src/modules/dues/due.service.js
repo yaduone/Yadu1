@@ -97,8 +97,28 @@ async function recordPayment(adminId, userId, areaId, { amount, method, notes, p
  * Admin: list all users' due amounts for their area.
  */
 async function listAreaDues(areaId) {
-  const snap = await db.collection('due_amounts').where('area_id', '==', areaId).get();
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const [duesSnap, usersSnap] = await Promise.all([
+    db.collection('due_amounts').where('area_id', '==', areaId).get(),
+    db.collection('users').where('area_id', '==', areaId).get(),
+  ]);
+
+  const dues = duesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const usersWithDues = new Set(dues.map((due) => due.user_id || due.id));
+
+  usersSnap.docs.forEach((userDoc) => {
+    if (usersWithDues.has(userDoc.id)) return;
+
+    dues.push({
+      id: userDoc.id,
+      user_id: userDoc.id,
+      area_id: areaId,
+      total_billed: 0,
+      total_paid: 0,
+      due_amount: 0,
+    });
+  });
+
+  return dues;
 }
 
 /**

@@ -4,6 +4,13 @@ const dueService = require('./due.service');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound } = require('../../utils/response');
 const notificationService = require('../notifications/notification.service');
+const { db } = require('../../config/firebase');
+
+async function getAdminAreaUser(userId, areaId) {
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (!userDoc.exists || userDoc.data().area_id !== areaId) return null;
+  return userDoc.data();
+}
 
 // ─── User routes ─────────────────────────────────────────────────────────────
 
@@ -53,6 +60,9 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
 // GET /api/dues/admin/user/:userId/payments — Admin: payment history for a user
 router.get('/admin/user/:userId/payments', authenticateAdmin, async (req, res, next) => {
   try {
+    if (!await getAdminAreaUser(req.params.userId, req.admin.areaId)) {
+      return notFound(res, 'User not found');
+    }
     const payments = await dueService.getUserPayments(req.params.userId);
     return success(res, { payments });
   } catch (err) {
@@ -63,13 +73,16 @@ router.get('/admin/user/:userId/payments', authenticateAdmin, async (req, res, n
 // POST /api/dues/admin/payment — Admin: record a payment
 router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
   try {
-    const { user_id, area_id, amount, method, notes, payment_date } = req.body;
+    const { user_id, amount, method, notes, payment_date } = req.body;
     if (!user_id) return badRequest(res, 'user_id is required');
     if (!amount) return badRequest(res, 'amount is required');
     if (!method) return badRequest(res, 'method is required (cash, upi, other)');
+    if (!await getAdminAreaUser(user_id, req.admin.areaId)) {
+      return notFound(res, 'User not found');
+    }
 
     const parsedAmount = parseFloat(amount);
-    const result = await dueService.recordPayment(req.admin.adminId, user_id, area_id || req.admin.areaId, {
+    const result = await dueService.recordPayment(req.admin.adminId, user_id, req.admin.areaId, {
       amount: parsedAmount,
       method,
       notes,
@@ -79,7 +92,7 @@ router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
     // Notify user their payment has been recorded
     try {
       const updatedDue = await dueService.getUserDue(user_id);
-      await notificationService.sendPaymentRecordedNotification(user_id, area_id || req.admin.areaId, {
+      await notificationService.sendPaymentRecordedNotification(user_id, req.admin.areaId, {
         amount: parsedAmount,
         method,
         remainingDue: updatedDue.due_amount,
@@ -99,18 +112,13 @@ router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
 router.post('/admin/ping/:userId', authenticateAdmin, async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const due = await dueService.getUserDue(userId);
-
-    if (due.due_amount <= 0) {
-      return badRequest(res, 'User has no outstanding due amount to remind about');
+    if (!await getAdminAreaUser(userId, req.admin.areaId)) {
+      return notFound(res, 'User not found');
     }
 
-    // Verify user belongs to this admin's area
-    const { db } = require('../../config/firebase');
-    const dueDoc = await db.collection('due_amounts').doc(userId).get();
-    if (!dueDoc.exists) return notFound(res, 'No due record found for this user');
-    if (dueDoc.data().area_id !== req.admin.areaId) {
-      return res.status(403).json({ success: false, error: 'Forbidden' });
+    const due = await dueService.getUserDue(userId);
+    if (due.due_amount <= 0) {
+      return badRequest(res, 'User has no outstanding due amount to remind about');
     }
 
     await notificationService.sendDueReminderNotification(userId, req.admin.areaId, {

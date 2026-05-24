@@ -1,6 +1,15 @@
 const { db, admin } = require('../../config/firebase');
 const { isValidMilkType, isValidQuantity, isValidSlot } = require('../../utils/validators');
 const manifestSettings = require('../settings/manifestSettings.service');
+const notificationService = require('../notifications/notification.service');
+
+async function notifySubscriptionChange(userId, areaId, payload) {
+  try {
+    await notificationService.sendSubscriptionUpdatedNotification(userId, areaId, payload);
+  } catch (err) {
+    console.warn('[subscriptions] notification failed:', err.message);
+  }
+}
 
 async function ensureBeforeCutoff(areaId) {
   if (await manifestSettings.isPastCutoff(areaId)) {
@@ -94,6 +103,13 @@ async function createSubscription(userId, areaId, { milk_type, quantity_litres, 
     created_at: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  await notifySubscriptionChange(userId, areaId, {
+    title: 'Subscription Started',
+    action: 'created',
+    changeDescription: `Your ${quantity_litres}L ${milk_type} milk subscription starts on ${start_date} for the ${delivery_slot} slot.`,
+    details: { milk_type, quantity_litres, start_date, delivery_slot, status: 'active' },
+  });
+
   return { id: docRef.id, ...subscriptionData };
 }
 
@@ -145,6 +161,13 @@ async function pauseSubscription(subscriptionId, userId) {
     await overrideSnap.docs[0].ref.delete();
   }
 
+  await notifySubscriptionChange(userId, subDoc.data().area_id, {
+    title: 'Subscription Paused',
+    action: 'paused',
+    changeDescription: 'Your regular deliveries are paused. Resume your subscription when you are ready.',
+    details: { status: 'paused' },
+  });
+
   return { id: subscriptionId, status: 'paused' };
 }
 
@@ -166,6 +189,13 @@ async function resumeSubscription(subscriptionId, userId) {
     status: 'active',
     paused_at: null,
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await notifySubscriptionChange(userId, subDoc.data().area_id, {
+    title: 'Subscription Resumed',
+    action: 'resumed',
+    changeDescription: 'Your regular deliveries have resumed for the next eligible delivery date.',
+    details: { status: 'active' },
   });
 
   return { id: subscriptionId, status: 'active' };
@@ -202,6 +232,13 @@ async function cancelSubscription(subscriptionId, userId) {
   overrideSnap.docs.forEach((doc) => batch.delete(doc.ref));
   await batch.commit();
 
+  await notifySubscriptionChange(userId, subDoc.data().area_id, {
+    title: 'Subscription Cancelled',
+    action: 'cancelled',
+    changeDescription: 'Your milk subscription has been cancelled and no further regular deliveries will be scheduled.',
+    details: { status: 'cancelled' },
+  });
+
   return { id: subscriptionId, status: 'cancelled' };
 }
 
@@ -236,6 +273,13 @@ async function updateQuantity(subscriptionId, userId, quantity_litres) {
     entity_id: subscriptionId,
     details: { quantity_litres },
     created_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await notifySubscriptionChange(userId, subDoc.data().area_id, {
+    title: 'Daily Quantity Updated',
+    action: 'quantity_updated',
+    changeDescription: `Your regular delivery quantity is now ${quantity_litres}L.`,
+    details: { quantity_litres, status: subDoc.data().status },
   });
 
   return { id: subscriptionId, quantity_litres };

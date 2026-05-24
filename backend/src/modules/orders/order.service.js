@@ -257,9 +257,11 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
 
   const orderRef = db.collection('orders').doc(orderId);
   let deliveredOrder = null;
+  let cancelledOrder = null;
 
   await db.runTransaction(async (tx) => {
     deliveredOrder = null;
+    cancelledOrder = null;
     const orderDoc = await tx.get(orderRef);
     if (!orderDoc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
 
@@ -276,6 +278,9 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
     if (newStatus === 'delivered') {
       await dueService.incrementDueInTransaction(tx, order.user_id, order.area_id, order.total_amount);
       deliveredOrder = order;
+    }
+    if (newStatus === 'cancelled') {
+      cancelledOrder = order;
     }
 
     tx.update(orderRef, {
@@ -296,6 +301,18 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
     } catch (notifErr) {
       // Notifications are non-critical after the billing transaction commits.
       console.error('[updateOrderStatus] delivery notification failed:', notifErr.message);
+    }
+  }
+
+  if (cancelledOrder) {
+    try {
+      await notificationService.sendOrderCancelledNotification(
+        cancelledOrder.user_id,
+        cancelledOrder.area_id,
+        { date: cancelledOrder.date, amount: cancelledOrder.total_amount || 0 },
+      );
+    } catch (notifErr) {
+      console.error('[updateOrderStatus] cancellation notification failed:', notifErr.message);
     }
   }
 

@@ -78,6 +78,10 @@ router.put('/:id/read', authenticateUser, async (req, res, next) => {
     const ref = db.collection('notifications').doc(req.params.id);
     const doc = await ref.get();
     if (!doc.exists) return notFound(res, 'Notification not found');
+    const notification = doc.data();
+    const ownsNotification = notification.user_id === req.user.userId ||
+      (notification.user_id === null && notification.area_id === req.user.areaId);
+    if (!ownsNotification) return notFound(res, 'Notification not found');
     await ref.update({ is_read: true });
     return success(res, null, 'Marked as read');
   } catch (err) {

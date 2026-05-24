@@ -3,10 +3,9 @@ const router = express.Router();
 const { db, admin } = require('../../config/firebase');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound, created } = require('../../utils/response');
-const { isValidYoutubeUrl } = require('../../utils/validators');
-const notificationService = require('../notifications/notification.service');
+const livestreamService = require('./livestream.service');
 
-// GET /api/livestreams/lactometer/admin — Admin: get current lactometer readings
+// GET /api/livestreams/lactometer/admin - Admin: get current lactometer readings
 router.get('/lactometer/admin', authenticateAdmin, async (req, res, next) => {
   try {
     const areaDoc = await db.collection('areas').doc(req.admin.areaId).get();
@@ -20,7 +19,7 @@ router.get('/lactometer/admin', authenticateAdmin, async (req, res, next) => {
   }
 });
 
-// GET /api/livestreams/lactometer — User: get today's lactometer readings for their area
+// GET /api/livestreams/lactometer - User: get today's lactometer readings for their area
 router.get('/lactometer', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
     const areaDoc = await db.collection('areas').doc(req.user.areaId).get();
@@ -34,7 +33,7 @@ router.get('/lactometer', authenticateUser, requireCompleteProfile, async (req, 
   }
 });
 
-// PUT /api/livestreams/lactometer — Admin: update morning or evening lactometer reading
+// PUT /api/livestreams/lactometer - Admin: update morning or evening lactometer reading
 router.put('/lactometer', authenticateAdmin, async (req, res, next) => {
   try {
     const { slot, reading, is_na } = req.body;
@@ -51,7 +50,7 @@ router.put('/lactometer', authenticateAdmin, async (req, res, next) => {
         return badRequest(res, 'reading is required');
       }
       value = parseFloat(reading);
-      if (isNaN(value) || value < 0) {
+      if (Number.isNaN(value) || value < 0) {
         return badRequest(res, 'reading must be a valid positive number');
       }
     }
@@ -66,119 +65,55 @@ router.put('/lactometer', authenticateAdmin, async (req, res, next) => {
   }
 });
 
-// GET /api/livestreams/active — User: get active livestream for their area
+// GET /api/livestreams/active - Customer: active stream plus the next scheduled stream without its URL
 router.get('/active', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
-    const snap = await db
-      .collection('livestreams')
-      .where('area_id', '==', req.user.areaId)
-      .where('is_active', '==', true)
-      .limit(1)
-      .get();
-
-    const active = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
-    return success(res, { livestream: active });
+    const streams = await livestreamService.getViewerStreams(req.user.areaId);
+    return success(res, streams);
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/livestreams/admin/list — Admin: list all for area
+// GET /api/livestreams/admin/list - Admin: list schedules for their area
 router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
   try {
-    const snap = await db.collection('livestreams').where('area_id', '==', req.admin.areaId).get();
-    const livestreams = snap.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .sort((a, b) => {
-        const aTime = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at);
-        const bTime = b.created_at?.toDate ? b.created_at.toDate() : new Date(b.created_at);
-        return bTime - aTime;
-      });
+    const livestreams = await livestreamService.listAreaStreams(req.admin.areaId);
     return success(res, { livestreams });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/livestreams — Admin: create livestream
+// POST /api/livestreams - Admin: schedule a stream with a 30-minute user reminder
 router.post('/', authenticateAdmin, async (req, res, next) => {
   try {
-    const { title, youtube_url } = req.body;
-    if (!title || !youtube_url) {
-      return badRequest(res, 'title and youtube_url are required');
-    }
-    if (!isValidYoutubeUrl(youtube_url)) {
-      return badRequest(res, 'Invalid YouTube URL');
-    }
-
-    const data = {
-      area_id: req.admin.areaId,
-      title,
-      youtube_url,
-      is_active: true,
-      created_by: req.admin.adminId,
-      created_at: admin.firestore.FieldValue.serverTimestamp(),
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    const docRef = await db.collection('livestreams').add(data);
-
-    // Broadcast to all users in the area
-    notificationService.sendAreaBroadcast(req.admin.areaId, {
-      type: 'livestream_started',
-      title: '🔴 Live Stream Started',
-      body: `Your dairy is now live: "${title}". Tap to watch.`,
-      meta: { livestream_id: docRef.id, title, youtube_url },
-    }).catch((e) => console.warn('[livestream] broadcast failed:', e.message));
-
-    return created(res, { livestream: { id: docRef.id, ...data } });
+    const livestream = await livestreamService.createScheduledStream(
+      req.admin.areaId,
+      req.admin.adminId,
+      req.body
+    );
+    return created(res, { livestream }, 'Live stream scheduled');
   } catch (err) {
     next(err);
   }
 });
 
-// PUT /api/livestreams/:id — Admin: update livestream
+// PUT /api/livestreams/:id - Admin: edit an upcoming schedule or cancel it
 router.put('/:id', authenticateAdmin, async (req, res, next) => {
   try {
-    const ref = db.collection('livestreams').doc(req.params.id);
-    const doc = await ref.get();
-    if (!doc.exists || doc.data().area_id !== req.admin.areaId) {
-      return notFound(res, 'Livestream not found');
-    }
-
-    const { title, youtube_url, is_active } = req.body;
-    const updateData = { updated_at: admin.firestore.FieldValue.serverTimestamp() };
-
-    if (title !== undefined) updateData.title = title;
-    if (youtube_url !== undefined) {
-      if (!isValidYoutubeUrl(youtube_url)) return badRequest(res, 'Invalid YouTube URL');
-      updateData.youtube_url = youtube_url;
-    }
-    const wasInactive = doc.data().is_active === false;
-    if (is_active !== undefined) updateData.is_active = is_active;
-
-    await ref.update(updateData);
-    const updated = await ref.get();
-    const updatedData = updated.data();
-
-    // Notify area when a stream goes live (off → on)
-    if (is_active === true && wasInactive) {
-      const streamTitle = updatedData.title || 'Live Stream';
-      notificationService.sendAreaBroadcast(req.admin.areaId, {
-        type: 'livestream_started',
-        title: '🔴 Live Stream Started',
-        body: `Your dairy is now live: "${streamTitle}". Tap to watch.`,
-        meta: { livestream_id: updated.id, title: streamTitle, youtube_url: updatedData.youtube_url },
-      }).catch((e) => console.warn('[livestream] broadcast failed:', e.message));
-    }
-
-    return success(res, { livestream: { id: updated.id, ...updatedData } });
+    const livestream = await livestreamService.updateScheduledStream(
+      req.params.id,
+      req.admin.areaId,
+      req.body
+    );
+    return success(res, { livestream }, 'Live stream updated');
   } catch (err) {
     next(err);
   }
 });
 
-// DELETE /api/livestreams/:id — Admin: delete livestream
+// DELETE /api/livestreams/:id - Admin: permanently remove a schedule
 router.delete('/:id', authenticateAdmin, async (req, res, next) => {
   try {
     const ref = db.collection('livestreams').doc(req.params.id);

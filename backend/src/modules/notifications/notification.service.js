@@ -1,10 +1,35 @@
 const { db, admin } = require('../../config/firebase');
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const MAX_BATCH_WRITES = 400;
+const MAX_PUSH_TOKENS = 500;
+
+function notificationRecord(userId, areaId, { type, title, body, meta = {} }) {
+  const expiresAt = new Date(Date.now() + THREE_DAYS_MS);
+  return {
+    user_id: userId,
+    area_id: areaId,
+    type,
+    title,
+    body,
+    meta,
+    is_read: false,
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
+  };
+}
+
+function fcmData(data) {
+  return Object.fromEntries(
+    Object.entries(data)
+      .filter(([, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])
+  );
+}
 
 /**
  * Looks up the FCM token for a user and sends a push notification.
- * Silently swallows errors so a missing token never breaks the notification flow.
+ * Silently swallows errors so a missing token never breaks the business flow.
  */
 async function _sendFcmPush(userId, title, body, data = {}) {
   if (!userId) return;
@@ -16,7 +41,7 @@ async function _sendFcmPush(userId, title, body, data = {}) {
     await admin.messaging().send({
       token,
       notification: { title, body },
-      data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+      data: fcmData({ ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' }),
       android: {
         priority: 'high',
         notification: { sound: 'default', channelId: 'yaduone_default' },
@@ -26,11 +51,12 @@ async function _sendFcmPush(userId, title, body, data = {}) {
       },
     });
   } catch (err) {
-    // Invalid / expired token — clear it so we don't retry
     if (err.code === 'messaging/registration-token-not-registered' ||
         err.code === 'messaging/invalid-registration-token') {
       try {
-        await db.collection('users').doc(userId).update({ fcm_token: admin.firestore.FieldValue.delete() });
+        await db.collection('users').doc(userId).update({
+          fcm_token: admin.firestore.FieldValue.delete(),
+        });
       } catch (_) {}
     }
     console.warn('[FCM] push failed for user', userId, err.message);
@@ -38,24 +64,17 @@ async function _sendFcmPush(userId, title, body, data = {}) {
 }
 
 /**
- * Core helper — creates a notification with a 3-day auto-expiry, then pushes FCM.
+ * Creates an in-app notification with a 3-day expiry, then pushes to the device.
  */
 async function createNotification(userId, areaId, { type, title, body, meta = {} }) {
-  const expiresAt = new Date(Date.now() + THREE_DAYS_MS);
-  await db.collection('notifications').add({
-    user_id: userId,
-    area_id: areaId,
+  await db.collection('notifications').add(notificationRecord(userId, areaId, {
     type,
     title,
     body,
     meta,
-    is_read: false,
-    created_at: admin.firestore.FieldValue.serverTimestamp(),
-    expires_at: admin.firestore.Timestamp.fromDate(expiresAt),
-  });
+  }));
 
-  // Push to device (fire-and-forget)
-  _sendFcmPush(userId, title, body, { type });
+  _sendFcmPush(userId, title, body, { type, ...meta });
 }
 
 /**
@@ -68,17 +87,21 @@ async function sendDeliveryNotification(userId, areaId, order, newDueAmount) {
   const amount = order.total_amount || 0;
 
   const parts = [];
-  if (milk) parts.push(`${milk.milk_type.charAt(0).toUpperCase() + milk.milk_type.slice(1)} milk (${milk.quantity_litres}L)`);
-  extras.forEach((e) => parts.push(e.name || 'Extra item'));
+  if (milk) {
+    const milkType = milk.milk_type.charAt(0).toUpperCase() + milk.milk_type.slice(1);
+    parts.push(`${milkType} milk (${milk.quantity_litres}L)`);
+  }
+  extras.forEach((item) => parts.push(item.name || 'Extra item'));
 
   const itemsText = parts.length ? parts.join(', ') : 'Your order';
-  const body = `${itemsText} has been delivered. ₹${amount.toFixed(2)} added to your account. Your total due is now ₹${newDueAmount.toFixed(2)}.`;
+  const body = `${itemsText} has been delivered. Rs. ${amount.toFixed(2)} added to your account. Your total due is now Rs. ${newDueAmount.toFixed(2)}.`;
 
   await createNotification(userId, areaId, {
     type: 'delivery_summary',
-    title: `Delivery Confirmed · ${date}`,
+    title: `Delivery Confirmed - ${date}`,
     body,
     meta: {
+      destination: 'orders',
       date,
       milk: milk || null,
       extra_items: extras,
@@ -89,14 +112,15 @@ async function sendDeliveryNotification(userId, areaId, order, newDueAmount) {
 }
 
 /**
- * Sent when admin manually pings a user about their outstanding due.
+ * Sent when admin manually pings a user about an outstanding due.
  */
 async function sendDueReminderNotification(userId, areaId, { dueAmount, totalBilled, totalPaid }) {
   await createNotification(userId, areaId, {
     type: 'due_reminder',
     title: 'Payment Reminder from Your Dairy',
-    body: `You have an outstanding balance of ₹${dueAmount.toFixed(2)}. Please pay your delivery agent at your earliest convenience. Total billed: ₹${totalBilled.toFixed(2)}, paid: ₹${totalPaid.toFixed(2)}.`,
+    body: `You have an outstanding balance of Rs. ${dueAmount.toFixed(2)}. Please pay your delivery agent at your earliest convenience. Total billed: Rs. ${totalBilled.toFixed(2)}, paid: Rs. ${totalPaid.toFixed(2)}.`,
     meta: {
+      destination: 'dues',
       due_amount: dueAmount,
       total_billed: totalBilled,
       total_paid: totalPaid,
@@ -112,9 +136,10 @@ async function sendPaymentRecordedNotification(userId, areaId, { amount, method,
   const dateLabel = paymentDate || new Date().toISOString().split('T')[0];
   await createNotification(userId, areaId, {
     type: 'payment_recorded',
-    title: `Payment Received · ₹${amount.toFixed(2)}`,
-    body: `We've recorded your payment of ₹${amount.toFixed(2)} via ${methodLabel} on ${dateLabel}. Your remaining balance is ₹${remainingDue.toFixed(2)}.`,
+    title: `Payment Received - Rs. ${amount.toFixed(2)}`,
+    body: `We've recorded your payment of Rs. ${amount.toFixed(2)} via ${methodLabel} on ${dateLabel}. Your remaining balance is Rs. ${remainingDue.toFixed(2)}.`,
     meta: {
+      destination: 'dues',
       amount,
       method,
       payment_date: dateLabel,
@@ -124,38 +149,96 @@ async function sendPaymentRecordedNotification(userId, areaId, { amount, method,
 }
 
 /**
- * Sent when admin cancels an order.
+ * Sent when admin cancels an order before delivery.
  */
 async function sendOrderCancelledNotification(userId, areaId, { date, amount }) {
   await createNotification(userId, areaId, {
     type: 'order_cancelled',
-    title: `Order Cancelled · ${date}`,
-    body: `Your order for ${date} has been cancelled${amount > 0 ? `. ₹${amount.toFixed(2)} will not be charged.` : '.'}`,
-    meta: { date, amount },
+    title: `Order Cancelled - ${date}`,
+    body: `Your order for ${date} has been cancelled${amount > 0 ? `. Rs. ${amount.toFixed(2)} will not be charged.` : '.'}`,
+    meta: { destination: 'orders', date, amount },
   });
 }
 
 /**
- * Sent when the user's subscription is updated by admin.
+ * Sent when a user's subscription lifecycle or daily quantity changes.
  */
-async function sendSubscriptionUpdatedNotification(userId, areaId, { changeDescription }) {
+async function sendSubscriptionUpdatedNotification(
+  userId,
+  areaId,
+  { title = 'Subscription Updated', changeDescription, action = 'updated', details = {} }
+) {
   await createNotification(userId, areaId, {
     type: 'subscription_updated',
-    title: 'Subscription Updated',
+    title,
     body: changeDescription || 'Your subscription has been updated by your dairy.',
-    meta: { change_description: changeDescription },
+    meta: {
+      destination: 'subscription',
+      action,
+      change_description: changeDescription,
+      ...details,
+    },
   });
 }
 
 /**
- * Broadcast an info/alert to all users in an area (no specific user).
+ * Broadcast to every customer in an area.
+ * Each customer receives an individual in-app record so read status is private,
+ * while FCM delivery is batched to avoid a request per device.
  */
 async function sendAreaBroadcast(areaId, { type = 'info', title, body, meta = {} }) {
-  await createNotification(null, areaId, { type, title, body, meta });
+  const usersSnap = await db.collection('users').where('area_id', '==', areaId).get();
+  if (usersSnap.empty) return { recipients: 0, pushed: 0 };
+
+  const users = usersSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  for (let i = 0; i < users.length; i += MAX_BATCH_WRITES) {
+    const batch = db.batch();
+    users.slice(i, i + MAX_BATCH_WRITES).forEach((user) => {
+      const ref = db.collection('notifications').doc();
+      batch.set(ref, notificationRecord(user.id, areaId, { type, title, body, meta }));
+    });
+    await batch.commit();
+  }
+
+  const tokenUsers = users.filter((user) => user.fcm_token);
+  let pushed = 0;
+  for (let i = 0; i < tokenUsers.length; i += MAX_PUSH_TOKENS) {
+    const recipients = tokenUsers.slice(i, i + MAX_PUSH_TOKENS);
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens: recipients.map((user) => user.fcm_token),
+      notification: { title, body },
+      data: fcmData({ type, ...meta, click_action: 'FLUTTER_NOTIFICATION_CLICK' }),
+      android: {
+        priority: 'high',
+        notification: { sound: 'default', channelId: 'yaduone_default' },
+      },
+      apns: {
+        payload: { aps: { sound: 'default', badge: 1 } },
+      },
+    });
+    pushed += response.successCount;
+
+    const invalidUsers = recipients.filter((_, index) => {
+      const errorCode = response.responses[index]?.error?.code;
+      return errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token';
+    });
+    if (invalidUsers.length) {
+      const batch = db.batch();
+      invalidUsers.forEach((user) => {
+        batch.update(db.collection('users').doc(user.id), {
+          fcm_token: admin.firestore.FieldValue.delete(),
+        });
+      });
+      await batch.commit();
+    }
+  }
+
+  return { recipients: users.length, pushed };
 }
 
 /**
- * Delete all expired notification docs (fire-and-forget cleanup).
+ * Delete expired notification records during routine cleanup.
  */
 async function purgeExpiredNotifications() {
   try {
@@ -167,7 +250,7 @@ async function purgeExpiredNotifications() {
       .get();
     if (snap.empty) return;
     const batch = db.batch();
-    snap.docs.forEach((d) => batch.delete(d.ref));
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
   } catch (err) {
     console.error('[purgeExpiredNotifications]', err.message);
