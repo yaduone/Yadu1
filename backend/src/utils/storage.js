@@ -1,10 +1,10 @@
 /**
  * storage.js — Firebase Storage image provider
  *
- * Uploads product images to Firebase Storage and returns permanent public URLs.
+ * Uploads product and category images to Firebase Storage and returns permanent public URLs.
  * Requires FIREBASE_STORAGE_BUCKET to be set in .env.
  *
- * uploadImages(files, req)  → Promise<string[]>   public CDN URLs
+ * uploadImages(files, folder) → Promise<string[]> public CDN URLs
  * deleteImages(urls)        → Promise<void>
  */
 
@@ -20,7 +20,7 @@ function getBucket() {
  * Upload multer memory-buffer files to Firebase Storage.
  * Returns an array of permanent public URLs.
  */
-async function uploadImages(files) {
+async function uploadImages(files, folder = 'products') {
   const bucket = getBucket();
   const urls = [];
 
@@ -32,7 +32,7 @@ async function uploadImages(files) {
   for (const file of files) {
     try {
       const ext      = path.extname(file.originalname).toLowerCase();
-      const filename = `products/${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
+      const filename = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
       const fileRef  = bucket.file(filename);
 
       logUpload('Uploading file', {

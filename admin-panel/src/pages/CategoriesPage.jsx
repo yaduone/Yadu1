@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
-import { Plus, Pencil, Trash2, X, Tag, AlertTriangle, Check } from 'lucide-react';
+import {
+  Plus, Pencil, Trash2, X, Tag, AlertTriangle, Check, ImagePlus, Upload,
+} from 'lucide-react';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading]       = useState(true);
-
-  const [showForm, setShowForm]     = useState(false);
-  const [editingId, setEditingId]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [labelInput, setLabelInput] = useState('');
-  const [formError, setFormError]   = useState('');
-  const [saving, setSaving]         = useState(false);
-
+  const [existingImage, setExistingImage] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [removeImage, setRemoveImage] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting]         = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef(null);
 
   function load() {
     setLoading(true);
@@ -24,17 +29,29 @@ export default function CategoriesPage() {
   }
 
   useEffect(() => { load(); }, []);
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
+  function resetImageState(image = '') {
+    setExistingImage(image);
+    setImageFile(null);
+    setImagePreview('');
+    setRemoveImage(false);
+  }
 
   function openAdd() {
     setEditingId(null);
     setLabelInput('');
+    resetImageState();
     setFormError('');
     setShowForm(true);
   }
 
-  function openEdit(cat) {
-    setEditingId(cat.id);
-    setLabelInput(cat.label);
+  function openEdit(category) {
+    setEditingId(category.id);
+    setLabelInput(category.label);
+    resetImageState(category.image_url || '');
     setFormError('');
     setShowForm(true);
   }
@@ -43,19 +60,47 @@ export default function CategoriesPage() {
     setShowForm(false);
     setEditingId(null);
     setLabelInput('');
+    resetImageState();
     setFormError('');
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!labelInput.trim()) { setFormError('Label is required.'); return; }
+  function handleImageChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!/\.(jpe?g|png)$/i.test(file.name)) {
+      setFormError('Only JPG and PNG files are allowed.');
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setRemoveImage(false);
+    setFormError('');
+  }
+
+  function removeSelectedImage() {
+    setImageFile(null);
+    setImagePreview('');
+    setRemoveImage(Boolean(existingImage));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!labelInput.trim()) {
+      setFormError('Label is required.');
+      return;
+    }
     setSaving(true);
     setFormError('');
     try {
+      const data = new FormData();
+      data.append('label', labelInput.trim());
+      if (imageFile) data.append('image', imageFile);
+      if (removeImage && !imageFile) data.append('remove_image', 'true');
       if (editingId) {
-        await api.put(`/categories/${editingId}`, { label: labelInput.trim() });
+        await api.put(`/categories/${editingId}`, data);
       } else {
-        await api.post('/categories', { label: labelInput.trim() });
+        await api.post('/categories', data);
       }
       closeForm();
       load();
@@ -80,9 +125,10 @@ export default function CategoriesPage() {
     }
   }
 
+  const visibleImage = imagePreview || (!removeImage ? existingImage : '');
+
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="page-title">Categories</h2>
@@ -95,50 +141,93 @@ export default function CategoriesPage() {
         </button>
       </div>
 
-      {/* Inline form */}
       {showForm && (
         <div className="card p-5 animate-scale-in">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
               <Tag size={15} className="text-blue-600" />
             </div>
-            <h3 className="font-semibold text-slate-800">{editingId ? 'Rename Category' : 'New Category'}</h3>
+            <h3 className="font-semibold text-slate-800">
+              {editingId ? 'Edit Category' : 'New Category'}
+            </h3>
           </div>
-          <form onSubmit={handleSubmit} className="flex gap-2 items-start">
-            <div className="flex-1">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
               <input
                 autoFocus
                 placeholder="e.g. Paneer"
                 value={labelInput}
-                onChange={(e) => setLabelInput(e.target.value)}
+                onChange={(event) => setLabelInput(event.target.value)}
                 className="input"
               />
               {editingId && (
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Note: only the display label changes. The internal slug stays the same so existing products are not affected.
+                  The display label can change while the internal slug remains stable for assigned products.
                 </p>
               )}
-              {formError && (
-                <div className="flex items-center gap-1.5 text-sm text-red-600 mt-2">
-                  <AlertTriangle size={13} />
-                  {formError}
-                </div>
-              )}
             </div>
-            <button type="submit" disabled={saving} className="btn-primary shrink-0 disabled:opacity-60">
-              {saving
-                ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <Check size={15} />}
-              {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
-            </button>
-            <button type="button" onClick={closeForm} className="btn-secondary shrink-0">
-              <X size={15} />
-            </button>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-2">
+                <ImagePlus size={13} />
+                Sidebar Circle Image
+                <span className="text-slate-400 font-normal normal-case tracking-normal">
+                  JPG / PNG - max 5 MB
+                </span>
+              </label>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                  {visibleImage ? (
+                    <img src={visibleImage} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Tag size={24} className="text-slate-300" />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-secondary">
+                    <Upload size={15} />
+                    {visibleImage ? 'Change Image' : 'Upload Image'}
+                  </button>
+                  {visibleImage && (
+                    <button type="button" onClick={removeSelectedImage} className="btn-secondary text-red-500">
+                      <X size={15} />
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png"
+                className="hidden"
+                onChange={handleImageChange}
+              />
+            </div>
+
+            {formError && (
+              <div className="flex items-center gap-1.5 text-sm text-red-600">
+                <AlertTriangle size={13} />
+                {formError}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button type="submit" disabled={saving} className="btn-primary shrink-0 disabled:opacity-60">
+                {saving
+                  ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <Check size={15} />}
+                {saving ? 'Saving...' : editingId ? 'Update' : 'Create'}
+              </button>
+              <button type="button" onClick={closeForm} className="btn-secondary shrink-0">
+                <X size={15} />
+                Cancel
+              </button>
+            </div>
           </form>
         </div>
       )}
 
-      {/* List */}
       {loading ? (
         <div className="space-y-2">
           {[...Array(6)].map((_, i) => (
@@ -156,25 +245,37 @@ export default function CategoriesPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Image</th>
                 <th>Label</th>
                 <th>Slug</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {categories.map((cat) => (
-                <tr key={cat.id}>
-                  <td className="font-semibold text-slate-800 capitalize">{cat.label}</td>
+              {categories.map((category) => (
+                <tr key={category.id}>
                   <td>
-                    <code className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">{cat.slug}</code>
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 border border-slate-100 flex items-center justify-center">
+                      {category.image_url ? (
+                        <img src={category.image_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Tag size={18} className="text-slate-300" />
+                      )}
+                    </div>
+                  </td>
+                  <td className="font-semibold text-slate-800 capitalize">{category.label}</td>
+                  <td>
+                    <code className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg">
+                      {category.slug}
+                    </code>
                   </td>
                   <td>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(cat)} className="btn-icon" title="Rename">
+                      <button onClick={() => openEdit(category)} className="btn-icon" title="Edit">
                         <Pencil size={14} />
                       </button>
                       <button
-                        onClick={() => setDeleteTarget(cat)}
+                        onClick={() => setDeleteTarget(category)}
                         className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
                         title="Delete"
                       >
@@ -189,7 +290,6 @@ export default function CategoriesPage() {
         </div>
       )}
 
-      {/* Delete modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 animate-scale-in">
@@ -209,7 +309,7 @@ export default function CategoriesPage() {
               <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="btn-secondary">Cancel</button>
               <button onClick={confirmDelete} disabled={deleting} className="btn-danger disabled:opacity-60">
                 {deleting
-                  ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting…</>
+                  ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Deleting...</>
                   : 'Delete'}
               </button>
             </div>
