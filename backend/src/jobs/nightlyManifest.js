@@ -5,6 +5,7 @@ const dateUtil = require('../utils/date');
 const orderService = require('../modules/orders/order.service');
 const manifestService = require('../modules/manifests/manifest.service');
 const manifestSettings = require('../modules/settings/manifestSettings.service');
+let lastPastDeliverySweepDate = null;
 
 /**
  * Nightly job: process all areas, create orders, generate manifests.
@@ -52,6 +53,13 @@ async function runScheduledManifestCheck() {
   const deliveryDate = dateUtil.tomorrow();
 
   try {
+    const today = dateUtil.today();
+    if (lastPastDeliverySweepDate !== today) {
+      const markedNotDelivered = await orderService.markPastPendingOrdersNotDelivered();
+      lastPastDeliverySweepDate = today;
+      console.log(`[CRON] Marked ${markedNotDelivered} unconfirmed past orders as not delivered`);
+    }
+
     const areasSnap = await db.collection('areas').where('is_active', '==', true).get();
 
     for (const areaDoc of areasSnap.docs) {
@@ -164,8 +172,24 @@ async function processArea(areaId, deliveryDate) {
       continue;
     }
 
-    // 4. Skip if nothing to deliver
-    if (isSkipped && extraItems.length === 0) continue;
+    // 4. Keep a historical non-delivery record for a fully skipped date.
+    // The manifest builder excludes these records because no delivery is routed.
+    if (isSkipped && extraItems.length === 0) {
+      const skippedOrder = await orderService.createOrder({
+        userId,
+        areaId,
+        date: deliveryDate,
+        milk: null,
+        deliverySlot,
+        extraItems: [],
+        totalAmount: 0,
+        status: 'not_delivered',
+        nonDeliveryReason: 'skipped',
+      });
+
+      if (skippedOrder.created) ordersCreated++;
+      continue;
+    }
 
     // If skipped but has extras, milk is null but we still create the order for extras
     const milkTotal = milk ? milk.total : 0;

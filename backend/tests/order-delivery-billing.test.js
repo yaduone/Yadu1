@@ -61,6 +61,28 @@ describe('delivery status billing transaction', () => {
     expect(result.created).toBe(true);
   });
 
+  test('persists a skipped delivery as not delivered without a charge', async () => {
+    mockTransaction.get.mockResolvedValue({ exists: false });
+
+    await createOrder({
+      userId: 'user-1',
+      areaId: 'area-1',
+      date: '2026-05-25',
+      milk: null,
+      deliverySlot: 'morning',
+      extraItems: [],
+      totalAmount: 0,
+      status: 'not_delivered',
+      nonDeliveryReason: 'skipped',
+    });
+
+    expect(mockTransaction.create).toHaveBeenCalledWith(mockOrderRef, expect.objectContaining({
+      status: 'not_delivered',
+      non_delivery_reason: 'skipped',
+      total_amount: 0,
+    }));
+  });
+
   test('marks delivery and adds the charge inside the same transaction', async () => {
     const order = {
       area_id: 'area-1',

@@ -77,7 +77,17 @@ async function buildGeneratedOrderRows(areaId, date) {
     .where('date', '==', date)
     .get();
 
-  return enrichRowsWithUsers(ordersSnap.docs.map((orderDoc) => {
+  const routedOrders = ordersSnap.docs.filter((orderDoc) => {
+    const order = orderDoc.data();
+    return !(
+      order.status === 'not_delivered' &&
+      order.non_delivery_reason === 'skipped' &&
+      !order.milk &&
+      (order.extra_items || []).length === 0
+    );
+  });
+
+  return enrichRowsWithUsers(routedOrders.map((orderDoc) => {
     const order = orderDoc.data();
     return {
       orderId: orderDoc.id,

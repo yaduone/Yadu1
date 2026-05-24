@@ -1,11 +1,14 @@
 const { db } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const manifestSettings = require('../settings/manifestSettings.service');
+const orderService = require('../orders/order.service');
 
 /**
  * Get user's personal report/insights.
  */
 async function getUserSummary(userId) {
+  await orderService.markPastPendingOrdersNotDelivered({ userId });
+
   const ordersSnap = await db.collection('orders').where('user_id', '==', userId).get();
 
   let totalMilkDelivered = 0;
@@ -13,6 +16,8 @@ async function getUserSummary(userId) {
   let totalSpent = 0;
   let extraItemsCount = 0;
   const monthlySummary = {};
+  const notDeliveredDates = new Set();
+  const skippedDates = new Set();
 
   for (const doc of ordersSnap.docs) {
     const order = doc.data();
@@ -29,27 +34,39 @@ async function getUserSummary(userId) {
       monthlySummary[month].amount += order.total_amount;
     } else if (order.status === 'pending') {
       if (order.milk) totalMilkPending += order.milk.quantity_litres;
+    } else if (
+      order.status === 'not_delivered' ||
+      order.status === 'cancelled' ||
+      order.status === 'skipped'
+    ) {
+      notDeliveredDates.add(order.date);
+      if (order.non_delivery_reason === 'skipped' || order.status === 'skipped') {
+        skippedDates.add(order.date);
+      }
     }
 
     extraItemsCount += (order.extra_items || []).length;
     monthlySummary[month].extra_items += (order.extra_items || []).length;
   }
 
-  // Count skipped days from audit logs or overrides
+  // Include a requested skip that has not yet been finalized into an order.
   const skipsSnap = await db
     .collection('next_day_overrides')
     .where('user_id', '==', userId)
     .where('override_type', '==', 'skip')
     .get();
 
-  // Also count historical skips from orders that were not created (harder — approximate with override count)
-  const totalSkippedDays = skipsSnap.size;
+  skipsSnap.docs.forEach((doc) => {
+    notDeliveredDates.add(doc.data().date);
+    skippedDates.add(doc.data().date);
+  });
 
   return {
     total_milk_delivered_litres: totalMilkDelivered,
     total_milk_pending_litres: totalMilkPending,
+    total_not_delivered_days: notDeliveredDates.size,
     total_spent: Math.round(totalSpent * 100) / 100,
-    total_skipped_days: totalSkippedDays,
+    total_skipped_days: skippedDates.size,
     extra_items_count: extraItemsCount,
     monthly_summary: Object.values(monthlySummary).sort((a, b) => (b.month > a.month ? 1 : -1)),
   };
@@ -162,6 +179,8 @@ async function getAdminDashboard(areaId) {
  * Admin: daily stats for date range.
  */
 async function getDailyStats(areaId, from, to) {
+  await orderService.markPastPendingOrdersNotDelivered({ areaId });
+
   const ordersSnap = await db
     .collection('orders')
     .where('area_id', '==', areaId)
@@ -173,12 +192,28 @@ async function getDailyStats(areaId, from, to) {
   ordersSnap.docs.forEach((doc) => {
     const order = doc.data();
     if (!dailyMap[order.date]) {
-      dailyMap[order.date] = { date: order.date, orders: 0, milk_litres: 0, amount: 0, delivered: 0 };
+      dailyMap[order.date] = {
+        date: order.date,
+        orders: 0,
+        milk_litres: 0,
+        amount: 0,
+        delivered: 0,
+        not_delivered: 0,
+      };
     }
     dailyMap[order.date].orders++;
     if (order.milk) dailyMap[order.date].milk_litres += order.milk.quantity_litres;
-    dailyMap[order.date].amount += order.total_amount;
-    if (order.status === 'delivered') dailyMap[order.date].delivered++;
+    if (order.status === 'delivered') {
+      dailyMap[order.date].amount += order.total_amount;
+      dailyMap[order.date].delivered++;
+    }
+    if (
+      order.status === 'not_delivered' ||
+      order.status === 'cancelled' ||
+      order.status === 'skipped'
+    ) {
+      dailyMap[order.date].not_delivered++;
+    }
   });
 
   return Object.values(dailyMap).sort((a, b) => (a.date > b.date ? 1 : -1));
@@ -187,9 +222,11 @@ async function getDailyStats(areaId, from, to) {
 /**
  * Get user's delivery calendar for a given month.
  * Returns a map of date -> { status, milk, extra_items, total_amount }
- * status: 'delivered' | 'pending' | 'cancelled' | 'skipped'
+ * status: 'delivered' | 'pending' | 'not_delivered'
  */
 async function getUserCalendar(userId, month) {
+  await orderService.markPastPendingOrdersNotDelivered({ userId });
+
   // month format: YYYY-MM
   const startDate = `${month}-01`;
   const [year, mon] = month.split('-').map(Number);
@@ -209,9 +246,13 @@ async function getUserCalendar(userId, month) {
   for (const doc of ordersSnap.docs) {
     const o = doc.data();
     if (!o.date || o.date < startDate || o.date >= endDate) continue;
+    const status = o.status === 'cancelled' || o.status === 'skipped' ? 'not_delivered' : o.status;
     calendar[o.date] = {
       order_id: doc.id,
-      status: o.status,
+      status,
+      non_delivery_reason: o.non_delivery_reason ||
+        (o.status === 'skipped' ? 'skipped' : o.status === 'cancelled' ? 'cancelled' : null),
+      delivery_slot: o.delivery_slot || null,
       milk: o.milk || null,
       extra_items: o.extra_items || [],
       total_amount: o.total_amount,
@@ -229,23 +270,30 @@ async function getUserCalendar(userId, month) {
   for (const doc of skipsSnap.docs) {
     const d = doc.data().date;
     if (d >= startDate && d < endDate && !calendar[d]) {
-      calendar[d] = { order_id: null, status: 'skipped', milk: null, extra_items: [], total_amount: 0 };
+      calendar[d] = {
+        order_id: null,
+        status: 'not_delivered',
+        non_delivery_reason: 'skipped',
+        delivery_slot: null,
+        milk: null,
+        extra_items: [],
+        total_amount: 0,
+      };
     }
   }
 
   // Summary counts
-  let delivered = 0, pending = 0, skipped = 0, cancelled = 0;
+  let delivered = 0, pending = 0, notDelivered = 0;
   for (const entry of Object.values(calendar)) {
     if (entry.status === 'delivered') delivered++;
     else if (entry.status === 'pending') pending++;
-    else if (entry.status === 'skipped') skipped++;
-    else if (entry.status === 'cancelled') cancelled++;
+    else if (entry.status === 'not_delivered') notDelivered++;
   }
 
   return {
     month,
     calendar,
-    summary: { delivered, pending, skipped, cancelled },
+    summary: { delivered, pending, not_delivered: notDelivered },
   };
 }
 

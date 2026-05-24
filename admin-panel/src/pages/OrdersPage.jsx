@@ -5,12 +5,14 @@ import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package } from 'lucide
 const STATUS_BADGE = {
   delivered: 'badge badge-green',
   pending: 'badge badge-yellow',
+  not_delivered: 'badge badge-red',
   cancelled: 'badge badge-red',
 };
 
 const STATUS_ICON = {
   delivered: <CheckCircle2 size={13} className="text-emerald-500" />,
   pending: <Clock size={13} className="text-amber-500" />,
+  not_delivered: <XCircle size={13} className="text-red-500" />,
   cancelled: <XCircle size={13} className="text-red-400" />,
 };
 
@@ -51,6 +53,18 @@ function getDisplayAmount(order, activeTab) {
 
 function money(amount) {
   return `Rs.${(Number(amount) || 0).toFixed(2)}`;
+}
+
+function displayStatus(status) {
+  return status === 'cancelled' || status === 'skipped' ? 'not_delivered' : status;
+}
+
+function statusLabel(status) {
+  return {
+    delivered: 'Delivered',
+    pending: 'Pending',
+    not_delivered: 'Not Delivered',
+  }[displayStatus(status)] || status;
 }
 
 export default function OrdersPage() {
@@ -104,7 +118,7 @@ export default function OrdersPage() {
     setSelectedOrders([]);
   }
 
-  const milkOrders = orders.filter((o) => o.milk);
+  const milkOrders = orders.filter((o) => o.milk || o.non_delivery_reason === 'skipped' || o.status === 'skipped');
   const productOrders = orders.filter((o) => getExtras(o).length > 0);
   const visibleOrders = activeTab === 'milk' ? milkOrders : productOrders;
   const milkLitres = milkOrders.reduce((sum, o) => sum + (Number(o.milk?.quantity_litres) || 0), 0);
@@ -113,7 +127,8 @@ export default function OrdersPage() {
   const canMarkDelivered = date <= today;
   const pendingOrders = visibleOrders.filter((o) => o.status === 'pending' && canMarkDelivered);
   const counts = visibleOrders.reduce((acc, o) => {
-    acc[o.status] = (acc[o.status] || 0) + 1;
+    const status = displayStatus(o.status);
+    acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
   const activeLabel = activeTab === 'milk' ? 'milk deliveries' : 'product orders';
@@ -157,7 +172,7 @@ export default function OrdersPage() {
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="delivered">Delivered</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="not_delivered">Not Delivered</option>
         </select>
       </div>
 
@@ -195,7 +210,7 @@ export default function OrdersPage() {
           {[
             { key: 'pending', label: 'Pending', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
             { key: 'delivered', label: 'Delivered', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            { key: 'cancelled', label: 'Cancelled', cls: 'bg-red-50 text-red-600 border-red-200' },
+            { key: 'not_delivered', label: 'Not Delivered', cls: 'bg-red-50 text-red-600 border-red-200' },
           ].map(({ key, label, cls }) => counts[key] ? (
             <span key={key} className={`badge border ${cls}`}>
               {STATUS_ICON[key]}
@@ -316,6 +331,19 @@ function CustomerBlock({ order }) {
 
 function DeliveryDetails({ order, activeTab }) {
   if (activeTab === 'milk') {
+    if (!order.milk) {
+      return (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">
+            Milk Subscription
+          </p>
+          <span className="font-medium text-red-600">
+            {order.non_delivery_reason === 'skipped' ? 'Skipped by user' : 'Not delivered'}
+          </span>
+        </div>
+      );
+    }
+
     return (
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">
@@ -346,10 +374,11 @@ function DeliveryDetails({ order, activeTab }) {
 }
 
 function StatusBadge({ status }) {
+  const normalized = displayStatus(status);
   return (
-    <span className={`${STATUS_BADGE[status] || 'badge badge-gray'} flex items-center gap-1 w-fit`}>
-      {STATUS_ICON[status]}
-      {status}
+    <span className={`${STATUS_BADGE[normalized] || 'badge badge-gray'} flex items-center gap-1 w-fit`}>
+      {STATUS_ICON[normalized]}
+      {statusLabel(status)}
     </span>
   );
 }

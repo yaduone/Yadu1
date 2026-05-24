@@ -6,7 +6,17 @@ const dateUtil = require('../../utils/date');
 /**
  * Create an order from subscription + cart data (called by nightly job).
  */
-async function createOrder({ userId, areaId, date, milk, deliverySlot, extraItems, totalAmount }) {
+async function createOrder({
+  userId,
+  areaId,
+  date,
+  milk,
+  deliverySlot,
+  extraItems,
+  totalAmount,
+  status = 'pending',
+  nonDeliveryReason = null,
+}) {
   const orderData = {
     user_id: userId,
     area_id: areaId,
@@ -15,7 +25,8 @@ async function createOrder({ userId, areaId, date, milk, deliverySlot, extraItem
     milk: milk || null,
     extra_items: extraItems || [],
     total_amount: totalAmount,
-    status: 'pending',
+    status,
+    non_delivery_reason: nonDeliveryReason,
     notes: null,
     created_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -38,6 +49,42 @@ async function createOrder({ userId, areaId, date, milk, deliverySlot, extraItem
   });
 
   return { id: docRef.id, ...savedOrder, created };
+}
+
+/**
+ * Persist the outcome of generated deliveries that were never marked delivered.
+ * Today's orders remain pending so admins can record delivery through the day.
+ */
+async function markPastPendingOrdersNotDelivered({ userId, areaId } = {}) {
+  let query = db.collection('orders');
+  if (userId) {
+    query = query.where('user_id', '==', userId);
+  } else if (areaId) {
+    query = query.where('area_id', '==', areaId);
+  } else {
+    query = query.where('status', '==', 'pending');
+  }
+
+  const snap = await query.get();
+  const today = dateUtil.today();
+  const missedDocs = snap.docs.filter((doc) => {
+    const order = doc.data();
+    return order.status === 'pending' && order.date && order.date < today;
+  });
+
+  for (let i = 0; i < missedDocs.length; i += 450) {
+    const batch = db.batch();
+    missedDocs.slice(i, i + 450).forEach((doc) => {
+      batch.update(doc.ref, {
+        status: 'not_delivered',
+        non_delivery_reason: 'not_marked_delivered',
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  }
+
+  return missedDocs.length;
 }
 
 function extrasTotal(extraItems = []) {
@@ -81,6 +128,8 @@ async function syncPendingOrderExtras(orderDoc, extraItems = []) {
  * Get order history for a user.
  */
 async function getUserOrders(userId, { page = 1, limit = 20, month }) {
+  await markPastPendingOrdersNotDelivered({ userId });
+
   let query = db.collection('orders').where('user_id', '==', userId);
 
   if (month) {
@@ -106,6 +155,8 @@ async function getUserOrders(userId, { page = 1, limit = 20, month }) {
  * Get single order by ID (for user).
  */
 async function getOrderById(orderId, userId) {
+  await markPastPendingOrdersNotDelivered({ userId });
+
   const doc = await db.collection('orders').doc(orderId).get();
   if (!doc.exists || doc.data().user_id !== userId) return null;
   return { id: doc.id, ...doc.data() };
@@ -115,14 +166,26 @@ async function getOrderById(orderId, userId) {
  * Admin: list orders for area, enriched with user name and address.
  */
 async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 }) {
+  await markPastPendingOrdersNotDelivered({ areaId });
+
   let query = db.collection('orders').where('area_id', '==', areaId);
   if (date) query = query.where('date', '==', date);
-  if (status) query = query.where('status', '==', status);
 
   const snap = await query.get();
-  const orders = snap.docs
+  let orders = snap.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }))
     .sort((a, b) => (b.date > a.date ? 1 : -1));
+
+  if (status) {
+    orders = orders.filter((order) => {
+      if (status === 'not_delivered') {
+        return order.status === 'not_delivered' ||
+          order.status === 'cancelled' ||
+          order.status === 'skipped';
+      }
+      return order.status === status;
+    });
+  }
 
   // Collect unique user IDs and fetch their profiles
   const userIds = [...new Set(orders.map((o) => o.user_id).filter(Boolean))];
@@ -241,6 +304,7 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
 
 module.exports = {
   createOrder,
+  markPastPendingOrdersNotDelivered,
   extrasTotal,
   orderTotal,
   syncPendingOrderExtras,
