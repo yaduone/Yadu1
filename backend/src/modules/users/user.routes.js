@@ -3,8 +3,9 @@ const router = express.Router();
 const { db } = require('../../config/firebase');
 const { admin: firebaseAdmin } = require('../../config/firebase');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
-const { success, forbidden, notFound } = require('../../utils/response');
+const { success, badRequest, forbidden, notFound } = require('../../utils/response');
 const { logActivity } = require('../../utils/activityLog');
+const reportService = require('../reports/report.service');
 
 const MAX_BATCH_WRITES = 450;
 const USER_OWNED_COLLECTIONS = [
@@ -164,6 +165,27 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
     });
 
     return success(res, { users, total: users.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/users/admin/:userId/calendar?month=YYYY-MM - Admin: view delivery calendar
+router.get('/admin/:userId/calendar', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { month } = req.query;
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return badRequest(res, 'month is required in YYYY-MM format');
+    }
+
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists || userDoc.data().area_id !== req.admin.areaId) {
+      return notFound(res, 'User not found');
+    }
+
+    const data = await reportService.getUserCalendar(userId, month);
+    return success(res, data);
   } catch (err) {
     next(err);
   }

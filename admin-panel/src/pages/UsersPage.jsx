@@ -3,6 +3,7 @@ import api from '../services/api';
 import {
   AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus,
   HelpCircle, ShieldAlert, ShoppingCart, X, Package, Milk, Loader2,
+  CalendarDays, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -17,6 +18,30 @@ const MILK_COLORS = {
   buffalo: 'bg-blue-50 text-blue-700 ring-blue-100',
   toned:   'bg-emerald-50 text-emerald-700 ring-emerald-100',
 };
+const DELIVERY_STATUS = {
+  delivered: {
+    label: 'Delivered',
+    badge: 'badge badge-green',
+    dot: 'bg-emerald-500',
+    cell: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  },
+  pending: {
+    label: 'Pending',
+    badge: 'badge badge-yellow',
+    dot: 'bg-amber-500',
+    cell: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  },
+  not_delivered: {
+    label: 'Not Delivered',
+    badge: 'badge badge-red',
+    dot: 'bg-red-500',
+    cell: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+  },
+};
+const INITIAL_CALENDAR_MONTH = (() => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+})();
 
 const FILTER_CONFIG = [
   { key: 'active',             label: 'Active',           icon: UserCheck,   color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
@@ -190,6 +215,187 @@ function CartModal({ user, onClose }) {
   );
 }
 
+function normalizeDeliveryStatus(status) {
+  return status === 'skipped' || status === 'cancelled' ? 'not_delivered' : status;
+}
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function moveMonth(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function nonDeliveryReason(entry) {
+  if (entry.non_delivery_reason === 'skipped') return 'Skipped by user';
+  if (entry.non_delivery_reason === 'not_marked_delivered') return 'Not confirmed as delivered';
+  if (entry.non_delivery_reason === 'cancelled') return 'Delivery was cancelled';
+  return 'Delivery was not completed';
+}
+
+function DeliveryCalendarModal({ user, onClose }) {
+  const [focusedMonth, setFocusedMonth] = useState(INITIAL_CALENDAR_MONTH);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [result, setResult] = useState({ requestKey: '', data: null, error: '' });
+  const requestedMonth = monthKey(focusedMonth);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get(`/users/admin/${user.id}/calendar?month=${requestedMonth}`)
+      .then((res) => {
+        if (!cancelled) {
+          setResult({ requestKey: requestedMonth, data: res.data.data, error: '' });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResult({ requestKey: requestedMonth, data: null, error: 'Failed to load delivery calendar.' });
+        }
+      });
+    return () => { cancelled = true; };
+  }, [user.id, requestedMonth]);
+
+  const currentData = result.requestKey === requestedMonth ? result.data : null;
+  const error = result.requestKey === requestedMonth ? result.error : '';
+  const loading = !currentData && !error;
+  const calendar = currentData?.calendar || {};
+  const summary = currentData?.summary || {};
+  const selectedEntry = calendar[selectedDate];
+  const selectedStatus = selectedEntry
+    ? DELIVERY_STATUS[normalizeDeliveryStatus(selectedEntry.status)]
+    : null;
+  const firstOffset = new Date(focusedMonth.getFullYear(), focusedMonth.getMonth(), 1).getDay();
+  const daysInMonth = new Date(focusedMonth.getFullYear(), focusedMonth.getMonth() + 1, 0).getDate();
+  const canGoNext = requestedMonth < monthKey(INITIAL_CALENDAR_MONTH);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 animate-scale-in overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+              <CalendarDays size={16} />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800 text-sm leading-tight">Delivery Calendar</p>
+              <p className="text-[10px] text-slate-400">{user.name || user.phone || 'Unknown user'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn-icon text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 max-h-[75vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={() => setFocusedMonth((month) => moveMonth(month, -1))}
+              className="btn-icon text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <p className="font-semibold text-slate-700">
+              {focusedMonth.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setFocusedMonth((month) => moveMonth(month, 1))}
+              disabled={!canGoNext}
+              className="btn-icon text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Next month"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mb-4 text-xs">
+            {Object.values(DELIVERY_STATUS).map((status) => (
+              <span key={status.label} className="inline-flex items-center gap-1.5 text-slate-500">
+                <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+                {status.label}
+              </span>
+            ))}
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
+              <Loader2 size={18} className="animate-spin" />
+              <span className="text-sm">Loading calendar...</span>
+            </div>
+          ) : error ? (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={14} className="shrink-0" />
+              {error}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                  <span key={day} className="text-[10px] font-bold text-slate-400 uppercase">{day}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: firstOffset }).map((_, index) => (
+                  <span key={`empty-${index}`} />
+                ))}
+                {Array.from({ length: daysInMonth }).map((_, index) => {
+                  const day = index + 1;
+                  const date = `${requestedMonth}-${String(day).padStart(2, '0')}`;
+                  const entry = calendar[date];
+                  const status = entry ? DELIVERY_STATUS[normalizeDeliveryStatus(entry.status)] : null;
+                  return (
+                    <button
+                      type="button"
+                      key={date}
+                      disabled={!entry}
+                      title={status ? status.label : 'No delivery record'}
+                      onClick={() => setSelectedDate(date)}
+                      className={`h-11 rounded-lg flex flex-col items-center justify-center text-xs font-semibold transition ${
+                        status ? status.cell : 'text-slate-400'
+                      } ${selectedDate === date ? 'outline outline-2 outline-blue-400' : ''}`}
+                    >
+                      {day}
+                      {status && <span className={`w-1.5 h-1.5 rounded-full mt-1 ${status.dot}`} />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                {Object.entries(DELIVERY_STATUS).map(([key, status]) => (
+                  <div key={key} className="rounded-xl border border-slate-100 p-2 text-center">
+                    <p className="text-lg font-bold text-slate-700">{summary[key] || 0}</p>
+                    <p className="text-[10px] text-slate-500">{status.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedEntry && selectedStatus && (
+                <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-IN', {
+                        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                      })}
+                    </p>
+                    <span className={selectedStatus.badge}>{selectedStatus.label}</span>
+                  </div>
+                  {normalizeDeliveryStatus(selectedEntry.status) === 'not_delivered' && (
+                    <p className="text-xs text-red-600 mt-2">{nonDeliveryReason(selectedEntry)}</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const [users, setUsers]     = useState([]);
   const [dueMap, setDueMap]   = useState({});
@@ -203,6 +409,7 @@ export default function UsersPage() {
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState('');
   const [cartUser, setCartUser] = useState(null);
+  const [calendarUser, setCalendarUser] = useState(null);
 
   useEffect(() => {
     Promise.all([api.get('/users/admin/list'), api.get('/dues/admin/list')])
@@ -387,6 +594,15 @@ export default function UsersPage() {
                           >
                             <ShoppingCart size={14} />
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setCalendarUser(user)}
+                            className="btn-icon text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50"
+                            title="View delivery calendar"
+                            aria-label={`View delivery calendar for ${user.name || user.phone || 'user'}`}
+                          >
+                            <CalendarDays size={14} />
+                          </button>
                           {user.deletion_requested ? (
                             <button
                               type="button"
@@ -532,6 +748,15 @@ export default function UsersPage() {
                           >
                             <ShoppingCart size={14} />
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setCalendarUser(user)}
+                            className="btn-icon text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50"
+                            title="View delivery calendar"
+                            aria-label={`View delivery calendar for ${user.name || user.phone || 'user'}`}
+                          >
+                            <CalendarDays size={14} />
+                          </button>
                           {user.deletion_requested && (
                             <button
                               type="button"
@@ -565,6 +790,9 @@ export default function UsersPage() {
 
       {/* Cart modal */}
       {cartUser && <CartModal user={cartUser} onClose={() => setCartUser(null)} />}
+      {calendarUser && (
+        <DeliveryCalendarModal user={calendarUser} onClose={() => setCalendarUser(null)} />
+      )}
 
       {acceptTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
