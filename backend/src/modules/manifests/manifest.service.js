@@ -12,6 +12,7 @@ function serializeManifest(doc) {
   return {
     id,
     ...d,
+    is_final: d.status === 'preview' ? false : d.is_final !== false,
     generated_at: d.generated_at?.toDate ? d.generated_at.toDate().toISOString() : d.generated_at || null,
     pdf_filename: d.pdf_storage_path ? path.basename(d.pdf_storage_path) : null,
   };
@@ -49,51 +50,153 @@ function formatExtraItemSummaryLine(item) {
   return `${item.product_name}${unitText}: ${item.quantity}`;
 }
 
-/**
- * Generate a delivery manifest for a specific area and date.
- * Called by the nightly cron job or manual admin trigger.
- */
-async function generateManifest(areaId, date, generatedBy = 'system') {
-  // 1. Get area info
-  const areaDoc = await manifestSettings.findAreaDocByIdOrSlug(areaId);
-  if (!areaDoc) throw new Error(`Area ${areaId} not found`);
-  const area = areaDoc.data();
+async function enrichRowsWithUsers(rows) {
+  return Promise.all(rows.map(async (row) => {
+    const userDoc = await db.collection('users').doc(row.userId).get();
+    const userData = userDoc.exists ? userDoc.data() : { name: 'Unknown', phone: 'N/A', address: {} };
 
-  // 2. Get all orders for this area + date
+    return {
+      orderId: row.orderId || null,
+      userName: userData.name || 'Unknown',
+      phone: userData.phone || 'N/A',
+      address: userData.address
+        ? `${userData.address.line1 || ''}${userData.address.line2 ? ', ' + userData.address.line2 : ''}${userData.address.landmark ? ', ' + userData.address.landmark : ''}`
+        : 'N/A',
+      deliverySlot: row.deliverySlot || 'morning',
+      milk: row.milk || null,
+      extraItems: row.extraItems || [],
+      totalAmount: Number(row.totalAmount) || 0,
+    };
+  }));
+}
+
+async function buildGeneratedOrderRows(areaId, date) {
   const ordersSnap = await db
     .collection('orders')
     .where('area_id', '==', areaId)
     .where('date', '==', date)
     .get();
 
-  const orders = [];
-  for (const orderDoc of ordersSnap.docs) {
-    const orderData = orderDoc.data();
-
-    // Get user details
-    const userDoc = await db.collection('users').doc(orderData.user_id).get();
-    const userData = userDoc.exists ? userDoc.data() : { name: 'Unknown', phone: 'N/A', address: {} };
-
-    orders.push({
+  return enrichRowsWithUsers(ordersSnap.docs.map((orderDoc) => {
+    const order = orderDoc.data();
+    return {
       orderId: orderDoc.id,
-      userName: userData.name || 'Unknown',
-      phone: userData.phone || 'N/A',
-      address: userData.address
-        ? `${userData.address.line1 || ''}${userData.address.line2 ? ', ' + userData.address.line2 : ''}${userData.address.landmark ? ', ' + userData.address.landmark : ''}`
-        : 'N/A',
-      deliverySlot: orderData.delivery_slot || 'morning',
-      milk: orderData.milk,
-      extraItems: orderData.extra_items || [],
-      totalAmount: orderData.total_amount,
+      userId: order.user_id,
+      deliverySlot: order.delivery_slot,
+      milk: order.milk,
+      extraItems: order.extra_items || [],
+      totalAmount: order.total_amount,
+    };
+  }));
+}
+
+function milkFromLiveSubscription(subscription, override) {
+  if (override?.override_type === 'skip') return null;
+  const quantity = override?.override_type === 'modify'
+    ? override.modified_quantity
+    : subscription.quantity_litres;
+  return {
+    milk_type: subscription.milk_type,
+    quantity_litres: quantity,
+    price_per_litre: subscription.price_per_litre,
+    total: quantity * subscription.price_per_litre,
+  };
+}
+
+async function buildLivePreviewRows(areaId, date) {
+  const [subscriptionsSnap, cartsSnap, overridesSnap] = await Promise.all([
+    db.collection('subscriptions').where('area_id', '==', areaId).where('status', '==', 'active').get(),
+    db.collection('carts').where('area_id', '==', areaId).where('date', '==', date).get(),
+    db.collection('next_day_overrides').where('area_id', '==', areaId).where('date', '==', date).get(),
+  ]);
+
+  const cartsByUser = new Map();
+  cartsSnap.docs.forEach((doc) => {
+    const cart = doc.data();
+    cartsByUser.set(cart.user_id, cart.items || []);
+  });
+  const overridesByUser = new Map();
+  overridesSnap.docs.forEach((doc) => {
+    const override = doc.data();
+    overridesByUser.set(override.user_id, override);
+  });
+
+  const coveredUsers = new Set();
+  const rows = [];
+  subscriptionsSnap.docs.forEach((doc) => {
+    const subscription = doc.data();
+    if (subscription.start_date > date) return;
+
+    const userId = subscription.user_id;
+    const override = overridesByUser.get(userId);
+    const milk = milkFromLiveSubscription(subscription, override);
+    const extraItems = cartsByUser.get(userId) || [];
+    if (!milk && extraItems.length === 0) return;
+
+    coveredUsers.add(userId);
+    rows.push({
+      userId,
+      deliverySlot: subscription.delivery_slot || 'morning',
+      milk,
+      extraItems,
+      totalAmount: (milk?.total || 0) + extraItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0),
     });
+  });
+
+  cartsByUser.forEach((extraItems, userId) => {
+    if (coveredUsers.has(userId) || extraItems.length === 0) return;
+    rows.push({
+      userId,
+      deliverySlot: 'morning',
+      milk: null,
+      extraItems,
+      totalAmount: extraItems.reduce((sum, item) => sum + (Number(item.total) || 0), 0),
+    });
+  });
+
+  return enrichRowsWithUsers(rows);
+}
+
+/**
+ * Generate a delivery manifest for a specific area and date.
+ * Final manifests are generated from finalized order records.
+ */
+async function generateManifest(areaId, date, generatedBy = 'system') {
+  const orders = await buildGeneratedOrderRows(areaId, date);
+  return saveManifest(areaId, date, generatedBy, orders, { status: 'ready', source: 'orders' });
+}
+
+/**
+ * Generate a non-final next-day preview from the live cart and subscription state.
+ * This intentionally does not create orders or consume carts/overrides.
+ */
+async function generateLivePreview(areaId, date, generatedBy) {
+  const existingSnap = await db
+    .collection('manifests')
+    .where('area_id', '==', areaId)
+    .where('date', '==', date)
+    .limit(1)
+    .get();
+  if (!existingSnap.empty && serializeManifest(existingSnap.docs[0]).is_final) {
+    return serializeManifest(existingSnap.docs[0]);
   }
 
-  // 3. Split orders into slot groups.
+  const orders = await buildLivePreviewRows(areaId, date);
+  return saveManifest(areaId, date, generatedBy, orders, { status: 'preview', source: 'live_cart' });
+}
+
+async function saveManifest(areaId, date, generatedBy, orders, { status, source }) {
+  // 1. Get area info
+  const areaDoc = await manifestSettings.findAreaDocByIdOrSlug(areaId);
+  if (!areaDoc) throw new Error(`Area ${areaId} not found`);
+  const area = areaDoc.data();
+
+  // 2. Split orders into slot groups.
   //    'both' subscribers appear in BOTH morning and evening sections.
   const morningOrders = orders.filter((o) => o.deliverySlot === 'morning' || o.deliverySlot === 'both');
   const eveningOrders = orders.filter((o) => o.deliverySlot === 'evening' || o.deliverySlot === 'both');
 
-  // 4. Calculate totals
+  // 3. Calculate totals
   const totalUsers = orders.length;
   const totalMilkLitres = orders.reduce((sum, o) => {
     if (!o.milk) return sum;
@@ -109,9 +212,10 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
   const eveningUsers = eveningOrders.length;
   const eveningMilkLitres = eveningOrders.reduce((sum, o) => sum + (o.milk ? o.milk.quantity_litres : 0), 0);
 
-  // 5. Generate PDF to a temp file, then upload to Firebase Storage
+  // 4. Generate PDF to a temp file, then upload to Firebase Storage
   const areaFileSlug = String(area.slug || areaDoc.id || areaId || 'area').replace(/[^a-z0-9_-]/gi, '_');
-  const fileName = `${areaFileSlug}_${date}.pdf`;
+  const previewSuffix = status === 'preview' ? '_preview' : '';
+  const fileName = `${areaFileSlug}_${date}${previewSuffix}.pdf`;
   const filePath = path.join(os.tmpdir(), fileName);
 
   await generatePDF(filePath, {
@@ -128,17 +232,18 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     morningMilkLitres,
     eveningUsers,
     eveningMilkLitres,
+    isPreview: status === 'preview',
   });
 
-  // 6. Upload PDF to Firebase Storage, then clean up temp file
-  const storagePath = `manifests/${fileName}`;
+  // 5. Upload PDF to Firebase Storage, then clean up temp file
+  const storagePath = status === 'preview' ? `manifests/previews/${fileName}` : `manifests/${fileName}`;
   await bucket.upload(filePath, {
     destination: storagePath,
     metadata: { contentType: 'application/pdf' },
   });
   fs.unlink(filePath, () => {}); // clean up temp file (fire-and-forget)
 
-  // 7. Save/update manifest record
+  // 6. Save/update manifest record
   const existingSnap = await db
     .collection('manifests')
     .where('area_id', '==', areaId)
@@ -159,9 +264,12 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     evening_users: eveningUsers,
     evening_milk_litres: eveningMilkLitres,
     pdf_storage_path: storagePath, // Storage path instead of local disk path
-    status: 'ready',
+    status,
+    source,
+    is_final: status === 'ready',
     generated_at: admin.firestore.FieldValue.serverTimestamp(),
     generated_by: generatedBy,
+    finalized_at: status === 'ready' ? admin.firestore.FieldValue.serverTimestamp() : null,
   };
 
   let manifestId;
@@ -172,7 +280,13 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     manifestId = docRef.id;
   } else {
     manifestId = existingSnap.docs[0].id;
+    const replacedStoragePath = existingSnap.docs[0].data().pdf_storage_path;
     await existingSnap.docs[0].ref.update(manifestData);
+    if (status === 'ready' && replacedStoragePath && replacedStoragePath !== storagePath) {
+      bucket.file(replacedStoragePath).delete({ ignoreNotFound: true }).catch((err) => {
+        console.warn('[manifest] Unable to remove superseded preview PDF:', err.message);
+      });
+    }
   }
 
   const result = {
@@ -181,14 +295,14 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
     generated_at: new Date().toISOString(),
     pdf_path: undefined,
     pdf_filename: fileName,
-    status: 'ready',
+    status,
   };
 
-  // Log manifest generation
+  // Log manifest generation or preview generation.
   await logActivity({
-    type: 'manifest_generated',
-    title: 'Manifest Generated',
-    message: `Delivery manifest generated for ${area.name} on ${date}. ${totalUsers} customers, ${totalMilkLitres}L milk.`,
+    type: status === 'preview' ? 'manifest_preview_generated' : 'manifest_generated',
+    title: status === 'preview' ? 'Manifest Preview Generated' : 'Manifest Generated',
+    message: `${status === 'preview' ? 'Delivery manifest preview' : 'Delivery manifest'} generated for ${area.name} on ${date}. ${totalUsers} customers, ${totalMilkLitres}L milk.`,
     areaId,
     meta: {
       manifest_id: manifestId,
@@ -199,12 +313,12 @@ async function generateManifest(areaId, date, generatedBy = 'system') {
       total_extra_items: totalExtraItems,
       extra_items_summary: extraItemsSummary,
       generated_by: generatedBy,
+      status,
+      source,
     },
   });
 
   return result;
-
-  // Log manifest generation (fire-and-forget after return is unreachable, so log before)
 }
 
 /**
@@ -245,10 +359,18 @@ function generatePDF(filePath, data) {
     doc.pipe(stream);
 
     // Header
-    doc.fontSize(20).font('Helvetica-Bold').text('Dairy Delivery Manifest', { align: 'center' });
+    doc.fontSize(20).font('Helvetica-Bold').text(data.isPreview ? 'Dairy Delivery Manifest Preview' : 'Dairy Delivery Manifest', { align: 'center' });
     doc.moveDown(0.5);
     doc.fontSize(12).font('Helvetica').text(`Area: ${data.area}`, { align: 'center' });
     doc.text(`Delivery Date: ${data.date}`, { align: 'center' });
+    if (data.isPreview) {
+      doc.moveDown(0.25);
+      doc.fontSize(9).fillColor('#a16207').text(
+        'Live preview from current subscriptions and carts. Final delivery orders are created at the scheduled generation time.',
+        { align: 'center' }
+      );
+      doc.fillColor('black');
+    }
     doc.moveDown(1);
 
     // Summary
@@ -371,8 +493,17 @@ async function getNextDayStatus(areaId) {
     cron_time: window.cronTime,
     generation_time: window.generationTime,
     timezone: window.timezone,
+    final_manifest_ready: Boolean(manifest && manifest.is_final),
+    preview_available: Boolean(manifest && !manifest.is_final),
     manifest: manifest || null,
   };
 }
 
-module.exports = { generateManifest, listManifests, getManifestSignedUrl, getNextDayStatus };
+module.exports = {
+  generateManifest,
+  generateLivePreview,
+  buildLivePreviewRows,
+  listManifests,
+  getManifestSignedUrl,
+  getNextDayStatus,
+};

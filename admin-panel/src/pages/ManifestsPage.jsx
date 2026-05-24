@@ -88,6 +88,8 @@ export default function ManifestsPage() {
 
   // Max selectable date for regenerate = today (not tomorrow or future)
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+  const hasFinalManifest = nextDay?.manifest?.is_final === true;
+  const hasPreviewManifest = Boolean(nextDay?.manifest && !nextDay.manifest.is_final);
 
   return (
     <div className="space-y-5">
@@ -103,16 +105,20 @@ export default function ManifestsPage() {
         <div className="card p-6 animate-pulse h-32 bg-slate-50" />
       ) : nextDay && (
         <div className={`rounded-2xl border-2 p-6 ${
-          nextDay.is_ready && nextDay.manifest
+          hasFinalManifest
             ? 'bg-emerald-50 border-emerald-300'
+            : hasPreviewManifest
+            ? 'bg-amber-50 border-amber-300'
             : nextDay.is_ready && !nextDay.manifest
             ? 'bg-orange-50 border-orange-300'
             : 'bg-slate-50 border-slate-200'
         }`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
-              {nextDay.is_ready && nextDay.manifest ? (
+              {hasFinalManifest ? (
                 <CheckCircle className="mt-0.5 text-green-600 shrink-0" size={22} />
+              ) : hasPreviewManifest ? (
+                <Clock className="mt-0.5 text-amber-600 shrink-0" size={22} />
               ) : nextDay.is_ready && !nextDay.manifest ? (
                 <AlertCircle className="mt-0.5 text-orange-500 shrink-0" size={22} />
               ) : (
@@ -124,9 +130,9 @@ export default function ManifestsPage() {
                   Next Day Manifest — {nextDay.delivery_date}
                 </p>
 
-                {nextDay.is_ready && nextDay.manifest ? (
+                {hasFinalManifest ? (
                   <div className="mt-1 space-y-0.5">
-                    <p className="text-sm text-green-700 font-medium">Ready for download</p>
+                    <p className="text-sm text-green-700 font-medium">Final manifest ready for download</p>
                     <p className="text-xs text-gray-500">
                       Generated at {nextDay.manifest.generated_at
                         ? new Date(nextDay.manifest.generated_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -145,6 +151,25 @@ export default function ManifestsPage() {
                       </span>
                     </div>
                   </div>
+                ) : hasPreviewManifest ? (
+                  <div className="mt-1 space-y-1">
+                    <p className="text-sm text-amber-700 font-medium">
+                      {nextDay.is_ready ? 'Preview available; final generation is pending' : 'Live preview available'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Generated at {nextDay.manifest.generated_at
+                        ? new Date(nextDay.manifest.generated_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                        : '-'}
+                      {' - '}{nextDay.manifest.total_users} customers
+                      {' - '}{nextDay.manifest.total_milk_litres}L milk
+                      {' - '}{nextDay.manifest.total_extra_items ?? 0} extras
+                      {' - '}Rs.{nextDay.manifest.total_amount?.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Refresh preview to include the latest cart contents. Final orders are created at {nextDay.cron_time}.
+                    </p>
+                    {triggerError && <p className="text-xs text-red-600">{triggerError}</p>}
+                  </div>
                 ) : nextDay.is_ready && !nextDay.manifest ? (
                   <div className="mt-1">
                     <p className="text-sm text-orange-700">
@@ -162,6 +187,7 @@ export default function ManifestsPage() {
                     <p className="text-xs text-gray-400 mt-0.5">
                       Customer modifications are locked after {nextDay.cutoff_time || nextDay.cron_time}.
                     </p>
+                    {triggerError && <p className="text-xs text-red-600 mt-1">{triggerError}</p>}
                   </div>
                 )}
               </div>
@@ -169,7 +195,7 @@ export default function ManifestsPage() {
 
             {/* Action button */}
             <div className="shrink-0">
-              {nextDay.is_ready && nextDay.manifest ? (
+              {hasFinalManifest ? (
                 <button
                   onClick={() => handleDownload(nextDay.manifest.id, nextDay.delivery_date)}
                   className="btn-primary"
@@ -177,6 +203,24 @@ export default function ManifestsPage() {
                   <Download size={15} />
                   Download PDF
                 </button>
+              ) : hasPreviewManifest ? (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => handleDownload(nextDay.manifest.id, nextDay.delivery_date)}
+                    className="btn-primary"
+                  >
+                    <Download size={15} />
+                    Download Preview
+                  </button>
+                  <button
+                    onClick={handleTrigger}
+                    disabled={triggering}
+                    className="btn-secondary"
+                  >
+                    <RefreshCw size={15} className={triggering ? 'animate-spin' : ''} />
+                    {triggering ? 'Generating...' : nextDay.is_ready ? 'Generate Final' : 'Refresh Preview'}
+                  </button>
+                </div>
               ) : nextDay.is_ready && !nextDay.manifest ? (
                 <button
                   onClick={handleTrigger}
@@ -184,12 +228,17 @@ export default function ManifestsPage() {
                   className="btn btn-sm bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-400 disabled:opacity-60"
                 >
                   <RefreshCw size={15} className={triggering ? 'animate-spin' : ''} />
-                  {triggering ? 'Generating…' : 'Generate Now'}
+                  {triggering ? 'Generating...' : 'Generate Final'}
                 </button>
               ) : (
-                <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">
-                  Pending
-                </span>
+                <button
+                  onClick={handleTrigger}
+                  disabled={triggering}
+                  className="btn-primary"
+                >
+                  <RefreshCw size={15} className={triggering ? 'animate-spin' : ''} />
+                  {triggering ? 'Generating...' : 'Generate Preview'}
+                </button>
               )}
             </div>
           </div>

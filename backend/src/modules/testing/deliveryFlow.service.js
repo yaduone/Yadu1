@@ -1,6 +1,7 @@
 const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const manifestSettings = require('../settings/manifestSettings.service');
+const manifestService = require('../manifests/manifest.service');
 const orderService = require('../orders/order.service');
 const { isValidQuantity } = require('../../utils/validators');
 
@@ -135,9 +136,18 @@ async function inspectDeliveryFlow(areaId, deliveryDate) {
   const manifest = manifestsSnap.empty ? null : { id: manifestsSnap.docs[0].id, ...manifestsSnap.docs[0].data() };
   const mismatchCount = rows.filter((row) => row.state === 'extras_mismatch').length;
   const missingOrderCount = rows.filter((row) => row.state === 'missing_order').length;
+  const previewRows = manifest?.status === 'preview'
+    ? await manifestService.buildLivePreviewRows(areaId, date)
+    : null;
+  const expectedManifestExtraUnits = previewRows
+    ? previewRows.reduce((sum, row) => sum + itemUnits(row.extraItems), 0)
+    : totals.order_extra_units;
+  const expectedManifestAmount = previewRows
+    ? previewRows.reduce((sum, row) => sum + (Number(row.totalAmount) || 0), 0)
+    : totals.order_amount;
   const manifestMatches = manifest
-    && Number(manifest.total_extra_items || 0) === totals.order_extra_units
-    && amountEqual(manifest.total_amount, totals.order_amount);
+    && Number(manifest.total_extra_items || 0) === expectedManifestExtraUnits
+    && amountEqual(manifest.total_amount, expectedManifestAmount);
 
   const checks = [
     {
@@ -161,7 +171,7 @@ async function inspectDeliveryFlow(areaId, deliveryDate) {
       label: 'Manifest totals',
       status: manifest ? (manifestMatches ? 'pass' : 'fail') : (shouldBeGenerated ? 'fail' : 'pending'),
       detail: manifest
-        ? `${manifest.total_extra_items || 0} extra units in manifest`
+        ? `${manifest.total_extra_items || 0} extra units in ${manifest.status === 'preview' ? 'live preview' : 'manifest'}`
         : 'No manifest generated for this date',
     },
     {

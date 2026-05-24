@@ -39,18 +39,6 @@ router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
       return notFound(res, 'Manifest not found');
     }
 
-    const manifestDate = doc.data()?.date;
-    const tomorrow = dateUtil.tomorrow();
-
-    // Block download if this is tomorrow's manifest and cron hasn't run yet
-    const window = await manifestSettings.getNextDayManifestWindow(req.admin.areaId);
-    if (manifestDate === tomorrow && !window.isReady) {
-      return forbidden(
-        res,
-        `Tomorrow's manifest is not yet available. It will be ready after ${window.cronTime} tonight.`
-      );
-    }
-
     const result = await manifestService.getManifestSignedUrl(req.params.id, req.admin.areaId);
     if (!result) return notFound(res, 'Manifest PDF not found in storage. Try regenerating.');
 
@@ -62,15 +50,14 @@ router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
 });
 
 // POST /api/manifests/trigger — Admin: manually trigger generation for next day
-// Gate: only allowed after the cron hour (in case the scheduled job missed)
+// Before generation time this creates a non-final live preview. Afterwards it finalizes orders.
 router.post('/trigger', authenticateAdmin, async (req, res, next) => {
   try {
     const window = await manifestSettings.getNextDayManifestWindow(req.admin.areaId);
     if (!window.isReady) {
-      return forbidden(
-        res,
-        `Manifest generation is not allowed before ${window.cronTime}. The nightly job will run automatically at ${window.cronTime}.`
-      );
+      await manifestService.generateLivePreview(req.admin.areaId, window.deliveryDate, req.admin.adminId);
+      const previewStatus = await manifestService.getNextDayStatus(req.admin.areaId);
+      return success(res, previewStatus, 'Manifest preview generated from current cart contents');
     }
 
     await runNightlyJob(req.admin.areaId);
