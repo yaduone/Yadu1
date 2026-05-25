@@ -31,16 +31,50 @@ function handleMulterError(err, req, res, next) {
   next(err);
 }
 
+function categoryPriority(category) {
+  return Number.isInteger(category.priority) && category.priority > 0
+    ? category.priority
+    : Number.MAX_SAFE_INTEGER;
+}
+
+function compareCategoryOrder(a, b) {
+  return categoryPriority(a) - categoryPriority(b)
+    || String(a.label || '').localeCompare(String(b.label || ''))
+    || String(a.slug || '').localeCompare(String(b.slug || ''));
+}
+
+async function getOrderedCategories({ persistNormalizedOrder = false } = {}) {
+  const snap = await db.collection('categories').get();
+  let categories = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  categories.sort(compareCategoryOrder);
+
+  if (persistNormalizedOrder && categories.some((category, index) => category.priority !== index + 1)) {
+    const batch = db.batch();
+    categories = categories.map((category, index) => {
+      const priority = index + 1;
+      batch.update(db.collection('categories').doc(category.id), {
+        priority,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { ...category, priority };
+    });
+    await batch.commit();
+  }
+
+  return categories;
+}
+
 async function seedIfEmpty() {
   const snap = await db.collection('categories').limit(1).get();
   if (!snap.empty) return;
   const batch = db.batch();
-  for (const slug of config.productCategories) {
+  for (const [index, slug] of config.productCategories.entries()) {
     const label = slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     const ref = db.collection('categories').doc();
     batch.set(ref, {
       slug,
       label,
+      priority: index + 1,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -52,8 +86,7 @@ async function seedIfEmpty() {
 router.get('/', cache.publicStatic, async (req, res, next) => {
   try {
     await seedIfEmpty();
-    const snap = await db.collection('categories').orderBy('label').get();
-    const categories = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const categories = await getOrderedCategories({ persistNormalizedOrder: true });
     return success(res, { categories });
   } catch (err) { next(err); }
 });
@@ -67,6 +100,7 @@ router.post('/', authenticateAdmin, upload.single('image'), handleMulterError, i
     if (!slug) return badRequest(res, 'Invalid category name');
     const dup = await db.collection('categories').where('slug', '==', slug).get();
     if (!dup.empty) return badRequest(res, 'Category already exists');
+    const categories = await getOrderedCategories({ persistNormalizedOrder: true });
     let imageUrl = '';
     try {
       const imageUrls = req.file ? await uploadImages([req.file], 'categories') : [];
@@ -75,6 +109,7 @@ router.post('/', authenticateAdmin, upload.single('image'), handleMulterError, i
         slug,
         label: label.trim(),
         image_url: imageUrl,
+        priority: categories.length + 1,
         created_at: admin.firestore.FieldValue.serverTimestamp(),
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       };
@@ -84,6 +119,38 @@ router.post('/', authenticateAdmin, upload.single('image'), handleMulterError, i
       if (imageUrl) await deleteImages([imageUrl]);
       throw err;
     }
+  } catch (err) { next(err); }
+});
+
+// PUT /api/categories/order - admin; lower priority is listed first in the user app
+router.put('/order', authenticateAdmin, invalidateOn(['categories', 'public']), async (req, res, next) => {
+  try {
+    const categoryIds = req.body.category_ids;
+    if (!Array.isArray(categoryIds) || categoryIds.length === 0 || categoryIds.some((id) => typeof id !== 'string')) {
+      return badRequest(res, 'category_ids must be a non-empty array of category IDs');
+    }
+    if (new Set(categoryIds).size !== categoryIds.length) {
+      return badRequest(res, 'category_ids must not contain duplicates');
+    }
+
+    const categories = await getOrderedCategories();
+    const categoriesById = new Map(categories.map((category) => [category.id, category]));
+    if (categoryIds.length !== categories.length || categoryIds.some((id) => !categoriesById.has(id))) {
+      return badRequest(res, 'category_ids must contain every category exactly once');
+    }
+
+    const batch = db.batch();
+    const reordered = categoryIds.map((id, index) => {
+      const priority = index + 1;
+      batch.update(db.collection('categories').doc(id), {
+        priority,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return { ...categoriesById.get(id), priority };
+    });
+    await batch.commit();
+
+    return success(res, { categories: reordered }, 'Category order updated');
   } catch (err) { next(err); }
 });
 
