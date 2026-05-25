@@ -55,7 +55,7 @@ export default function ProductsPage() {
   }, [newPreviews]);
 
   function resetForm() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, category: categories[0]?.slug || '' });
     setEditing(null);
     setExistingImages([]);
     setNewFiles([]);
@@ -112,8 +112,8 @@ export default function ProductsPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
-    if (!form.name.trim() || !form.unit.trim() || !form.price) {
-      setFormError('Name, unit, and price are required.');
+    if (!form.name.trim() || !form.category || !form.unit.trim() || !form.price) {
+      setFormError('Name, category, unit, and price are required.');
       return;
     }
     setSaving(true);
@@ -218,11 +218,12 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Category</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Category *</label>
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="select"
+                  required
                 >
                   {categories.length === 0 && (
                     <option value="">Loading categories…</option>
