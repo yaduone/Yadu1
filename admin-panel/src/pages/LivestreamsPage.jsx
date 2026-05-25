@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import { Plus, Pencil, Trash2, Radio, Droplets, CalendarClock, Sun, Moon, Ban } from 'lucide-react';
 
 const STATUS_BADGES = {
@@ -36,6 +38,7 @@ function formatSchedule(isoValue) {
 export default function LivestreamsPage() {
   const [streams, setStreams]   = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [form, setForm]         = useState(() => initialForm());
@@ -161,6 +164,14 @@ export default function LivestreamsPage() {
       setSaving(false);
     }
   }
+
+  const filteredStreams = streams.filter((stream) => matchesSearch(search, [
+    stream.title,
+    stream.youtube_url,
+    stream.slot,
+    stream.status || (stream.is_active ? 'live' : 'inactive'),
+    formatSchedule(stream.scheduled_start_at),
+  ]));
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -351,6 +362,14 @@ export default function LivestreamsPage() {
         </form>
       )}
 
+      {!loading && streams.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search livestreams by title, slot or status..."
+        />
+      )}
+
       {loading ? (
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => <div key={i} className="card h-16 animate-pulse bg-slate-50" />)}
@@ -361,9 +380,14 @@ export default function LivestreamsPage() {
           <p className="text-slate-500 font-medium">No livestreams scheduled</p>
           <p className="text-slate-400 text-sm mt-1">Schedule a morning or evening broadcast for your customers.</p>
         </div>
+      ) : filteredStreams.length === 0 ? (
+        <div className="card p-8 text-center sm:p-16">
+          <Radio size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">No livestreams match your search.</p>
+        </div>
       ) : (
         <div className="space-y-3">
-          {streams.map((s) => {
+          {filteredStreams.map((s) => {
             const status = s.status || (s.is_active ? 'live' : 'inactive');
             const SlotIcon = s.slot === 'evening' ? Moon : Sun;
             return (

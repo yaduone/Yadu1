@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import { Pencil, Check, X, IndianRupee, Info } from 'lucide-react';
 
 export default function PricesPage() {
   const [prices, setPrices]         = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
   const [editingType, setEditingType] = useState(null);
   const [editPrice, setEditPrice]   = useState('');
   const [saving, setSaving]         = useState(false);
@@ -34,6 +37,11 @@ export default function PricesPage() {
 
   const MILK_ICONS = { cow: '🐄', buffalo: '🐃', toned: '👶' };
   const MILK_LABELS = { cow: 'Cow', buffalo: 'Buffalo', toned: 'Child Pack' };
+  const filteredPrices = prices.filter((price) => matchesSearch(search, [
+    price.milk_type,
+    MILK_LABELS[price.milk_type],
+    price.price_per_litre,
+  ]));
 
   return (
     <div className="space-y-5">
@@ -48,11 +56,28 @@ export default function PricesPage() {
         <span>Price changes only affect <strong>new subscriptions</strong>. Existing subscriptions retain their locked-in price.</span>
       </div>
 
+      {!loading && prices.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search milk types or prices..."
+          className="max-w-lg"
+        />
+      )}
+
       {loading ? (
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="card h-16 animate-pulse bg-slate-50" />
           ))}
+        </div>
+      ) : prices.length === 0 ? (
+        <div className="card p-12 text-center max-w-lg">
+          <p className="text-slate-500">No milk prices configured.</p>
+        </div>
+      ) : filteredPrices.length === 0 ? (
+        <div className="card p-12 text-center max-w-lg">
+          <p className="text-slate-500">No milk prices match your search.</p>
         </div>
       ) : (
         <div className="card overflow-hidden max-w-lg">
@@ -65,7 +90,7 @@ export default function PricesPage() {
               </tr>
             </thead>
             <tbody>
-              {prices.map((p) => (
+              {filteredPrices.map((p) => (
                 <tr key={p.milk_type}>
                   <td>
                     <div className="flex items-center gap-2.5">

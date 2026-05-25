@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import {
   Plus, Pencil, Trash2, X, ImagePlus, Upload,
   AlertTriangle, Package, ToggleLeft, ToggleRight,
@@ -14,6 +16,7 @@ export default function ProductsPage() {
   const [products, setProducts]   = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
   const [showForm, setShowForm]   = useState(false);
   const [editing, setEditing]     = useState(null);
   const [form, setForm]           = useState(EMPTY_FORM);
@@ -161,6 +164,15 @@ export default function ProductsPage() {
   }
 
   const totalImages = existingImages.length + newFiles.length;
+  const filteredProducts = [...products]
+    .sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0))
+    .filter((product) => matchesSearch(search, [
+      product.name,
+      product.category,
+      product.unit,
+      product.description,
+      product.is_active ? 'active' : 'inactive',
+    ]));
 
   return (
     <div className="space-y-5">
@@ -373,6 +385,14 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {!loading && products.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search products by name, category or unit..."
+        />
+      )}
+
       {/* Table */}
       {loading ? (
         <div className="space-y-2">
@@ -386,11 +406,16 @@ export default function ProductsPage() {
           <p className="text-slate-500 font-medium">No products yet</p>
           <p className="text-slate-400 text-sm mt-1">Click "Add Product" to create your first one.</p>
         </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="card p-12 text-center">
+          <Package size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">No products match your search.</p>
+        </div>
       ) : (
         <>
           {/* Mobile card list */}
           <div className="space-y-2 sm:hidden">
-            {[...products].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)).map((p) => (
+            {filteredProducts.map((p) => (
               <div key={p.id} className={`card p-4 ${!p.is_active ? 'opacity-80' : ''}`}>
                 <div className="flex items-center gap-3">
                   {p.cover_image_large || p.cover_image_small || p.images?.[0] ? (
@@ -465,7 +490,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...products].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)).map((p) => (
+                {filteredProducts.map((p) => (
                   <tr key={p.id} className={!p.is_active ? 'opacity-80' : ''}>
                     <td>
                       {p.cover_image_large || p.cover_image_small || p.images?.[0] ? (

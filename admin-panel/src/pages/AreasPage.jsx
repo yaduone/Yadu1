@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import { MapPin, Info } from 'lucide-react';
 
 export default function AreasPage() {
   const [areas, setAreas]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch]   = useState('');
 
   useEffect(() => {
     api.get('/areas')
@@ -12,6 +15,8 @@ export default function AreasPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const filteredAreas = areas.filter((area) => matchesSearch(search, [area.name, area.slug, area.id]));
 
   return (
     <div className="space-y-5">
@@ -27,6 +32,15 @@ export default function AreasPage() {
         <span>Area management is restricted to super admins. Contact your administrator to make changes.</span>
       </div>
 
+      {!loading && areas.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search areas by name or slug..."
+          className="max-w-2xl"
+        />
+      )}
+
       {loading ? (
         <div className="space-y-2">
           {[...Array(3)].map((_, i) => (
@@ -37,6 +51,11 @@ export default function AreasPage() {
         <div className="card p-12 text-center">
           <MapPin size={40} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-500">No areas found.</p>
+        </div>
+      ) : filteredAreas.length === 0 ? (
+        <div className="card p-12 text-center max-w-2xl">
+          <MapPin size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500">No areas match your search.</p>
         </div>
       ) : (
         <div className="card overflow-hidden max-w-2xl">
@@ -49,7 +68,7 @@ export default function AreasPage() {
               </tr>
             </thead>
             <tbody>
-              {areas.map((a) => (
+              {filteredAreas.map((a) => (
                 <tr key={a.id}>
                   <td>
                     <div className="flex items-center gap-2.5">

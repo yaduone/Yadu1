@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -72,6 +74,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(() => relativeDate(0));
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('milk');
 
@@ -120,7 +123,16 @@ export default function OrdersPage() {
 
   const milkOrders = orders.filter((o) => o.milk || o.non_delivery_reason === 'skipped' || o.status === 'skipped');
   const productOrders = orders.filter((o) => getExtras(o).length > 0);
-  const visibleOrders = activeTab === 'milk' ? milkOrders : productOrders;
+  const tabOrders = activeTab === 'milk' ? milkOrders : productOrders;
+  const visibleOrders = tabOrders.filter((order) => matchesSearch(search, [
+    order.user_name,
+    order.user_phone,
+    order.user_id,
+    order.user_address?.line1,
+    order.status,
+    order.milk?.milk_type,
+    ...getExtras(order).map((item) => item.name || item.product_name || item.product_id),
+  ]));
   const milkLitres = milkOrders.reduce((sum, o) => sum + (Number(o.milk?.quantity_litres) || 0), 0);
   const productUnits = productOrders.reduce((sum, o) => sum + getExtrasQuantity(o), 0);
   const today = relativeDate(0);
@@ -205,6 +217,17 @@ export default function OrdersPage() {
         })}
       </div>
 
+      {!loading && tabOrders.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={(value) => {
+            setSearch(value);
+            setSelectedOrders([]);
+          }}
+          placeholder="Search orders by customer, phone or item..."
+        />
+      )}
+
       {!loading && visibleOrders.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {[
@@ -228,10 +251,15 @@ export default function OrdersPage() {
         </div>
       ) : orders.length === 0 ? (
         <EmptyState icon={Clock} message={`No orders found for ${date}`} />
-      ) : visibleOrders.length === 0 ? (
+      ) : tabOrders.length === 0 ? (
         <EmptyState
           icon={activeTab === 'milk' ? Milk : Package}
           message={`No ${activeTab === 'milk' ? 'subscription milk' : 'product'} deliveries found for ${date}`}
+        />
+      ) : visibleOrders.length === 0 ? (
+        <EmptyState
+          icon={activeTab === 'milk' ? Milk : Package}
+          message={`No ${activeLabel} match your search`}
         />
       ) : (
         <>

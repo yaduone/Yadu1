@@ -13,6 +13,8 @@ import {
   Wallet,
 } from 'lucide-react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 
 const CHECK_STYLE = {
   pass: { icon: CheckCircle2, badge: 'badge badge-green', label: 'Pass' },
@@ -63,6 +65,7 @@ export default function FlowTestingPage() {
   const [audit, setAudit] = useState(null);
   const [auditLoading, setAuditLoading] = useState(true);
   const [auditError, setAuditError] = useState('');
+  const [auditSearch, setAuditSearch] = useState('');
   const [products, setProducts] = useState([]);
   const [simulation, setSimulation] = useState(null);
   const [simLoading, setSimLoading] = useState(false);
@@ -121,6 +124,13 @@ export default function FlowTestingPage() {
       setSimLoading(false);
     }
   }
+
+  const filteredAuditRows = (audit?.rows || []).filter((row) => matchesSearch(auditSearch, [
+    row.user_name,
+    row.user_id,
+    row.order_status,
+    stateLabel(row.state),
+  ]));
 
   return (
     <div className="space-y-6">
@@ -198,9 +208,19 @@ export default function FlowTestingPage() {
               ))}
             </div>
 
+            {audit.rows.length > 0 && (
+              <SearchField
+                value={auditSearch}
+                onChange={setAuditSearch}
+                placeholder="Search audit rows by user, status or validation..."
+              />
+            )}
+
             <div className="card overflow-hidden">
               {audit.rows.length === 0 ? (
                 <p className="p-8 text-center text-sm text-slate-400">No product-cart or product-order records for {date}.</p>
+              ) : filteredAuditRows.length === 0 ? (
+                <p className="p-8 text-center text-sm text-slate-400">No audit rows match your search.</p>
               ) : (
                 <table className="data-table">
                   <thead>
@@ -213,7 +233,7 @@ export default function FlowTestingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {audit.rows.map((row) => (
+                    {filteredAuditRows.map((row) => (
                       <tr key={row.user_id}>
                         <td className="font-medium text-slate-800">{row.user_name}</td>
                         <td>{row.cart_units} / {money(row.cart_amount)}</td>

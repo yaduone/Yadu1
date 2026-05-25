@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import {
   Bell, UserPlus, FileText, Ticket, UserCheck,
   RefreshCw, Filter, AlertCircle, ChevronDown, ChevronUp,
@@ -80,6 +82,7 @@ export default function ActivityPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]           = useState('');
   const [filter, setFilter]         = useState('all');
+  const [search, setSearch]         = useState('');
   const [expanded, setExpanded]     = useState(null);
 
   const load = useCallback(async (silent = false) => {
@@ -104,6 +107,12 @@ export default function ActivityPage() {
     acc[l.type] = (acc[l.type] || 0) + 1;
     return acc;
   }, {});
+  const filteredLogs = logs.filter((log) => matchesSearch(search, [
+    log.type,
+    log.title,
+    log.message,
+    JSON.stringify(log.meta || {}),
+  ]));
 
   return (
     <div className="space-y-5">
@@ -158,6 +167,14 @@ export default function ActivityPage() {
         ))}
       </div>
 
+      {!loading && logs.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search activity by title, message or details..."
+        />
+      )}
+
       {/* Error */}
       {error && (
         <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-100 rounded-xl text-red-700 text-sm">
@@ -187,9 +204,14 @@ export default function ActivityPage() {
           <p className="text-slate-500 font-medium">No activity yet</p>
           <p className="text-slate-400 text-sm mt-1">Events will appear here as they happen</p>
         </div>
+      ) : filteredLogs.length === 0 ? (
+        <div className="card p-16 text-center">
+          <Bell size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">No activity matches your search.</p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {logs.map((log) => (
+          {filteredLogs.map((log) => (
             <LogCard
               key={log.id}
               log={log}

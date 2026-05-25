@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Search, Bell } from 'lucide-react';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
+import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Bell } from 'lucide-react';
 
 const METHOD_LABELS = { cash: 'Cash', upi: 'UPI', other: 'Other' };
 const METHOD_BADGE  = { cash: 'badge badge-green', upi: 'badge badge-blue', other: 'badge badge-gray' };
@@ -153,16 +155,11 @@ function DuesTab() {
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by name or phone…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input pl-9"
-          />
-        </div>
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by name or phone..."
+        />
 
         {/* Table */}
         {loading ? (
@@ -342,6 +339,7 @@ function TicketsTab() {
   const [tickets, setTickets]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch]         = useState('');
   const [selected, setSelected]     = useState(null);
   const [resolveForm, setResolveForm] = useState({ status: '', admin_notes: '' });
   const [saving, setSaving]         = useState(false);
@@ -374,6 +372,14 @@ function TicketsTab() {
   }
 
   const counts = tickets.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
+  const filteredTickets = tickets.filter((ticket) => matchesSearch(search, [
+    ticket.subject,
+    ticket.description,
+    ticket.user_name,
+    ticket.user_phone,
+    ticket.admin_notes,
+    ticket.status,
+  ]));
 
   return (
     <div className="flex flex-col lg:flex-row gap-5">
@@ -391,15 +397,25 @@ function TicketsTab() {
           ))}
         </div>
 
+        {!loading && tickets.length > 0 && (
+          <SearchField
+            value={search}
+            onChange={setSearch}
+            placeholder="Search tickets by subject, user or phone..."
+          />
+        )}
+
         {loading ? (
           <div className="space-y-2">
             {[...Array(4)].map((_, i) => <div key={i} className="card h-20 animate-pulse bg-slate-50" />)}
           </div>
         ) : tickets.length === 0 ? (
           <div className="card p-12 text-center text-slate-400">No tickets found.</div>
+        ) : filteredTickets.length === 0 ? (
+          <div className="card p-12 text-center text-slate-400">No tickets match your search.</div>
         ) : (
           <div className="space-y-2">
-            {tickets.map((t) => (
+            {filteredTickets.map((t) => (
               <div
                 key={t.id}
                 onClick={() => openTicket(t)}

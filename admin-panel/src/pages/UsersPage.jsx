@@ -1,7 +1,8 @@
 import { createElement, useState, useEffect } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
 import {
-  AlertTriangle, Search, Trash2, Users, UserCheck, UserX, UserMinus,
+  AlertTriangle, Trash2, Users, UserCheck, UserX, UserMinus,
   HelpCircle, ShieldAlert, ShoppingCart, X, Package, Milk, Loader2,
   CalendarDays, ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -517,16 +518,12 @@ export default function UsersPage() {
 
       {/* Search + filter */}
       <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search name, phone…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input pl-9"
-          />
-        </div>
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search name or phone..."
+          className="flex-1"
+        />
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

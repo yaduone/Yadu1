@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
+import SearchField from '../components/SearchField';
+import { matchesSearch } from '../utils/search';
 import {
   Plus, Pencil, Trash2, X, Tag, AlertTriangle, Check, ImagePlus, Upload,
   ArrowUpDown, ChevronUp, ChevronDown,
@@ -8,6 +10,7 @@ import {
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [labelInput, setLabelInput] = useState('');
@@ -158,6 +161,9 @@ export default function CategoriesPage() {
   }
 
   const visibleImage = imagePreview || (!removeImage ? existingImage : '');
+  const filteredCategories = categories
+    .map((category, index) => ({ category, index }))
+    .filter(({ category }) => matchesSearch(search, [category.label, category.slug]));
 
   return (
     <div className="space-y-5">
@@ -281,6 +287,14 @@ export default function CategoriesPage() {
         </div>
       )}
 
+      {!loading && categories.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search categories by label or slug..."
+        />
+      )}
+
       {loading ? (
         <div className="space-y-2">
           {[...Array(6)].map((_, i) => (
@@ -293,10 +307,15 @@ export default function CategoriesPage() {
           <p className="text-slate-500 font-medium">No categories yet</p>
           <p className="text-slate-400 text-sm mt-1">Add your first category above.</p>
         </div>
+      ) : filteredCategories.length === 0 ? (
+        <div className="card p-10 sm:p-16 text-center">
+          <Tag size={40} className="mx-auto text-slate-300 mb-3" />
+          <p className="text-slate-500 font-medium">No categories match your search.</p>
+        </div>
       ) : (
         <>
           <div className="space-y-2 sm:hidden">
-            {categories.map((category, index) => (
+            {filteredCategories.map(({ category, index }) => (
               <div key={category.id} className="card p-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 border border-slate-100 flex items-center justify-center shrink-0">
@@ -350,7 +369,7 @@ export default function CategoriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {categories.map((category, index) => (
+                {filteredCategories.map(({ category, index }) => (
                   <tr key={category.id}>
                     <td>
                       <div className="flex items-center gap-2">
