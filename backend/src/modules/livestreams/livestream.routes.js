@@ -85,15 +85,16 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
   }
 });
 
-// POST /api/livestreams - Admin: schedule a stream with a 30-minute user reminder
+// POST /api/livestreams - Admin: schedule a stream or begin one immediately
 router.post('/', authenticateAdmin, async (req, res, next) => {
   try {
-    const livestream = await livestreamService.createScheduledStream(
+    const livestream = await livestreamService.createStream(
       req.admin.areaId,
       req.admin.adminId,
       req.body
     );
-    return created(res, { livestream }, 'Live stream scheduled');
+    const message = livestream.status === 'live' ? 'Live stream started' : 'Live stream scheduled';
+    return created(res, { livestream }, message);
   } catch (err) {
     next(err);
   }

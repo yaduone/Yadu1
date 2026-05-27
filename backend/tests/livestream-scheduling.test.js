@@ -53,6 +53,7 @@ jest.mock('../src/modules/notifications/notification.service', () => ({
 }));
 
 const {
+  createStream,
   createScheduledStream,
   getViewerStreams,
   processScheduledStreams,
@@ -69,7 +70,7 @@ describe('scheduled livestreams', () => {
     jest.clearAllMocks();
     mockAreaGet.mockResolvedValue({ docs: [] });
     mockStatusGet.mockResolvedValue({ docs: [] });
-    mockAdd.mockResolvedValue({ id: 'stream-1' });
+    mockAdd.mockResolvedValue({ id: 'stream-1', update: mockRefUpdate });
     mockSendAreaBroadcast.mockResolvedValue({ recipients: 2, pushed: 1 });
   });
 
@@ -90,6 +91,60 @@ describe('scheduled livestreams', () => {
     const stored = mockAdd.mock.calls[0][0];
     expect(stored.reminder_at.toDate().toISOString()).toBe('2026-05-24T10:15:00.000Z');
     expect(stream.status).toBe('scheduled');
+  });
+
+  test('starts an immediate stream and publishes its viewing link right away', async () => {
+    mockTransactionGet.mockResolvedValue({ data: () => ({}) });
+
+    const stream = await createStream('area-1', 'admin-1', {
+      start_mode: 'immediate',
+      slot: 'morning',
+      youtube_url: 'https://youtube.com/live/abcdefghijk',
+      duration_minutes: 60,
+    }, now);
+
+    expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({
+      start_mode: 'immediate',
+      status: 'live',
+      is_active: true,
+      reminder_at: null,
+    }));
+    const stored = mockAdd.mock.calls[0][0];
+    expect(stored.scheduled_start_at.toDate().toISOString()).toBe(now.toISOString());
+    expect(mockSendAreaBroadcast).toHaveBeenCalledWith('area-1', expect.objectContaining({
+      type: 'livestream_started',
+      meta: expect.objectContaining({
+        livestream_id: 'stream-1',
+        youtube_url: 'https://youtube.com/live/abcdefghijk',
+      }),
+    }));
+    expect(mockRefUpdate).toHaveBeenCalledWith({
+      started_notification_sent_at: 'server-time',
+    });
+    expect(stream.status).toBe('live');
+  });
+
+  test('keeps an immediate stream live and releases its alert claim when broadcasting fails', async () => {
+    const logSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockTransactionGet.mockResolvedValue({ data: () => ({}) });
+    mockSendAreaBroadcast.mockRejectedValueOnce(new Error('Temporary push outage'));
+
+    try {
+      const stream = await createStream('area-1', 'admin-1', {
+        start_mode: 'immediate',
+        slot: 'evening',
+        youtube_url: 'https://youtube.com/live/abcdefghijk',
+        duration_minutes: 60,
+      }, now);
+
+      expect(stream.status).toBe('live');
+      expect(mockRefUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        started_notification_sent_at_claimed_at: 'delete-field',
+        started_notification_error: 'Temporary push outage',
+      }));
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   test('hides a future link but releases it once its scheduled window begins', async () => {

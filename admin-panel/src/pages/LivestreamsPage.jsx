@@ -18,7 +18,7 @@ function initialForm() {
   const localStart = new Date(start.getTime() - start.getTimezoneOffset() * 60 * 1000)
     .toISOString()
     .slice(0, 16);
-  return { title: '', youtube_url: '', slot: 'morning', scheduled_start_at: localStart, duration_minutes: '60' };
+  return { start_mode: 'scheduled', title: '', youtube_url: '', slot: 'morning', scheduled_start_at: localStart, duration_minutes: '60' };
 }
 
 function localDateTimeValue(isoValue) {
@@ -27,7 +27,8 @@ function localDateTimeValue(isoValue) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
 }
 
-function formatSchedule(isoValue) {
+function formatSchedule(isoValue, startMode) {
+  if (startMode === 'immediate') return 'Started immediately';
   if (!isoValue) return 'Immediate legacy stream';
   return new Date(isoValue).toLocaleString('en-IN', {
     dateStyle: 'medium',
@@ -85,10 +86,15 @@ export default function LivestreamsPage() {
     e.preventDefault();
     try {
       const payload = {
-        ...form,
-        scheduled_start_at: new Date(form.scheduled_start_at).toISOString(),
+        title: form.title,
+        youtube_url: form.youtube_url,
+        slot: form.slot,
+        start_mode: editing ? 'scheduled' : form.start_mode,
         duration_minutes: Number(form.duration_minutes),
       };
+      if (editing || form.start_mode === 'scheduled') {
+        payload.scheduled_start_at = new Date(form.scheduled_start_at).toISOString();
+      }
       if (editing) {
         await api.put(`/livestreams/${editing}`, payload);
       } else {
@@ -103,6 +109,7 @@ export default function LivestreamsPage() {
 
   function startEdit(s) {
     setForm({
+      start_mode: 'scheduled',
       title: s.title || '',
       youtube_url: s.youtube_url || '',
       slot: s.slot || 'morning',
@@ -170,7 +177,7 @@ export default function LivestreamsPage() {
     stream.youtube_url,
     stream.slot,
     stream.status || (stream.is_active ? 'live' : 'inactive'),
-    formatSchedule(stream.scheduled_start_at),
+    formatSchedule(stream.scheduled_start_at, stream.start_mode),
   ]));
 
   return (
@@ -178,20 +185,20 @@ export default function LivestreamsPage() {
       <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0">
           <h2 className="page-title">Livestreams</h2>
-          <p className="text-xs text-slate-400 mt-0.5">{streams.length} stream schedules configured</p>
+          <p className="text-xs text-slate-400 mt-0.5">{streams.length} streams configured</p>
         </div>
         <button onClick={() => { resetForm(); setShowForm(!showForm); }} className="btn-primary w-full justify-center sm:w-fit">
           <Plus size={16} />
-          {showForm ? 'Cancel' : 'Schedule Livestream'}
+          {showForm ? 'Cancel' : 'New Livestream'}
         </button>
       </div>
       <div className="card p-4 flex items-start gap-3 bg-blue-50/50 border-blue-100">
         <CalendarClock size={18} className="text-blue-600 shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-semibold text-slate-700">Scheduled customer broadcast</p>
+          <p className="text-sm font-semibold text-slate-700">Customer live broadcast</p>
           <p className="text-xs text-slate-500 mt-1">
-            Customers receive a device reminder 30 minutes before the selected slot. The viewing link is exposed
-            only when the stream begins and closes automatically after its duration.
+            Schedule a stream to notify customers 30 minutes before it begins, or start one now to send the live
+            notification immediately. The viewing link is exposed only while the stream is live.
           </p>
         </div>
       </div>
@@ -315,8 +322,38 @@ export default function LivestreamsPage() {
             <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
               <Radio size={15} className="text-purple-600" />
             </div>
-            <h3 className="font-semibold text-slate-800">{editing ? 'Edit Scheduled Livestream' : 'Schedule Livestream'}</h3>
+            <h3 className="font-semibold text-slate-800">{editing ? 'Edit Scheduled Livestream' : 'Create Livestream'}</h3>
           </div>
+          {!editing && (
+            <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2">
+              <label className={`rounded-xl border p-3 cursor-pointer ${form.start_mode === 'scheduled' ? 'border-blue-400 bg-blue-50' : 'border-slate-200'}`}>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="start_mode"
+                    value="scheduled"
+                    checked={form.start_mode === 'scheduled'}
+                    onChange={(e) => setForm({ ...form, start_mode: e.target.value })}
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Schedule for later</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 ml-5">Sends a reminder 30 minutes before start.</p>
+              </label>
+              <label className={`rounded-xl border p-3 cursor-pointer ${form.start_mode === 'immediate' ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="start_mode"
+                    value="immediate"
+                    checked={form.start_mode === 'immediate'}
+                    onChange={(e) => setForm({ ...form, start_mode: e.target.value })}
+                  />
+                  <span className="text-sm font-semibold text-slate-700">Start now</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 ml-5">Starts live and sends a notification immediately.</p>
+              </label>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Title (optional)</label>
@@ -333,17 +370,19 @@ export default function LivestreamsPage() {
                 <option value="evening">Evening Stream</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Starts At</label>
-              <input
-                type="datetime-local"
-                value={form.scheduled_start_at}
-                onChange={(e) => setForm({ ...form, scheduled_start_at: e.target.value })}
-                className="input"
-                required
-              />
-              <p className="text-[11px] text-slate-400 mt-1">Schedule at least 30 minutes in advance.</p>
-            </div>
+            {form.start_mode === 'scheduled' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Starts At</label>
+                <input
+                  type="datetime-local"
+                  value={form.scheduled_start_at}
+                  onChange={(e) => setForm({ ...form, scheduled_start_at: e.target.value })}
+                  className="input"
+                  required
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Schedule at least 30 minutes in advance.</p>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Duration</label>
               <select value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })} className="select">
@@ -356,7 +395,9 @@ export default function LivestreamsPage() {
             </div>
           </div>
           <div className="flex flex-col gap-2 mt-4 sm:flex-row">
-            <button type="submit" className="btn-primary justify-center">{editing ? 'Save Schedule' : 'Schedule Stream'}</button>
+            <button type="submit" className="btn-primary justify-center">
+              {editing ? 'Save Schedule' : form.start_mode === 'immediate' ? 'Start Live Now' : 'Schedule Stream'}
+            </button>
             <button type="button" onClick={resetForm} className="btn-secondary justify-center">Cancel</button>
           </div>
         </form>
@@ -377,8 +418,8 @@ export default function LivestreamsPage() {
       ) : streams.length === 0 ? (
         <div className="card p-8 text-center sm:p-16">
           <Radio size={40} className="mx-auto text-slate-300 mb-3" />
-          <p className="text-slate-500 font-medium">No livestreams scheduled</p>
-          <p className="text-slate-400 text-sm mt-1">Schedule a morning or evening broadcast for your customers.</p>
+          <p className="text-slate-500 font-medium">No livestreams created</p>
+          <p className="text-slate-400 text-sm mt-1">Schedule a broadcast or start one immediately for your customers.</p>
         </div>
       ) : filteredStreams.length === 0 ? (
         <div className="card p-8 text-center sm:p-16">
@@ -407,7 +448,7 @@ export default function LivestreamsPage() {
                     )}
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    {formatSchedule(s.scheduled_start_at)}{s.duration_minutes ? ` / ${s.duration_minutes} min` : ''}
+                    {formatSchedule(s.scheduled_start_at, s.start_mode)}{s.duration_minutes ? ` / ${s.duration_minutes} min` : ''}
                   </p>
                   <p className="text-xs text-slate-400 truncate mt-0.5" title={s.youtube_url}>{s.youtube_url}</p>
                 </div>

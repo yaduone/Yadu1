@@ -124,6 +124,7 @@ async function createScheduledStream(areaId, adminId, input, now = new Date()) {
     scheduled_end_at: toTimestamp(schedule.scheduledEnd),
     reminder_at: toTimestamp(new Date(schedule.scheduledStart.getTime() - REMINDER_LEAD_MINUTES * 60 * 1000)),
     duration_minutes: schedule.durationMinutes,
+    start_mode: 'scheduled',
     status: 'scheduled',
     is_active: false,
     created_by: adminId,
@@ -132,6 +133,46 @@ async function createScheduledStream(areaId, adminId, input, now = new Date()) {
   };
   const ref = await db.collection('livestreams').add(data);
   return serialiseStream(ref.id, data, { now });
+}
+
+async function createImmediateStream(areaId, adminId, input, now = new Date()) {
+  const schedule = parseSchedule({
+    ...input,
+    scheduled_start_at: now,
+  }, { now, enforceLeadTime: false });
+  await rejectOverlappingStream(areaId, schedule.scheduledStart, schedule.scheduledEnd);
+
+  const data = {
+    area_id: areaId,
+    title: schedule.title,
+    youtube_url: schedule.youtube_url,
+    slot: schedule.slot,
+    scheduled_start_at: toTimestamp(schedule.scheduledStart),
+    scheduled_end_at: toTimestamp(schedule.scheduledEnd),
+    reminder_at: null,
+    duration_minutes: schedule.durationMinutes,
+    start_mode: 'immediate',
+    status: 'live',
+    is_active: true,
+    created_by: adminId,
+    started_at: admin.firestore.FieldValue.serverTimestamp(),
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  const ref = await db.collection('livestreams').add(data);
+  await sendStartedNotification(ref, ref.id, data, schedule.scheduledStart);
+  return serialiseStream(ref.id, data, { now });
+}
+
+async function createStream(areaId, adminId, input, now = new Date()) {
+  const startMode = input.start_mode || 'scheduled';
+  if (startMode === 'scheduled') {
+    return createScheduledStream(areaId, adminId, input, now);
+  }
+  if (startMode === 'immediate') {
+    return createImmediateStream(areaId, adminId, input, now);
+  }
+  throw serviceError('start_mode must be "scheduled" or "immediate"');
 }
 
 async function listAreaStreams(areaId, now = new Date()) {
@@ -243,6 +284,38 @@ async function markNotificationClaimed(ref, field) {
   return claimed;
 }
 
+async function sendStartedNotification(ref, id, data, start) {
+  if (!(await markNotificationClaimed(ref, 'started_notification_sent_at'))) {
+    return false;
+  }
+
+  try {
+    await notificationService.sendAreaBroadcast(data.area_id, {
+      type: 'livestream_started',
+      title: `${slotLabel(data.slot)} Live Stream Is Live`,
+      body: `Your ${data.slot} slot live stream has started. Tap to watch now.`,
+      meta: {
+        destination: 'livestream',
+        livestream_id: id,
+        title: data.title,
+        slot: data.slot,
+        scheduled_start_at: start.toISOString(),
+        youtube_url: data.youtube_url,
+      },
+    });
+    await ref.update({ started_notification_sent_at: admin.firestore.FieldValue.serverTimestamp() });
+    return true;
+  } catch (err) {
+    await ref.update({
+      started_notification_sent_at_claimed_at: admin.firestore.FieldValue.delete(),
+      started_notification_failed_at: admin.firestore.FieldValue.serverTimestamp(),
+      started_notification_error: err.message,
+    });
+    console.error(`[LIVESTREAM] Start alert failed for ${id}:`, err.message);
+    return false;
+  }
+}
+
 async function processScheduledStreams(now = new Date()) {
   const snap = await db.collection('livestreams').where('status', 'in', ['scheduled', 'live']).get();
   const results = { reminders: 0, started: 0, completed: 0 };
@@ -302,31 +375,8 @@ async function processScheduledStreams(now = new Date()) {
         });
       }
 
-      if (await markNotificationClaimed(doc.ref, 'started_notification_sent_at')) {
-        try {
-          await notificationService.sendAreaBroadcast(data.area_id, {
-            type: 'livestream_started',
-            title: `${slotLabel(data.slot)} Live Stream Is Live`,
-            body: `Your ${data.slot} slot live stream has started. Tap to watch now.`,
-            meta: {
-              destination: 'livestream',
-              livestream_id: doc.id,
-              title: data.title,
-              slot: data.slot,
-              scheduled_start_at: start.toISOString(),
-              youtube_url: data.youtube_url,
-            },
-          });
-          await doc.ref.update({ started_notification_sent_at: admin.firestore.FieldValue.serverTimestamp() });
-          results.started += 1;
-        } catch (err) {
-          await doc.ref.update({
-            started_notification_sent_at_claimed_at: admin.firestore.FieldValue.delete(),
-            started_notification_failed_at: admin.firestore.FieldValue.serverTimestamp(),
-            started_notification_error: err.message,
-          });
-          console.error(`[LIVESTREAM] Start alert failed for ${doc.id}:`, err.message);
-        }
+      if (await sendStartedNotification(doc.ref, doc.id, data, start)) {
+        results.started += 1;
       }
     }
   }
@@ -336,7 +386,9 @@ async function processScheduledStreams(now = new Date()) {
 
 module.exports = {
   REMINDER_LEAD_MINUTES,
+  createStream,
   createScheduledStream,
+  createImmediateStream,
   listAreaStreams,
   getViewerStreams,
   updateScheduledStream,
