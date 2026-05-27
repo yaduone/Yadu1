@@ -22,6 +22,7 @@ const navItems = [
   { to: '/livestreams', icon: Radio,           label: 'Livestreams', group: 'ops'  },
   { to: '/prices',      icon: IndianRupee,     label: 'Prices',      group: 'fin'  },
   { to: '/dues',        icon: Wallet,          label: 'Dues',        group: 'fin'  },
+  { to: '/inventory',   icon: Package,         label: 'Stock Ledger', group: 'fin'  },
   { to: '/activity',    icon: Bell,            label: 'Activity',    group: 'fin'  },
 ];
 
