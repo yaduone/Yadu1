@@ -103,6 +103,8 @@ export default function InventoryPage() {
 
   const [history, setHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [vendorHistory, setVendorHistory] = useState(null);
+  const [vendorHistoryLoading, setVendorHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -152,6 +154,7 @@ export default function InventoryPage() {
       await work();
       setNotice(message);
       setHistory(null);
+      setVendorHistory(null);
       await load(true);
       return true;
     } catch (err) {
@@ -311,6 +314,28 @@ export default function InventoryPage() {
     }
   }
 
+  async function openVendorHistory(vendor) {
+    setVendorHistoryLoading(true);
+    setError('');
+    try {
+      const res = await api.get(`/inventory/purchases?vendor_id=${vendor.id}`);
+      const vendorPurchases = res.data.data.purchases || [];
+      setVendorHistory({
+        vendor,
+        purchases: vendorPurchases,
+        summary: {
+          purchase_count: vendorPurchases.length,
+          total_quantity: vendorPurchases.reduce((sum, purchase) => sum + Number(purchase.quantity || 0), 0),
+          total_amount_paid: vendorPurchases.reduce((sum, purchase) => sum + Number(purchase.amount_paid || 0), 0),
+        },
+      });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load vendor transaction history');
+    } finally {
+      setVendorHistoryLoading(false);
+    }
+  }
+
   const filteredProducts = useMemo(() => products.filter((product) => matchesSearch(productSearch, [
     product.name, product.sku, product.unit, product.notes,
   ])), [productSearch, products]);
@@ -430,9 +455,13 @@ export default function InventoryPage() {
           onAdd={addVendor}
           onEdit={editVendor}
           onDelete={removeVendor}
+          onOpenHistory={openVendorHistory}
           onFormChange={setVendorForm}
           onSubmit={submitVendor}
           onCancel={() => setShowVendorForm(false)}
+          history={vendorHistory}
+          historyLoading={vendorHistoryLoading}
+          onCloseHistory={() => setVendorHistory(null)}
         />
       )}
       {tab === 'purchases' && (
@@ -633,7 +662,8 @@ function ProductsTab({
 
 function VendorsTab({
   vendors, search, onSearch, showForm, form, editing, saving,
-  onAdd, onEdit, onDelete, onFormChange, onSubmit, onCancel,
+  onAdd, onEdit, onDelete, onOpenHistory, onFormChange, onSubmit, onCancel,
+  history, historyLoading, onCloseHistory,
 }) {
   return (
     <div className="space-y-4">
@@ -684,7 +714,11 @@ function VendorsTab({
                   <td className="text-slate-500">{vendor.phone || '-'}</td>
                   <td className="text-slate-500">{vendor.email || '-'}</td>
                   <td>
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
+                      <button className="btn-ghost btn-sm" onClick={() => onOpenHistory(vendor)}>
+                        <History size={13} />
+                        History
+                      </button>
                       <button className="btn-icon" onClick={() => onEdit(vendor)}><Pencil size={14} /></button>
                       <button className="btn-icon text-red-500" onClick={() => onDelete(vendor)}><Trash2 size={14} /></button>
                     </div>
@@ -693,6 +727,54 @@ function VendorsTab({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {(historyLoading || history) && (
+        <div className="card p-4 sm:p-5">
+          {historyLoading ? (
+            <div className="h-28 bg-slate-50 animate-pulse rounded-xl" />
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="font-semibold text-slate-800">{history.vendor.name} Transaction History</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {history.summary.purchase_count} transactions, {history.summary.total_quantity} units, {money(history.summary.total_amount_paid)} paid
+                  </p>
+                </div>
+                <button className="btn-icon" onClick={onCloseHistory}><X size={15} /></button>
+              </div>
+              {history.purchases.length === 0 ? (
+                <p className="text-sm text-slate-400">No transactions have been recorded with this vendor.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Amount Paid</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.purchases.map((purchase) => (
+                        <tr key={purchase.id}>
+                          <td>{dateLabel(purchase.purchased_on)}</td>
+                          <td className="font-semibold text-slate-700">{purchase.product_name}</td>
+                          <td>{purchase.quantity} {purchase.product_unit}</td>
+                          <td>{money(purchase.amount_paid)}</td>
+                          <td className="text-slate-500 max-w-xs truncate">{purchase.notes || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
