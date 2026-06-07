@@ -19,6 +19,20 @@ const MILK_COLORS = {
   buffalo: 'bg-blue-50 text-blue-700 ring-blue-100',
   toned:   'bg-emerald-50 text-emerald-700 ring-emerald-100',
 };
+
+function isCallInEnabled(user) {
+  return user.call_in_enabled !== false;
+}
+
+function CallInBadge({ user }) {
+  const enabled = isCallInEnabled(user);
+  return (
+    <span className={enabled ? 'badge badge-blue' : 'badge badge-gray'}>
+      Call In: {enabled ? 'On' : 'Off'}
+    </span>
+  );
+}
+
 const DELIVERY_STATUS = {
   delivered: {
     label: 'Delivered',
@@ -571,7 +585,7 @@ export default function UsersPage() {
                         <p className="font-semibold text-slate-800 text-sm truncate">
                           {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
                         </p>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center justify-end gap-1.5 shrink-0 flex-wrap max-w-[190px]">
                           {user.deletion_requested && (
                             <span className="badge badge-red">delete req</span>
                           )}
@@ -582,6 +596,7 @@ export default function UsersPage() {
                           ) : (
                             <span className="badge badge-gray">no sub</span>
                           )}
+                          <CallInBadge user={user} />
                           <button
                             type="button"
                             onClick={() => setCartUser(user)}
@@ -732,6 +747,7 @@ export default function UsersPage() {
                           ) : (
                             <span className="badge badge-gray">no sub</span>
                           )}
+                          <CallInBadge user={user} />
                         </div>
                       </td>
                       <td>

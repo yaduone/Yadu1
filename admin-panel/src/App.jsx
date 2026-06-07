@@ -18,6 +18,7 @@ import ActivityPage from './pages/ActivityPage';
 import CategoriesPage from './pages/CategoriesPage';
 import FlowTestingPage from './pages/FlowTestingPage';
 import InventoryPage from './pages/InventoryPage';
+import NotesPage from './pages/NotesPage';
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="activity" element={<ActivityPage />} />
             <Route path="flow-tests" element={<FlowTestingPage />} />
             <Route path="inventory" element={<InventoryPage />} />
+            <Route path="notes" element={<NotesPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

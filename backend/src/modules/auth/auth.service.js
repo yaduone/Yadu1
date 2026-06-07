@@ -21,6 +21,7 @@ async function verifyUserToken(firebaseToken) {
       name: null,
       area_id: null,
       address: null,
+      call_in_enabled: true,
       is_active: true,
       created_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -46,7 +47,12 @@ async function verifyUserToken(firebaseToken) {
   const isProfileComplete = !!(userData.name && userData.area_id && userData.address);
 
   return {
-    user: { id: userDoc.id, ...userData, is_profile_complete: isProfileComplete },
+    user: {
+      id: userDoc.id,
+      ...userData,
+      call_in_enabled: userData.call_in_enabled !== false,
+      is_profile_complete: isProfileComplete,
+    },
     is_new_user: false,
   };
 }
@@ -82,7 +88,12 @@ async function completeProfile(userId, { name, area_id, address }) {
     meta: { user_id: userId, name, area_id, phone: updatedData.phone || null },
   });
 
-  return { id: updatedDoc.id, ...updatedData, is_profile_complete: true };
+  return {
+    id: updatedDoc.id,
+    ...updatedData,
+    call_in_enabled: updatedData.call_in_enabled !== false,
+    is_profile_complete: true,
+  };
 }
 
 /**

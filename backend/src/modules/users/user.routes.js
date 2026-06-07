@@ -20,6 +20,10 @@ const USER_OWNED_COLLECTIONS = [
   { collection: 'admin_logs', field: 'meta.user_id' },
 ];
 
+function callInEnabled(userData) {
+  return userData.call_in_enabled !== false;
+}
+
 async function deleteUserFirestoreData(userId, userRef) {
   const queuedPaths = new Set();
   const deletedByCollection = {};
@@ -88,6 +92,7 @@ router.get('/profile', authenticateUser, async (req, res, next) => {
       user: {
         id: userDoc.id,
         ...userData,
+        call_in_enabled: callInEnabled(userData),
         area_name: areaName,
         is_profile_complete: !!(userData.name && userData.area_id && userData.address),
       },
@@ -138,6 +143,7 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
         phone: u.phone,
         address: u.address,
         area_id: u.area_id,
+        call_in_enabled: callInEnabled(u),
         is_profile_complete: !!(u.name && u.area_id && u.address),
         created_at: u.created_at,
         deletion_requested: u.deletion_requested || false,
@@ -244,14 +250,30 @@ router.delete('/admin/:userId', authenticateAdmin, async (req, res, next) => {
 // PUT /api/users/profile
 router.put('/profile', authenticateUser, requireCompleteProfile, async (req, res, next) => {
   try {
-    const { name, address } = req.body;
+    const { name, address, call_in_enabled } = req.body;
+    if (
+      Object.prototype.hasOwnProperty.call(req.body, 'call_in_enabled') &&
+      typeof call_in_enabled !== 'boolean'
+    ) {
+      return badRequest(res, 'call_in_enabled must be a boolean');
+    }
+
     const updateData = { updated_at: firebaseAdmin.firestore.FieldValue.serverTimestamp() };
     if (name) updateData.name = name;
     if (address) updateData.address = address;
+    if (typeof call_in_enabled === 'boolean') updateData.call_in_enabled = call_in_enabled;
 
     await db.collection('users').doc(req.user.userId).update(updateData);
     const updatedDoc = await db.collection('users').doc(req.user.userId).get();
-    return success(res, { user: { id: updatedDoc.id, ...updatedDoc.data() } });
+    const updatedData = updatedDoc.data();
+    return success(res, {
+      user: {
+        id: updatedDoc.id,
+        ...updatedData,
+        call_in_enabled: callInEnabled(updatedData),
+        is_profile_complete: !!(updatedData.name && updatedData.area_id && updatedData.address),
+      },
+    });
   } catch (err) {
     next(err);
   }

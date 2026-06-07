@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, LogOut,
-  ChevronRight, Menu, X, Settings,
+  ChevronRight, Menu, X, Settings, StickyNote,
   FlaskConical,
 } from 'lucide-react';
 
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/products',    icon: Package,         label: 'Products',    group: 'main' },
   { to: '/categories',  icon: Tag,             label: 'Categories',  group: 'main' },
   { to: '/orders',      icon: ClipboardList,   label: 'Orders',      group: 'main' },
+  { to: '/notes',       icon: StickyNote,      label: 'Notes',       group: 'main' },
   { to: '/areas',       icon: MapPin,          label: 'Areas',       group: 'ops'  },
   { to: '/manifests',   icon: FileText,        label: 'Manifests',   group: 'ops'  },
   { to: '/manifest-settings', icon: Settings,  label: 'Schedule',    group: 'ops'  },

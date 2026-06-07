@@ -38,6 +38,7 @@ async function getTomorrowStatus(userId, targetDate, areaId) {
         milk_type: subData.milk_type,
         quantity_litres: subData.quantity_litres,
         price_per_litre: subData.price_per_litre,
+        delivery_slot: subData.delivery_slot,
         total: subData.quantity_litres * subData.price_per_litre,
       };
     }
@@ -98,7 +99,12 @@ async function getTomorrowStatus(userId, targetDate, areaId) {
     date,
     is_locked: isLocked,
     subscription: subscription
-      ? { id: subscription.id, milk_type: subscription.milk_type, base_quantity: subscription.quantity_litres }
+      ? {
+          id: subscription.id,
+          milk_type: subscription.milk_type,
+          base_quantity: subscription.quantity_litres,
+          delivery_slot: subscription.delivery_slot,
+        }
       : null,
     override,
     effective_milk: effectiveMilk,
