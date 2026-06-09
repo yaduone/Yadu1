@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import SearchField from '../components/SearchField';
+import LocationLink from '../components/LocationLink';
 import { matchesSearch } from '../utils/search';
 import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package } from 'lucide-react';
 
@@ -352,6 +353,11 @@ function CustomerBlock({ order }) {
         <p className="text-xs text-slate-400 truncate max-w-[160px]" title={order.user_address.line1}>
           {order.user_address.line1}
         </p>
+      )}
+      {order.user_location && (
+        <div className="mt-1">
+          <LocationLink location={order.user_location} className="text-xs" size={12} />
+        </div>
       )}
     </div>
   );

@@ -148,6 +148,7 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
         created_at: u.created_at,
         deletion_requested: u.deletion_requested || false,
         deletion_requested_at: u.deletion_requested_at || null,
+        location: u.location || null,
         subscription: sub ? {
           id: sub.id,
           milk_type: sub.milk_type,
@@ -308,6 +309,126 @@ router.post('/request-deletion', authenticateUser, async (req, res, next) => {
     });
 
     return success(res, {}, 'Deletion request received. Your account and personal data will be removed within 30 days.');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/users/admin/:userId/location — Admin: record/update a user's physical location
+router.post('/admin/:userId/location', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { latitude, longitude } = req.body;
+
+    if (!latitude || !longitude) {
+      return badRequest(res, 'Latitude and longitude are required');
+    }
+
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+    
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return badRequest(res, 'Invalid coordinates');
+    }
+
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return notFound(res, 'User not found');
+    }
+
+    const userData = userDoc.data();
+    if (userData.area_id !== req.admin.areaId && req.admin.role !== 'super_admin') {
+      return forbidden(res, 'Cannot update location for user outside your area');
+    }
+
+    const locationData = {
+      latitude: lat,
+      longitude: lon,
+      recorded_by: req.admin.id,
+      recorded_at: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await db.collection('users').doc(userId).update({
+      location: locationData,
+      updated_at: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logActivity({
+      type: 'location_recorded',
+      title: 'User Location Recorded',
+      message: `Location recorded for user by ${req.admin.username}`,
+      areaId: userData.area_id || req.admin.areaId,
+      meta: { 
+        user_id: userId,
+        recorded_by_admin_id: req.admin.adminId,
+        latitude: lat,
+        longitude: lon,
+      },
+    });
+
+    return success(res, { 
+      message: 'Location recorded successfully',
+      location: { latitude: lat, longitude: lon },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/users/admin/:userId/location — Admin: get a user's recorded location
+router.get('/admin/:userId/location', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return notFound(res, 'User not found');
+    }
+
+    const userData = userDoc.data();
+    if (userData.area_id !== req.admin.areaId && req.admin.role !== 'super_admin') {
+      return forbidden(res, 'Cannot view location for user outside your area');
+    }
+
+    const location = userData.location || null;
+    return success(res, { location });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/users/admin/:userId/location — Admin: remove a user's recorded location
+router.delete('/admin/:userId/location', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return notFound(res, 'User not found');
+    }
+
+    const userData = userDoc.data();
+    if (userData.area_id !== req.admin.areaId && req.admin.role !== 'super_admin') {
+      return forbidden(res, 'Cannot delete location for user outside your area');
+    }
+
+    await db.collection('users').doc(userId).update({
+      location: null,
+      updated_at: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await logActivity({
+      type: 'location_removed',
+      title: 'User Location Removed',
+      message: `Location removed for user by ${req.admin.username}`,
+      areaId: userData.area_id || req.admin.areaId,
+      meta: { 
+        user_id: userId,
+        removed_by_admin_id: req.admin.adminId,
+      },
+    });
+
+    return success(res, { message: 'Location removed successfully' });
   } catch (err) {
     next(err);
   }

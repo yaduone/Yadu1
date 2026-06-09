@@ -203,9 +203,10 @@ async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 }) {
         usersSnap.docs.forEach((doc) => {
           const d = doc.data();
           userMap[doc.id] = {
-            name:    d.name    || null,
-            phone:   d.phone   || null,
-            address: d.address || null,
+            name:     d.name     || null,
+            phone:    d.phone    || null,
+            address:  d.address  || null,
+            location: d.location || null,
           };
         });
       } catch (e) {
@@ -224,7 +225,12 @@ async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 }) {
         usersSnap.docs.forEach((doc) => {
           const d = doc.data();
           // Map both the firebase_uid and the doc ID so either lookup works
-          const entry = { name: d.name || null, phone: d.phone || null, address: d.address || null };
+          const entry = { 
+            name:     d.name     || null, 
+            phone:    d.phone    || null, 
+            address:  d.address  || null,
+            location: d.location || null,
+          };
           userMap[d.firebase_uid] = entry;
           userMap[doc.id] = entry;
         });
@@ -237,9 +243,10 @@ async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 }) {
   // Attach user info to each order
   const enriched = orders.map((o) => ({
     ...o,
-    user_name:    userMap[o.user_id]?.name    ?? null,
-    user_phone:   userMap[o.user_id]?.phone   ?? null,
-    user_address: userMap[o.user_id]?.address ?? null,
+    user_name:     userMap[o.user_id]?.name     ?? null,
+    user_phone:    userMap[o.user_id]?.phone    ?? null,
+    user_address:  userMap[o.user_id]?.address  ?? null,
+    user_location: userMap[o.user_id]?.location ?? null,
   }));
 
   const start = (page - 1) * limit;

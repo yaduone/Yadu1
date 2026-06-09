@@ -53,7 +53,7 @@ function formatExtraItemSummaryLine(item) {
 async function enrichRowsWithUsers(rows) {
   return Promise.all(rows.map(async (row) => {
     const userDoc = await db.collection('users').doc(row.userId).get();
-    const userData = userDoc.exists ? userDoc.data() : { name: 'Unknown', phone: 'N/A', address: {} };
+    const userData = userDoc.exists ? userDoc.data() : { name: 'Unknown', phone: 'N/A', address: {}, location: null };
 
     return {
       orderId: row.orderId || null,
@@ -62,6 +62,7 @@ async function enrichRowsWithUsers(rows) {
       address: userData.address
         ? `${userData.address.line1 || ''}${userData.address.line2 ? ', ' + userData.address.line2 : ''}${userData.address.landmark ? ', ' + userData.address.landmark : ''}`
         : 'N/A',
+      location: userData.location || null,
       deliverySlot: row.deliverySlot || 'morning',
       milk: row.milk || null,
       extraItems: row.extraItems || [],
@@ -341,6 +342,19 @@ function renderOrderRow(doc, order, idx) {
   doc.text(`${idx + 1}. ${order.userName}  |  ${order.phone}`);
   doc.font('Helvetica').fontSize(9);
   doc.text(`   Address: ${order.address}`);
+
+  // Add location link if available
+  if (order.location?.latitude && order.location?.longitude) {
+    const mapsUrl = `https://www.google.com/maps?q=${order.location.latitude},${order.location.longitude}`;
+    doc.fillColor('blue')
+      .text('   Location: ', { continued: true })
+      .fillColor('blue')
+      .text(mapsUrl, { 
+        link: mapsUrl,
+        underline: true,
+      })
+      .fillColor('black');
+  }
 
   if (order.milk) {
     doc.text(

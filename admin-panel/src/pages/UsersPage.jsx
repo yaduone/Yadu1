@@ -1,10 +1,12 @@
 import { createElement, useState, useEffect } from 'react';
 import api from '../services/api';
 import SearchField from '../components/SearchField';
+import LocationModal from '../components/LocationModal';
+import LocationLink from '../components/LocationLink';
 import {
   AlertTriangle, Trash2, Users, UserCheck, UserX, UserMinus,
   HelpCircle, ShieldAlert, ShoppingCart, X, Package, Milk, Loader2,
-  CalendarDays, ChevronLeft, ChevronRight,
+  CalendarDays, ChevronLeft, ChevronRight, MapPin,
 } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -425,8 +427,13 @@ export default function UsersPage() {
   const [acceptError, setAcceptError] = useState('');
   const [cartUser, setCartUser] = useState(null);
   const [calendarUser, setCalendarUser] = useState(null);
+  const [locationUser, setLocationUser] = useState(null);
 
   useEffect(() => {
+    loadUsers();
+  }, []);
+
+  function loadUsers() {
     Promise.all([api.get('/users/admin/list'), api.get('/dues/admin/list')])
       .then(([usersRes, duesRes]) => {
         setUsers(usersRes.data.data.users);
@@ -436,7 +443,7 @@ export default function UsersPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }
 
   function openDelete(user) {
     setDeleteTarget(user);
@@ -599,6 +606,15 @@ export default function UsersPage() {
                           <CallInBadge user={user} />
                           <button
                             type="button"
+                            onClick={() => setLocationUser(user)}
+                            className="btn-icon text-green-400 hover:text-green-600 hover:bg-green-50"
+                            title="Record/View location"
+                            aria-label={`Record location for ${user.name || user.phone || 'user'}`}
+                          >
+                            <MapPin size={14} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setCartUser(user)}
                             className="btn-icon text-blue-400 hover:text-blue-600 hover:bg-blue-50"
                             title="View cart"
@@ -642,6 +658,11 @@ export default function UsersPage() {
                       {user.address && (
                         <p className="text-xs text-slate-400 truncate">{user.address.line1}</p>
                       )}
+                      {user.location && (
+                        <div className="mt-1">
+                          <LocationLink location={user.location} className="text-xs" size={12} />
+                        </div>
+                      )}
                       {sub && (
                         <div className="flex items-center gap-3 mt-2 flex-wrap">
                           <span className="text-xs text-slate-600 font-medium capitalize">
@@ -670,6 +691,7 @@ export default function UsersPage() {
                   <th>User</th>
                   <th>Phone</th>
                   <th>Address</th>
+                  <th>Location</th>
                   <th>Milk</th>
                   <th>Qty / Day</th>
                   <th>₹ / Day</th>
@@ -707,6 +729,20 @@ export default function UsersPage() {
                             {user.address.pincode && <span className="text-slate-400 ml-1">· {user.address.pincode}</span>}
                           </span>
                         ) : '—'}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {user.location ? (
+                          <LocationLink location={user.location} className="text-xs" size={13} />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setLocationUser(user)}
+                            className="btn-icon text-slate-400 hover:text-green-600 hover:bg-green-50"
+                            title="Record location"
+                          >
+                            <MapPin size={13} />
+                          </button>
+                        )}
                       </td>
                       <td className="whitespace-nowrap">
                         {sub ? (
@@ -752,6 +788,15 @@ export default function UsersPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setLocationUser(user)}
+                            className="btn-icon text-green-400 hover:text-green-600 hover:bg-green-50"
+                            title="Record/View location"
+                            aria-label={`Record location for ${user.name || user.phone || 'user'}`}
+                          >
+                            <MapPin size={14} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => setCartUser(user)}
@@ -805,6 +850,13 @@ export default function UsersPage() {
       {cartUser && <CartModal user={cartUser} onClose={() => setCartUser(null)} />}
       {calendarUser && (
         <DeliveryCalendarModal user={calendarUser} onClose={() => setCalendarUser(null)} />
+      )}
+      {locationUser && (
+        <LocationModal 
+          user={locationUser} 
+          onClose={() => setLocationUser(null)}
+          onLocationUpdated={() => loadUsers()}
+        />
       )}
 
       {acceptTarget && (
