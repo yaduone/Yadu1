@@ -344,7 +344,7 @@ router.post('/admin/:userId/location', authenticateAdmin, async (req, res, next)
     const locationData = {
       latitude: lat,
       longitude: lon,
-      recorded_by: req.admin.id,
+      recorded_by: req.admin.adminId,
       recorded_at: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
     };
 
