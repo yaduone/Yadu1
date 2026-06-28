@@ -378,3 +378,195 @@
 {"timestamp":"2026-04-27T16:45:14.958Z","level":"DELETE","message":"Deleting file","filename":"products/1777308314093_f5ds7sw67cj.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1777308314093_f5ds7sw67cj.jpg"}
 {"timestamp":"2026-04-27T16:45:15.071Z","level":"SUCCESS","message":"File deleted","filename":"products/1777308314093_f5ds7sw67cj.jpg"}
 {"timestamp":"2026-04-27T16:45:15.072Z","level":"SUCCESS","message":"Deletion complete","urlCount":5}
+{"timestamp":"2026-06-28T05:25:38.981Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:38.987Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624338987_ldc8zg0oryp.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:39.776Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624338987_ldc8zg0oryp.jpg"}
+{"timestamp":"2026-06-28T05:25:39.961Z","level":"UPLOAD","message":"File made public","filename":"products/1782624338987_ldc8zg0oryp.jpg"}
+{"timestamp":"2026-06-28T05:25:39.962Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624338987_ldc8zg0oryp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624338987_ldc8zg0oryp.jpg"}
+{"timestamp":"2026-06-28T05:25:39.963Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624338987_ldc8zg0oryp.jpg"]}
+{"timestamp":"2026-06-28T05:25:40.126Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:40.127Z","level":"DELETE","message":"Deleting file","filename":"products/1782624338987_ldc8zg0oryp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624338987_ldc8zg0oryp.jpg"}
+{"timestamp":"2026-06-28T05:25:40.237Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624338987_ldc8zg0oryp.jpg"}
+{"timestamp":"2026-06-28T05:25:40.237Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:40.239Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:40.240Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.png","filename":"products/1782624340240_cex4kv9y6jb.png","size":45,"mimetype":"image/png"}
+{"timestamp":"2026-06-28T05:25:40.564Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624340240_cex4kv9y6jb.png"}
+{"timestamp":"2026-06-28T05:25:40.670Z","level":"UPLOAD","message":"File made public","filename":"products/1782624340240_cex4kv9y6jb.png"}
+{"timestamp":"2026-06-28T05:25:40.671Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624340240_cex4kv9y6jb.png","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624340240_cex4kv9y6jb.png"}
+{"timestamp":"2026-06-28T05:25:40.672Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624340240_cex4kv9y6jb.png"]}
+{"timestamp":"2026-06-28T05:25:40.918Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:40.919Z","level":"DELETE","message":"Deleting file","filename":"products/1782624340240_cex4kv9y6jb.png","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624340240_cex4kv9y6jb.png"}
+{"timestamp":"2026-06-28T05:25:41.072Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624340240_cex4kv9y6jb.png"}
+{"timestamp":"2026-06-28T05:25:41.072Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:41.074Z","level":"UPLOAD","message":"Starting upload","fileCount":2,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:41.075Z","level":"UPLOAD","message":"Uploading file","originalName":"image1.jpg","filename":"products/1782624341075_4aoe25qqgn3.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:41.359Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624341075_4aoe25qqgn3.jpg"}
+{"timestamp":"2026-06-28T05:25:41.493Z","level":"UPLOAD","message":"File made public","filename":"products/1782624341075_4aoe25qqgn3.jpg"}
+{"timestamp":"2026-06-28T05:25:41.493Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624341075_4aoe25qqgn3.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624341075_4aoe25qqgn3.jpg"}
+{"timestamp":"2026-06-28T05:25:41.494Z","level":"UPLOAD","message":"Uploading file","originalName":"image2.png","filename":"products/1782624341494_493j99p116g.png","size":45,"mimetype":"image/png"}
+{"timestamp":"2026-06-28T05:25:41.997Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624341494_493j99p116g.png"}
+{"timestamp":"2026-06-28T05:25:42.105Z","level":"UPLOAD","message":"File made public","filename":"products/1782624341494_493j99p116g.png"}
+{"timestamp":"2026-06-28T05:25:42.106Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624341494_493j99p116g.png","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624341494_493j99p116g.png"}
+{"timestamp":"2026-06-28T05:25:42.107Z","level":"SUCCESS","message":"All files uploaded","fileCount":2,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624341075_4aoe25qqgn3.jpg","https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624341494_493j99p116g.png"]}
+{"timestamp":"2026-06-28T05:25:42.373Z","level":"DELETE","message":"Starting deletion","urlCount":2}
+{"timestamp":"2026-06-28T05:25:42.374Z","level":"DELETE","message":"Deleting file","filename":"products/1782624341075_4aoe25qqgn3.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624341075_4aoe25qqgn3.jpg"}
+{"timestamp":"2026-06-28T05:25:42.471Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624341075_4aoe25qqgn3.jpg"}
+{"timestamp":"2026-06-28T05:25:42.471Z","level":"DELETE","message":"Deleting file","filename":"products/1782624341494_493j99p116g.png","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624341494_493j99p116g.png"}
+{"timestamp":"2026-06-28T05:25:42.585Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624341494_493j99p116g.png"}
+{"timestamp":"2026-06-28T05:25:42.586Z","level":"SUCCESS","message":"Deletion complete","urlCount":2}
+{"timestamp":"2026-06-28T05:25:42.588Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:42.589Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624342588_kh1q2s3sebp.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:42.842Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624342588_kh1q2s3sebp.jpg"}
+{"timestamp":"2026-06-28T05:25:42.962Z","level":"UPLOAD","message":"File made public","filename":"products/1782624342588_kh1q2s3sebp.jpg"}
+{"timestamp":"2026-06-28T05:25:42.962Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624342588_kh1q2s3sebp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624342588_kh1q2s3sebp.jpg"}
+{"timestamp":"2026-06-28T05:25:42.963Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624342588_kh1q2s3sebp.jpg"]}
+{"timestamp":"2026-06-28T05:25:43.280Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:43.280Z","level":"DELETE","message":"Deleting file","filename":"products/1782624342588_kh1q2s3sebp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624342588_kh1q2s3sebp.jpg"}
+{"timestamp":"2026-06-28T05:25:43.398Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624342588_kh1q2s3sebp.jpg"}
+{"timestamp":"2026-06-28T05:25:43.399Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:43.401Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:43.402Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624343402_1cim8206z4k.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:43.722Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624343402_1cim8206z4k.jpg"}
+{"timestamp":"2026-06-28T05:25:43.846Z","level":"UPLOAD","message":"File made public","filename":"products/1782624343402_1cim8206z4k.jpg"}
+{"timestamp":"2026-06-28T05:25:43.847Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624343402_1cim8206z4k.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624343402_1cim8206z4k.jpg"}
+{"timestamp":"2026-06-28T05:25:43.847Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624343402_1cim8206z4k.jpg"]}
+{"timestamp":"2026-06-28T05:25:43.847Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:43.848Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624343848_5u4xauw5x0q.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:44.092Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624343848_5u4xauw5x0q.jpg"}
+{"timestamp":"2026-06-28T05:25:44.187Z","level":"UPLOAD","message":"File made public","filename":"products/1782624343848_5u4xauw5x0q.jpg"}
+{"timestamp":"2026-06-28T05:25:44.188Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624343848_5u4xauw5x0q.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624343848_5u4xauw5x0q.jpg"}
+{"timestamp":"2026-06-28T05:25:44.189Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624343848_5u4xauw5x0q.jpg"]}
+{"timestamp":"2026-06-28T05:25:44.189Z","level":"DELETE","message":"Starting deletion","urlCount":2}
+{"timestamp":"2026-06-28T05:25:44.190Z","level":"DELETE","message":"Deleting file","filename":"products/1782624343402_1cim8206z4k.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624343402_1cim8206z4k.jpg"}
+{"timestamp":"2026-06-28T05:25:44.286Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624343402_1cim8206z4k.jpg"}
+{"timestamp":"2026-06-28T05:25:44.287Z","level":"DELETE","message":"Deleting file","filename":"products/1782624343848_5u4xauw5x0q.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624343848_5u4xauw5x0q.jpg"}
+{"timestamp":"2026-06-28T05:25:44.413Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624343848_5u4xauw5x0q.jpg"}
+{"timestamp":"2026-06-28T05:25:44.414Z","level":"SUCCESS","message":"Deletion complete","urlCount":2}
+{"timestamp":"2026-06-28T05:25:44.415Z","level":"UPLOAD","message":"Starting upload","fileCount":0,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:44.416Z","level":"SUCCESS","message":"All files uploaded","fileCount":0,"urls":[]}
+{"timestamp":"2026-06-28T05:25:44.419Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:44.420Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624344419_128giq0thpcp.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:44.816Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624344419_128giq0thpcp.jpg"}
+{"timestamp":"2026-06-28T05:25:44.928Z","level":"UPLOAD","message":"File made public","filename":"products/1782624344419_128giq0thpcp.jpg"}
+{"timestamp":"2026-06-28T05:25:44.929Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624344419_128giq0thpcp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624344419_128giq0thpcp.jpg"}
+{"timestamp":"2026-06-28T05:25:44.930Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624344419_128giq0thpcp.jpg"]}
+{"timestamp":"2026-06-28T05:25:45.015Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:45.016Z","level":"DELETE","message":"Deleting file","filename":"products/1782624344419_128giq0thpcp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624344419_128giq0thpcp.jpg"}
+{"timestamp":"2026-06-28T05:25:45.137Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624344419_128giq0thpcp.jpg"}
+{"timestamp":"2026-06-28T05:25:45.137Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:45.416Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:45.416Z","level":"DELETE","message":"Deleting file","filename":"products/nonexistent.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/nonexistent.jpg"}
+{"timestamp":"2026-06-28T05:25:45.528Z","level":"DELETE","message":"File deletion failed (ignoring)","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/nonexistent.jpg","error":"No such object: yadu1-821e8.firebasestorage.app/products/nonexistent.jpg"}
+{"timestamp":"2026-06-28T05:25:45.529Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:45.531Z","level":"UPLOAD","message":"Starting upload","fileCount":2,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:45.532Z","level":"UPLOAD","message":"Uploading file","originalName":"image1.jpg","filename":"products/1782624345532_nch11s9atjc.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:45.927Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624345532_nch11s9atjc.jpg"}
+{"timestamp":"2026-06-28T05:25:46.026Z","level":"UPLOAD","message":"File made public","filename":"products/1782624345532_nch11s9atjc.jpg"}
+{"timestamp":"2026-06-28T05:25:46.027Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624345532_nch11s9atjc.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624345532_nch11s9atjc.jpg"}
+{"timestamp":"2026-06-28T05:25:46.028Z","level":"UPLOAD","message":"Uploading file","originalName":"image2.png","filename":"products/1782624346028_xcjxjk33syj.png","size":45,"mimetype":"image/png"}
+{"timestamp":"2026-06-28T05:25:46.417Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624346028_xcjxjk33syj.png"}
+{"timestamp":"2026-06-28T05:25:46.517Z","level":"UPLOAD","message":"File made public","filename":"products/1782624346028_xcjxjk33syj.png"}
+{"timestamp":"2026-06-28T05:25:46.518Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624346028_xcjxjk33syj.png","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624346028_xcjxjk33syj.png"}
+{"timestamp":"2026-06-28T05:25:46.519Z","level":"SUCCESS","message":"All files uploaded","fileCount":2,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624345532_nch11s9atjc.jpg","https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624346028_xcjxjk33syj.png"]}
+{"timestamp":"2026-06-28T05:25:47.015Z","level":"DELETE","message":"Starting deletion","urlCount":2}
+{"timestamp":"2026-06-28T05:25:47.016Z","level":"DELETE","message":"Deleting file","filename":"products/1782624345532_nch11s9atjc.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624345532_nch11s9atjc.jpg"}
+{"timestamp":"2026-06-28T05:25:47.132Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624345532_nch11s9atjc.jpg"}
+{"timestamp":"2026-06-28T05:25:47.132Z","level":"DELETE","message":"Deleting file","filename":"products/1782624346028_xcjxjk33syj.png","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624346028_xcjxjk33syj.png"}
+{"timestamp":"2026-06-28T05:25:47.322Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624346028_xcjxjk33syj.png"}
+{"timestamp":"2026-06-28T05:25:47.323Z","level":"SUCCESS","message":"Deletion complete","urlCount":2}
+{"timestamp":"2026-06-28T05:25:47.646Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:47.647Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624347647_mnx4fpl45mg.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:47.648Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:47.648Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624347648_21d5aib2t6v.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:47.649Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:47.650Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624347650_2cun6g4eph3.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:47.651Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:47.652Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624347652_iiwnk5boio.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:47.653Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:47.653Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624347653_byly6tkfz7v.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:48.029Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624347647_mnx4fpl45mg.jpg"}
+{"timestamp":"2026-06-28T05:25:48.128Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624347650_2cun6g4eph3.jpg"}
+{"timestamp":"2026-06-28T05:25:48.131Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624347648_21d5aib2t6v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.134Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624347652_iiwnk5boio.jpg"}
+{"timestamp":"2026-06-28T05:25:48.140Z","level":"UPLOAD","message":"File made public","filename":"products/1782624347647_mnx4fpl45mg.jpg"}
+{"timestamp":"2026-06-28T05:25:48.141Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624347647_mnx4fpl45mg.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347647_mnx4fpl45mg.jpg"}
+{"timestamp":"2026-06-28T05:25:48.141Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347647_mnx4fpl45mg.jpg"]}
+{"timestamp":"2026-06-28T05:25:48.234Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624347653_byly6tkfz7v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.414Z","level":"UPLOAD","message":"File made public","filename":"products/1782624347653_byly6tkfz7v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.415Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624347653_byly6tkfz7v.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347653_byly6tkfz7v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.416Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347653_byly6tkfz7v.jpg"]}
+{"timestamp":"2026-06-28T05:25:48.517Z","level":"UPLOAD","message":"File made public","filename":"products/1782624347648_21d5aib2t6v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.518Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624347648_21d5aib2t6v.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347648_21d5aib2t6v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.519Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347648_21d5aib2t6v.jpg"]}
+{"timestamp":"2026-06-28T05:25:48.520Z","level":"UPLOAD","message":"File made public","filename":"products/1782624347650_2cun6g4eph3.jpg"}
+{"timestamp":"2026-06-28T05:25:48.520Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624347650_2cun6g4eph3.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347650_2cun6g4eph3.jpg"}
+{"timestamp":"2026-06-28T05:25:48.521Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347650_2cun6g4eph3.jpg"]}
+{"timestamp":"2026-06-28T05:25:48.522Z","level":"UPLOAD","message":"File made public","filename":"products/1782624347652_iiwnk5boio.jpg"}
+{"timestamp":"2026-06-28T05:25:48.522Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624347652_iiwnk5boio.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347652_iiwnk5boio.jpg"}
+{"timestamp":"2026-06-28T05:25:48.522Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347652_iiwnk5boio.jpg"]}
+{"timestamp":"2026-06-28T05:25:48.523Z","level":"DELETE","message":"Starting deletion","urlCount":5}
+{"timestamp":"2026-06-28T05:25:48.524Z","level":"DELETE","message":"Deleting file","filename":"products/1782624347647_mnx4fpl45mg.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347647_mnx4fpl45mg.jpg"}
+{"timestamp":"2026-06-28T05:25:48.623Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624347647_mnx4fpl45mg.jpg"}
+{"timestamp":"2026-06-28T05:25:48.625Z","level":"DELETE","message":"Deleting file","filename":"products/1782624347648_21d5aib2t6v.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347648_21d5aib2t6v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.725Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624347648_21d5aib2t6v.jpg"}
+{"timestamp":"2026-06-28T05:25:48.726Z","level":"DELETE","message":"Deleting file","filename":"products/1782624347650_2cun6g4eph3.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347650_2cun6g4eph3.jpg"}
+{"timestamp":"2026-06-28T05:25:48.915Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624347650_2cun6g4eph3.jpg"}
+{"timestamp":"2026-06-28T05:25:48.915Z","level":"DELETE","message":"Deleting file","filename":"products/1782624347652_iiwnk5boio.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347652_iiwnk5boio.jpg"}
+{"timestamp":"2026-06-28T05:25:49.014Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624347652_iiwnk5boio.jpg"}
+{"timestamp":"2026-06-28T05:25:49.015Z","level":"DELETE","message":"Deleting file","filename":"products/1782624347653_byly6tkfz7v.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624347653_byly6tkfz7v.jpg"}
+{"timestamp":"2026-06-28T05:25:49.214Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624347653_byly6tkfz7v.jpg"}
+{"timestamp":"2026-06-28T05:25:49.215Z","level":"SUCCESS","message":"Deletion complete","urlCount":5}
+{"timestamp":"2026-06-28T05:25:49.216Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:49.217Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624349217_ylz8iai2zp.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:49.615Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624349217_ylz8iai2zp.jpg"}
+{"timestamp":"2026-06-28T05:25:49.723Z","level":"UPLOAD","message":"File made public","filename":"products/1782624349217_ylz8iai2zp.jpg"}
+{"timestamp":"2026-06-28T05:25:49.724Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624349217_ylz8iai2zp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624349217_ylz8iai2zp.jpg"}
+{"timestamp":"2026-06-28T05:25:49.724Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624349217_ylz8iai2zp.jpg"]}
+{"timestamp":"2026-06-28T05:25:49.987Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:49.988Z","level":"DELETE","message":"Deleting file","filename":"products/1782624349217_ylz8iai2zp.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624349217_ylz8iai2zp.jpg"}
+{"timestamp":"2026-06-28T05:25:50.083Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624349217_ylz8iai2zp.jpg"}
+{"timestamp":"2026-06-28T05:25:50.083Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:50.085Z","level":"UPLOAD","message":"Starting upload","fileCount":1,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:50.085Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image.jpg","filename":"products/1782624350085_yv9aigieaq.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:50.415Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624350085_yv9aigieaq.jpg"}
+{"timestamp":"2026-06-28T05:25:50.520Z","level":"UPLOAD","message":"File made public","filename":"products/1782624350085_yv9aigieaq.jpg"}
+{"timestamp":"2026-06-28T05:25:50.520Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624350085_yv9aigieaq.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624350085_yv9aigieaq.jpg"}
+{"timestamp":"2026-06-28T05:25:50.521Z","level":"SUCCESS","message":"All files uploaded","fileCount":1,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624350085_yv9aigieaq.jpg"]}
+{"timestamp":"2026-06-28T05:25:50.521Z","level":"DELETE","message":"Starting deletion","urlCount":1}
+{"timestamp":"2026-06-28T05:25:50.522Z","level":"DELETE","message":"Deleting file","filename":"products/1782624350085_yv9aigieaq.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624350085_yv9aigieaq.jpg"}
+{"timestamp":"2026-06-28T05:25:50.616Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624350085_yv9aigieaq.jpg"}
+{"timestamp":"2026-06-28T05:25:50.616Z","level":"SUCCESS","message":"Deletion complete","urlCount":1}
+{"timestamp":"2026-06-28T05:25:50.620Z","level":"UPLOAD","message":"Starting upload","fileCount":5,"bucketName":"yadu1-821e8.firebasestorage.app"}
+{"timestamp":"2026-06-28T05:25:50.621Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image-0.jpg","filename":"products/1782624350621_l92eu661zi.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:51.028Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624350621_l92eu661zi.jpg"}
+{"timestamp":"2026-06-28T05:25:51.213Z","level":"UPLOAD","message":"File made public","filename":"products/1782624350621_l92eu661zi.jpg"}
+{"timestamp":"2026-06-28T05:25:51.214Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624350621_l92eu661zi.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624350621_l92eu661zi.jpg"}
+{"timestamp":"2026-06-28T05:25:51.214Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image-1.jpg","filename":"products/1782624351214_s7cn3kme9a.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:51.513Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624351214_s7cn3kme9a.jpg"}
+{"timestamp":"2026-06-28T05:25:51.626Z","level":"UPLOAD","message":"File made public","filename":"products/1782624351214_s7cn3kme9a.jpg"}
+{"timestamp":"2026-06-28T05:25:51.626Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624351214_s7cn3kme9a.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624351214_s7cn3kme9a.jpg"}
+{"timestamp":"2026-06-28T05:25:51.627Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image-2.jpg","filename":"products/1782624351627_k9onyp19sld.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:51.915Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624351627_k9onyp19sld.jpg"}
+{"timestamp":"2026-06-28T05:25:52.115Z","level":"UPLOAD","message":"File made public","filename":"products/1782624351627_k9onyp19sld.jpg"}
+{"timestamp":"2026-06-28T05:25:52.116Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624351627_k9onyp19sld.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624351627_k9onyp19sld.jpg"}
+{"timestamp":"2026-06-28T05:25:52.116Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image-3.jpg","filename":"products/1782624352116_b6ccc1l4nh.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:52.514Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624352116_b6ccc1l4nh.jpg"}
+{"timestamp":"2026-06-28T05:25:52.616Z","level":"UPLOAD","message":"File made public","filename":"products/1782624352116_b6ccc1l4nh.jpg"}
+{"timestamp":"2026-06-28T05:25:52.617Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624352116_b6ccc1l4nh.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624352116_b6ccc1l4nh.jpg"}
+{"timestamp":"2026-06-28T05:25:52.617Z","level":"UPLOAD","message":"Uploading file","originalName":"test-image-4.jpg","filename":"products/1782624352617_f3blqahvyr.jpg","size":1024,"mimetype":"image/jpeg"}
+{"timestamp":"2026-06-28T05:25:53.013Z","level":"UPLOAD","message":"File saved to storage","filename":"products/1782624352617_f3blqahvyr.jpg"}
+{"timestamp":"2026-06-28T05:25:53.122Z","level":"UPLOAD","message":"File made public","filename":"products/1782624352617_f3blqahvyr.jpg"}
+{"timestamp":"2026-06-28T05:25:53.122Z","level":"SUCCESS","message":"File uploaded successfully","filename":"products/1782624352617_f3blqahvyr.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624352617_f3blqahvyr.jpg"}
+{"timestamp":"2026-06-28T05:25:53.123Z","level":"SUCCESS","message":"All files uploaded","fileCount":5,"urls":["https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624350621_l92eu661zi.jpg","https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624351214_s7cn3kme9a.jpg","https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624351627_k9onyp19sld.jpg","https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624352116_b6ccc1l4nh.jpg","https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624352617_f3blqahvyr.jpg"]}
+{"timestamp":"2026-06-28T05:25:53.124Z","level":"DELETE","message":"Starting deletion","urlCount":5}
+{"timestamp":"2026-06-28T05:25:53.124Z","level":"DELETE","message":"Deleting file","filename":"products/1782624350621_l92eu661zi.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624350621_l92eu661zi.jpg"}
+{"timestamp":"2026-06-28T05:25:53.217Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624350621_l92eu661zi.jpg"}
+{"timestamp":"2026-06-28T05:25:53.218Z","level":"DELETE","message":"Deleting file","filename":"products/1782624351214_s7cn3kme9a.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624351214_s7cn3kme9a.jpg"}
+{"timestamp":"2026-06-28T05:25:53.414Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624351214_s7cn3kme9a.jpg"}
+{"timestamp":"2026-06-28T05:25:53.415Z","level":"DELETE","message":"Deleting file","filename":"products/1782624351627_k9onyp19sld.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624351627_k9onyp19sld.jpg"}
+{"timestamp":"2026-06-28T05:25:53.514Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624351627_k9onyp19sld.jpg"}
+{"timestamp":"2026-06-28T05:25:53.515Z","level":"DELETE","message":"Deleting file","filename":"products/1782624352116_b6ccc1l4nh.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624352116_b6ccc1l4nh.jpg"}
+{"timestamp":"2026-06-28T05:25:53.620Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624352116_b6ccc1l4nh.jpg"}
+{"timestamp":"2026-06-28T05:25:53.621Z","level":"DELETE","message":"Deleting file","filename":"products/1782624352617_f3blqahvyr.jpg","url":"https://storage.googleapis.com/yadu1-821e8.firebasestorage.app/products/1782624352617_f3blqahvyr.jpg"}
+{"timestamp":"2026-06-28T05:25:53.813Z","level":"SUCCESS","message":"File deleted","filename":"products/1782624352617_f3blqahvyr.jpg"}
+{"timestamp":"2026-06-28T05:25:53.814Z","level":"SUCCESS","message":"Deletion complete","urlCount":5}

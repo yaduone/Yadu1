@@ -2,6 +2,7 @@ const { db } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const manifestSettings = require('../settings/manifestSettings.service');
 const orderService = require('../orders/order.service');
+const instantService = require('../instant/instant.service');
 
 /**
  * Get user's personal report/insights.
@@ -290,9 +291,14 @@ async function getUserCalendar(userId, month) {
     else if (entry.status === 'not_delivered') notDelivered++;
   }
 
+  // Instant deliveries (rendered in purple on the calendar) — separate map so the
+  // scheduled calendar shape is untouched.
+  const instant = await instantService.getUserInstantCalendar(userId, startDate, endDate);
+
   return {
     month,
     calendar,
+    instant,
     summary: { delivered, pending, not_delivered: notDelivered },
   };
 }

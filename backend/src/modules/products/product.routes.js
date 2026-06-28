@@ -6,7 +6,7 @@ const router  = express.Router();
 const { db, admin }              = require('../../config/firebase');
 const { authenticateAdmin }      = require('../../middleware/auth');
 const { success, badRequest, notFound, created } = require('../../utils/response');
-const { isValidProductCategory } = require('../../utils/validators');
+const { isValidProductCategory, isValidAvailability, isInstantAvailable } = require('../../utils/validators');
 const { uploadImages, deleteImages } = require('../../utils/storage');
 
 // ─── Multer — memory storage (files buffered in RAM, sent to Firebase Storage) ─
@@ -53,7 +53,16 @@ router.get('/', cache.publicStatic, async (req, res, next) => {
       query = query.where('category', '==', req.query.category);
     }
     const snap = await query.get();
-    return success(res, { products: snap.docs.map((d) => ({ id: d.id, ...d.data() })) });
+    let products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // Filter by delivery availability (instant store). Legacy docs (no field) are scheduled-only.
+    if (req.query.availability === 'instant') {
+      products = products.filter((p) => isInstantAvailable(p.availability));
+    } else if (req.query.availability === 'scheduled') {
+      products = products.filter((p) => (p.availability || 'scheduled') !== 'instant');
+    }
+
+    return success(res, { products });
   } catch (err) { next(err); }
 });
 
@@ -74,7 +83,7 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
       bodyKeys: Object.keys(req.body),
     });
 
-    const { name, category, unit, price, description } = req.body;
+    const { name, category, unit, price, description, availability } = req.body;
 
     if (!name || !category || !unit || price === undefined) {
       console.log('[PRODUCT CREATE] Missing required fields', { name, category, unit, price });
@@ -84,6 +93,9 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
     if (!await isValidProductCategory(category)) {
       console.log('[PRODUCT CREATE] Invalid category', { category });
       return badRequest(res, 'Invalid category');
+    }
+    if (availability !== undefined && !isValidAvailability(availability)) {
+      return badRequest(res, 'availability must be scheduled, instant, or both');
     }
     const parsedPrice = parseFloat(price);
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
@@ -105,6 +117,7 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
       unit,
       price             : parsedPrice,
       description       : description || '',
+      availability      : availability || 'scheduled',
       images            : imageUrls,
       cover_image_small : resolvedSmall,
       cover_image_large : resolvedLarge,
@@ -138,13 +151,17 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     if (!productDoc.exists) return notFound(res, 'Product not found');
 
     const existing = productDoc.data();
-    const { name, category, unit, price, description, is_active, replace_images, remove_images, cover_image_small, cover_image_large } = req.body;
+    const { name, category, unit, price, description, is_active, availability, replace_images, remove_images, cover_image_small, cover_image_large } = req.body;
     const updateData = { updated_at: admin.firestore.FieldValue.serverTimestamp() };
 
     if (name        !== undefined) updateData.name        = name;
     if (unit        !== undefined) updateData.unit        = unit;
     if (description !== undefined) updateData.description = description;
     if (is_active   !== undefined) updateData.is_active   = is_active === 'true' || is_active === true;
+    if (availability !== undefined) {
+      if (!isValidAvailability(availability)) return badRequest(res, 'availability must be scheduled, instant, or both');
+      updateData.availability = availability;
+    }
     if (category    !== undefined) {
       if (!await isValidProductCategory(category)) return badRequest(res, 'Invalid category');
       updateData.category = category;

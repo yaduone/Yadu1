@@ -26,6 +26,8 @@ const config = {
   manifestCronHour: parseInt(process.env.MANIFEST_CRON_HOUR, 10) || 23,
   milkTypes: ['cow', 'buffalo', 'toned'],
   productCategories: ['curd', 'paneer', 'butter_milk', 'ghee', 'butter', 'lassi', 'cream', 'cheese'],
+  productAvailabilities: ['scheduled', 'instant', 'both'],
+  instantDeliveryCharges: [0, 10, 20, 30, 40, 50],
 };
 
 module.exports = config;

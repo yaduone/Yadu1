@@ -18,6 +18,19 @@ function isValidSlot(slot) {
   return ['morning', 'evening', 'both'].includes(slot);
 }
 
+function isValidAvailability(availability) {
+  return config.productAvailabilities.includes(availability);
+}
+
+function isInstantAvailable(availability) {
+  // Missing/legacy → scheduled-only (not instant).
+  return availability === 'instant' || availability === 'both';
+}
+
+function isValidInstantDeliveryCharge(charge) {
+  return typeof charge === 'number' && config.instantDeliveryCharges.includes(charge);
+}
+
 function isValidYoutubeUrl(url) {
   if (!url || typeof url !== 'string') return false;
   const patterns = [
@@ -29,4 +42,13 @@ function isValidYoutubeUrl(url) {
   return patterns.some((p) => p.test(url));
 }
 
-module.exports = { isValidMilkType, isValidProductCategory, isValidQuantity, isValidSlot, isValidYoutubeUrl };
+module.exports = {
+  isValidMilkType,
+  isValidProductCategory,
+  isValidQuantity,
+  isValidSlot,
+  isValidYoutubeUrl,
+  isValidAvailability,
+  isInstantAvailable,
+  isValidInstantDeliveryCharge,
+};

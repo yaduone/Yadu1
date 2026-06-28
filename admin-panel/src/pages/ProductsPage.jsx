@@ -4,13 +4,30 @@ import SearchField from '../components/SearchField';
 import { matchesSearch } from '../utils/search';
 import {
   Plus, Pencil, Trash2, X, ImagePlus, Upload,
-  AlertTriangle, Package, ToggleLeft, ToggleRight,
+  AlertTriangle, Package, ToggleLeft, ToggleRight, Zap, CalendarClock,
 } from 'lucide-react';
 
 const EMPTY_FORM = {
   name: '', category: '', unit: '', price: '', description: '',
-  cover_image_small: '', cover_image_large: '',
+  availability: 'both', cover_image_small: '', cover_image_large: '',
 };
+
+const AVAILABILITY_OPTIONS = [
+  { value: 'scheduled', label: 'Scheduled only' },
+  { value: 'instant', label: 'Instant only' },
+  { value: 'both', label: 'Scheduled + Instant' },
+];
+
+function AvailabilityBadge({ availability }) {
+  const value = availability || 'scheduled';
+  if (value === 'instant') {
+    return <span className="badge bg-violet-50 text-violet-700 border border-violet-200 flex items-center gap-1 w-fit"><Zap size={11} />Instant</span>;
+  }
+  if (value === 'both') {
+    return <span className="badge bg-violet-50 text-violet-700 border border-violet-200 flex items-center gap-1 w-fit"><Zap size={11} />Both</span>;
+  }
+  return <span className="badge bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1 w-fit"><CalendarClock size={11} />Scheduled</span>;
+}
 
 export default function ProductsPage() {
   const [products, setProducts]   = useState([]);
@@ -68,6 +85,7 @@ export default function ProductsPage() {
   function startEdit(p) {
     const imgs = Array.isArray(p.images) ? p.images : [];
     setForm({ name: p.name, category: p.category || categories[0]?.slug || '', unit: p.unit, price: String(p.price), description: p.description || '',
+      availability: p.availability || 'scheduled',
       cover_image_small: p.cover_image_small || imgs[0] || '',
       cover_image_large: p.cover_image_large || imgs[0] || '',
     });
@@ -124,6 +142,7 @@ export default function ProductsPage() {
       fd.append('unit', form.unit.trim());
       fd.append('price', form.price);
       fd.append('description', form.description.trim());
+      fd.append('availability', form.availability);
       if (form.cover_image_small) fd.append('cover_image_small', form.cover_image_small);
       if (form.cover_image_large) fd.append('cover_image_large', form.cover_image_large);
       newFiles.forEach((f) => fd.append('images', f));
@@ -255,6 +274,23 @@ export default function ProductsPage() {
                   className="input"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                  <Zap size={12} className="text-violet-500" />
+                  Availability *
+                </label>
+                <select
+                  value={form.availability}
+                  onChange={(e) => setForm({ ...form, availability: e.target.value })}
+                  className="select"
+                  required
+                >
+                  {AVAILABILITY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">Controls whether this product shows in the Scheduled cart, the Instant store, or both.</p>
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
@@ -450,6 +486,7 @@ export default function ProductsPage() {
                     </div>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="badge badge-blue capitalize">{p.category?.replace(/_/g, ' ')}</span>
+                      <AvailabilityBadge availability={p.availability} />
                       <span className="text-xs text-slate-400">{p.unit}</span>
                       <button
                         onClick={() => toggleActive(p)}
@@ -526,7 +563,10 @@ export default function ProductsPage() {
                     </td>
                     <td className="font-semibold text-slate-800">{p.name}</td>
                     <td>
-                      <span className="badge badge-blue capitalize">{p.category?.replace(/_/g, ' ')}</span>
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className="badge badge-blue capitalize">{p.category?.replace(/_/g, ' ')}</span>
+                        <AvailabilityBadge availability={p.availability} />
+                      </div>
                     </td>
                     <td className="text-slate-500">{p.unit}</td>
                     <td className="font-semibold text-slate-800">₹{p.price}</td>

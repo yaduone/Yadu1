@@ -8,6 +8,7 @@ import UsersPage from './pages/UsersPage';
 import ProductsPage from './pages/ProductsPage';
 import AreasPage from './pages/AreasPage';
 import OrdersPage from './pages/OrdersPage';
+import InstantOrdersPage from './pages/InstantOrdersPage';
 import ManifestsPage from './pages/ManifestsPage';
 import ManifestSettingsPage from './pages/ManifestSettingsPage';
 import ReportsPage from './pages/ReportsPage';
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="areas" element={<AreasPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="instant-orders" element={<InstantOrdersPage />} />
             <Route path="manifests" element={<ManifestsPage />} />
             <Route path="manifest-settings" element={<ManifestSettingsPage />} />
             <Route path="reports" element={<ReportsPage />} />

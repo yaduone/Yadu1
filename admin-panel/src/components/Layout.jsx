@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, LogOut,
   ChevronRight, Menu, X, Settings, StickyNote,
-  FlaskConical,
+  FlaskConical, Zap,
 } from 'lucide-react';
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/products',    icon: Package,         label: 'Products',    group: 'main' },
   { to: '/categories',  icon: Tag,             label: 'Categories',  group: 'main' },
   { to: '/orders',      icon: ClipboardList,   label: 'Orders',      group: 'main' },
+  { to: '/instant-orders', icon: Zap,          label: 'Instant',     group: 'main' },
   { to: '/notes',       icon: StickyNote,      label: 'Notes',       group: 'main' },
   { to: '/areas',       icon: MapPin,          label: 'Areas',       group: 'ops'  },
   { to: '/manifests',   icon: FileText,        label: 'Manifests',   group: 'ops'  },
