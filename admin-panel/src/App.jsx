@@ -20,6 +20,7 @@ import CategoriesPage from './pages/CategoriesPage';
 import FlowTestingPage from './pages/FlowTestingPage';
 import InventoryPage from './pages/InventoryPage';
 import NotesPage from './pages/NotesPage';
+import NotifyPage from './pages/NotifyPage';
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="flow-tests" element={<FlowTestingPage />} />
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="notes" element={<NotesPage />} />
+            <Route path="notify" element={<NotifyPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

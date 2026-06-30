@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { db, admin } = require('../../config/firebase');
-const { authenticateUser, requireCompleteProfile } = require('../../middleware/auth');
+const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, notFound } = require('../../utils/response');
-const { purgeExpiredNotifications } = require('./notification.service');
+const { purgeExpiredNotifications, sendCustomNotification } = require('./notification.service');
 
 // GET /api/notifications — User: get non-expired notifications (no profile check — notifications are for all authenticated users)
 router.get('/', authenticateUser, async (req, res, next) => {
@@ -118,6 +118,30 @@ router.put('/device-token', authenticateUser, async (req, res, next) => {
     }
     await db.collection('users').doc(req.user.userId).update({ fcm_token: token });
     return success(res, null, 'Device token registered');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notifications/admin/broadcast — Admin: send a custom ping to all
+// area users, or to a chosen subset (userIds) of area users.
+router.post('/admin/broadcast', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { title, body, userIds } = req.body;
+    if (!title || !body) {
+      return res.status(400).json({ success: false, error: 'title and body are required' });
+    }
+    if (userIds !== undefined && !Array.isArray(userIds)) {
+      return res.status(400).json({ success: false, error: 'userIds must be an array' });
+    }
+
+    const result = await sendCustomNotification(req.admin.areaId, {
+      title,
+      body,
+      targetUserIds: userIds && userIds.length ? userIds : null,
+    });
+
+    return success(res, result, 'Notification sent');
   } catch (err) {
     next(err);
   }

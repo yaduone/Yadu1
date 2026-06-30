@@ -238,6 +238,71 @@ async function sendAreaBroadcast(areaId, { type = 'info', title, body, meta = {}
 }
 
 /**
+ * Admin-authored ping. Sends to every customer in the area, or to a chosen
+ * subset of user IDs (also scoped to the area) when targetUserIds is given.
+ */
+async function sendCustomNotification(areaId, { title, body, targetUserIds = null }) {
+  let usersSnap;
+  if (targetUserIds && targetUserIds.length) {
+    const refs = targetUserIds.map((id) => db.collection('users').doc(id));
+    const docs = await db.getAll(...refs);
+    usersSnap = { docs: docs.filter((d) => d.exists && d.data().area_id === areaId) };
+  } else {
+    usersSnap = await db.collection('users').where('area_id', '==', areaId).get();
+  }
+  if (!usersSnap.docs.length) return { recipients: 0, pushed: 0 };
+
+  const users = usersSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const type = 'admin_announcement';
+  const meta = { destination: 'notifications' };
+
+  for (let i = 0; i < users.length; i += MAX_BATCH_WRITES) {
+    const batch = db.batch();
+    users.slice(i, i + MAX_BATCH_WRITES).forEach((user) => {
+      const ref = db.collection('notifications').doc();
+      batch.set(ref, notificationRecord(user.id, areaId, { type, title, body, meta }));
+    });
+    await batch.commit();
+  }
+
+  const tokenUsers = users.filter((user) => user.fcm_token);
+  let pushed = 0;
+  for (let i = 0; i < tokenUsers.length; i += MAX_PUSH_TOKENS) {
+    const recipients = tokenUsers.slice(i, i + MAX_PUSH_TOKENS);
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens: recipients.map((user) => user.fcm_token),
+      notification: { title, body },
+      data: fcmData({ type, ...meta, click_action: 'FLUTTER_NOTIFICATION_CLICK' }),
+      android: {
+        priority: 'high',
+        notification: { sound: 'default', channelId: 'yaduone_default' },
+      },
+      apns: {
+        payload: { aps: { sound: 'default', badge: 1 } },
+      },
+    });
+    pushed += response.successCount;
+
+    const invalidUsers = recipients.filter((_, index) => {
+      const errorCode = response.responses[index]?.error?.code;
+      return errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token';
+    });
+    if (invalidUsers.length) {
+      const batch = db.batch();
+      invalidUsers.forEach((user) => {
+        batch.update(db.collection('users').doc(user.id), {
+          fcm_token: admin.firestore.FieldValue.delete(),
+        });
+      });
+      await batch.commit();
+    }
+  }
+
+  return { recipients: users.length, pushed };
+}
+
+/**
  * Delete expired notification records during routine cleanup.
  */
 async function purgeExpiredNotifications() {
@@ -265,5 +330,6 @@ module.exports = {
   sendOrderCancelledNotification,
   sendSubscriptionUpdatedNotification,
   sendAreaBroadcast,
+  sendCustomNotification,
   purgeExpiredNotifications,
 };

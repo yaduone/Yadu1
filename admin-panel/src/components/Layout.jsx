@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
-  FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, LogOut,
+  FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, Megaphone, LogOut,
   ChevronRight, Menu, X, Settings, StickyNote,
   FlaskConical, Zap,
 } from 'lucide-react';
@@ -26,6 +26,7 @@ const navItems = [
   { to: '/dues',        icon: Wallet,          label: 'Dues',        group: 'fin'  },
   { to: '/inventory',   icon: Package,         label: 'Stock Ledger', group: 'fin'  },
   { to: '/activity',    icon: Bell,            label: 'Activity',    group: 'fin'  },
+  { to: '/notify',      icon: Megaphone,       label: 'Notify',      group: 'ops'  },
 ];
 
 const groups = [
