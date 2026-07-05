@@ -28,6 +28,7 @@ const testingRoutes = require('./modules/testing/testing.routes');
 const inventoryRoutes = require('./modules/inventory/inventory.routes');
 const noteRoutes = require('./modules/notes/note.routes');
 const instantRoutes = require('./modules/instant/instant.routes');
+const carouselRoutes = require('./modules/carousels/carousel.routes');
 
 // Initialize Redis connection early
 require('./config/redis').getRedisClient();
@@ -82,6 +83,7 @@ app.use('/api/testing', limit.medium, testingRoutes);
 app.use('/api/inventory', limit.medium, inventoryRoutes);
 app.use('/api/notes', limit.medium, noteRoutes);
 app.use('/api/instant', limit.medium, instantRoutes);
+app.use('/api/carousels', limit.medium, carouselRoutes);
 
 // Heavy endpoints: aggressive (10 req/min) — PDF generation, file uploads, reports
 app.use('/api/manifests', limit.heavy, manifestRoutes);

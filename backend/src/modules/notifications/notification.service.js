@@ -3,6 +3,7 @@ const { db, admin } = require('../../config/firebase');
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 const MAX_BATCH_WRITES = 400;
 const MAX_PUSH_TOKENS = 500;
+const ADMIN_PANEL_URL = process.env.ADMIN_PANEL_URL || 'https://yadu1-ten.vercel.app';
 
 function notificationRecord(userId, areaId, { type, title, body, meta = {} }) {
   const expiresAt = new Date(Date.now() + THREE_DAYS_MS);
@@ -107,6 +108,35 @@ async function sendDeliveryNotification(userId, areaId, order, newDueAmount) {
       extra_items: extras,
       order_amount: amount,
       new_due_amount: newDueAmount,
+    },
+  });
+}
+
+/**
+ * Sent automatically when admin marks a cash-on-delivery (instant) order as delivered.
+ * Unlike sendDeliveryNotification, this does not reference the due balance since
+ * COD orders are settled in cash at delivery time and never added to the due.
+ */
+async function sendCodDeliveryNotification(userId, areaId, order) {
+  const date = order.date;
+  const extras = order.extra_items || [];
+  const amount = order.total_amount || 0;
+
+  const itemsText = extras.length
+    ? extras.map((item) => item.name || 'Extra item').join(', ')
+    : 'Your order';
+  const body = `${itemsText} has been delivered. Rs. ${amount.toFixed(2)} collected via cash on delivery.`;
+
+  await createNotification(userId, areaId, {
+    type: 'delivery_summary',
+    title: `Delivery Confirmed - ${date}`,
+    body,
+    meta: {
+      destination: 'orders',
+      date,
+      extra_items: extras,
+      order_amount: amount,
+      payment_method: 'cod',
     },
   });
 }
@@ -303,6 +333,53 @@ async function sendCustomNotification(areaId, { title, body, targetUserIds = nul
 }
 
 /**
+ * Sent to every admin assigned to an area when a user places an instant order.
+ * Web push (works even when the admin panel tab is closed) — targets the
+ * `fcm_token` stored on each `admins/{adminId}` doc via the settings config button.
+ */
+async function sendAdminInstantOrderNotification(areaId, { orderId, userId, totalAmount }) {
+  try {
+    const adminsSnap = await db.collection('admins').where('area_id', '==', areaId).get();
+    const tokens = adminsSnap.docs.map((doc) => doc.data().fcm_token).filter(Boolean);
+    if (!tokens.length) return;
+
+    const userDoc = userId ? await db.collection('users').doc(userId).get() : null;
+    const userData = userDoc && userDoc.exists ? userDoc.data() : {};
+    const userName = userData.name || 'A customer';
+    const shortAddress = (userData.address || '').toString().slice(0, 60);
+
+    const title = 'New Instant Order';
+    const body = `${userName} · Rs. ${Number(totalAmount || 0).toFixed(2)}${shortAddress ? ` · ${shortAddress}` : ''}`;
+    const adminPanelUrl = `${ADMIN_PANEL_URL}/instant-orders`;
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: fcmData({ type: 'instant_order', order_id: orderId, url: adminPanelUrl }),
+      webpush: {
+        fcmOptions: { link: adminPanelUrl },
+        notification: { icon: '/favicon.svg' },
+      },
+    });
+
+    const invalidTokens = tokens.filter((_, index) => {
+      const errorCode = response.responses[index]?.error?.code;
+      return errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token';
+    });
+    if (invalidTokens.length) {
+      const batch = db.batch();
+      adminsSnap.docs
+        .filter((doc) => invalidTokens.includes(doc.data().fcm_token))
+        .forEach((doc) => batch.update(doc.ref, { fcm_token: admin.firestore.FieldValue.delete() }));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn('[FCM] admin instant order push failed:', err.message);
+  }
+}
+
+/**
  * Delete expired notification records during routine cleanup.
  */
 async function purgeExpiredNotifications() {
@@ -325,11 +402,13 @@ async function purgeExpiredNotifications() {
 module.exports = {
   createNotification,
   sendDeliveryNotification,
+  sendCodDeliveryNotification,
   sendDueReminderNotification,
   sendPaymentRecordedNotification,
   sendOrderCancelledNotification,
   sendSubscriptionUpdatedNotification,
   sendAreaBroadcast,
   sendCustomNotification,
+  sendAdminInstantOrderNotification,
   purgeExpiredNotifications,
 };

@@ -21,6 +21,8 @@ import FlowTestingPage from './pages/FlowTestingPage';
 import InventoryPage from './pages/InventoryPage';
 import NotesPage from './pages/NotesPage';
 import NotifyPage from './pages/NotifyPage';
+import ChargesPage from './pages/ChargesPage';
+import CarouselsPage from './pages/CarouselsPage';
 
 export default function App() {
   return (
@@ -48,12 +50,14 @@ export default function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="livestreams" element={<LivestreamsPage />} />
             <Route path="prices" element={<PricesPage />} />
+            <Route path="charges" element={<ChargesPage />} />
             <Route path="dues" element={<DuesPage />} />
             <Route path="activity" element={<ActivityPage />} />
             <Route path="flow-tests" element={<FlowTestingPage />} />
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="notes" element={<NotesPage />} />
             <Route path="notify" element={<NotifyPage />} />
+            <Route path="carousels" element={<CarouselsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

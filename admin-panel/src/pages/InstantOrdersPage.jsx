@@ -3,9 +3,56 @@ import api from '../services/api';
 import SearchField from '../components/SearchField';
 import LocationLink from '../components/LocationLink';
 import { matchesSearch } from '../utils/search';
+import { requestAdminPushToken } from '../firebase';
 import {
-  CheckCircle2, Clock, XCircle, CheckSquare, Zap, ShoppingCart, Truck,
+  CheckCircle2, Clock, XCircle, CheckSquare, Zap, ShoppingCart, Truck, Settings, Bell, BellOff,
 } from 'lucide-react';
+
+function NotifyConfigButton() {
+  const [status, setStatus] = useState('idle'); // idle | granted | denied | error
+
+  useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      setStatus('granted');
+    }
+  }, []);
+
+  async function enableNotifications() {
+    setStatus('idle');
+    try {
+      const token = await requestAdminPushToken();
+      if (!token) {
+        setStatus('denied');
+        return;
+      }
+      await api.put('/settings/admin-fcm-token', { token });
+      setStatus('granted');
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+      alert(err.message || 'Could not enable notifications');
+    }
+  }
+
+  const label = status === 'granted' ? 'Alerts on' : 'Enable alerts';
+  const Icon = status === 'granted' ? Bell : status === 'denied' ? BellOff : Settings;
+
+  return (
+    <button
+      type="button"
+      onClick={enableNotifications}
+      title="Enable instant-order push notifications on this device"
+      className={`btn-sm shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold border ${
+        status === 'granted'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+      }`}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  );
+}
 
 const STATUS_BADGE = {
   delivered: 'badge badge-green',
@@ -146,12 +193,15 @@ export default function InstantOrdersPage() {
               : `${visibleCarts.length} active carts - ${money(cartsValue)} in baskets`}
           </p>
         </div>
-        {activeTab === 'orders' && selected.length > 0 && (
-          <button onClick={markSelectedDelivered} className="btn-sm bg-violet-600 text-white hover:bg-violet-700 animate-fade-in shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold">
-            <CheckSquare size={14} />
-            Mark {selected.length} Delivered
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {activeTab === 'orders' && selected.length > 0 && (
+            <button onClick={markSelectedDelivered} className="btn-sm bg-violet-600 text-white hover:bg-violet-700 animate-fade-in shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold">
+              <CheckSquare size={14} />
+              Mark {selected.length} Delivered
+            </button>
+          )}
+          <NotifyConfigButton />
+        </div>
       </div>
 
       {/* Tabs */}

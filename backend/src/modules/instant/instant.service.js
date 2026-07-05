@@ -1,7 +1,7 @@
 const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
-const dueService = require('../dues/due.service');
 const notificationService = require('../notifications/notification.service');
+const cartCharges = require('../settings/cartCharges.service');
 const { isInstantAvailable, isValidInstantDeliveryCharge } = require('../../utils/validators');
 
 const CART_COLLECTION = 'instant_carts';
@@ -9,12 +9,26 @@ const ORDER_COLLECTION = 'instant_orders';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function computeTotals(items, deliveryCharge) {
+// Admin-configured extra charges (platform fee, QA fees, …) for instant delivery.
+async function getInstantCharges() {
+  try {
+    return await cartCharges.getChargesForType('instant');
+  } catch (_) {
+    return [];
+  }
+}
+
+function chargesTotal(charges) {
+  return (charges || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+}
+
+function computeTotals(items, deliveryCharge, extraChargesTotal = 0) {
   const itemsTotal = items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
   const charge = Number(deliveryCharge) || 0;
+  const extra = Number(extraChargesTotal) || 0;
   return {
     items_total: Math.round(itemsTotal * 100) / 100,
-    total_amount: Math.round((itemsTotal + charge) * 100) / 100,
+    total_amount: Math.round((itemsTotal + charge + extra) * 100) / 100,
   };
 }
 
@@ -29,8 +43,10 @@ function emptyCart(userId, areaId) {
   };
 }
 
-function cartView(userId, areaId, data) {
-  if (!data) return emptyCart(userId, areaId);
+async function cartView(userId, areaId, data) {
+  const charges = await getInstantCharges();
+  const extraTotal = chargesTotal(charges);
+  if (!data) return { ...emptyCart(userId, areaId), extra_charges: charges, extra_charges_total: extraTotal };
   const items = data.items || [];
   const deliveryCharge = Number(data.delivery_charge) || 0;
   return {
@@ -38,7 +54,9 @@ function cartView(userId, areaId, data) {
     area_id: data.area_id || areaId,
     items,
     delivery_charge: deliveryCharge,
-    ...computeTotals(items, deliveryCharge),
+    extra_charges: charges,
+    extra_charges_total: Math.round(extraTotal * 100) / 100,
+    ...computeTotals(items, deliveryCharge, extraTotal),
   };
 }
 
@@ -86,6 +104,7 @@ async function getCart(userId, areaId) {
   const snap = await db.collection(CART_COLLECTION).doc(userId).get();
   return cartView(userId, areaId, snap.exists ? snap.data() : null);
 }
+
 
 async function addItem(userId, areaId, { product_id, quantity }) {
   if (!product_id || !quantity || quantity < 1) {
@@ -232,7 +251,7 @@ async function clearCart(userId, areaId) {
 async function confirmOrder(userId, areaId) {
   const ref = db.collection(CART_COLLECTION).doc(userId);
   const snap = await ref.get();
-  const cart = cartView(userId, areaId, snap.exists ? snap.data() : null);
+  const cart = await cartView(userId, areaId, snap.exists ? snap.data() : null);
 
   if (!cart.items.length) {
     throw Object.assign(new Error('Your instant cart is empty'), { statusCode: 400 });
@@ -246,6 +265,8 @@ async function confirmOrder(userId, areaId) {
     items: cart.items,
     items_total: cart.items_total,
     delivery_charge: cart.delivery_charge,
+    extra_charges: cart.extra_charges || [],
+    extra_charges_total: cart.extra_charges_total || 0,
     total_amount: cart.total_amount,
     status: 'pending',
     placed_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -265,6 +286,12 @@ async function confirmOrder(userId, areaId) {
     total_amount: 0,
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
+
+  notificationService.sendAdminInstantOrderNotification(areaId, {
+    orderId: orderRef.id,
+    userId,
+    totalAmount: cart.total_amount,
+  });
 
   return { id: orderRef.id, ...orderData };
 }
@@ -315,8 +342,9 @@ async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 } = {}
 
 async function getAreaCarts(areaId) {
   const snap = await db.collection(CART_COLLECTION).where('area_id', '==', areaId).get();
-  const carts = snap.docs
-    .map((doc) => ({ id: doc.id, ...cartView(doc.id, areaId, doc.data()) }))
+  const carts = (await Promise.all(
+    snap.docs.map(async (doc) => ({ id: doc.id, ...(await cartView(doc.id, areaId, doc.data())) }))
+  ))
     .filter((cart) => cart.items.length > 0)
     .sort((a, b) => b.total_amount - a.total_amount);
 
@@ -325,8 +353,8 @@ async function getAreaCarts(areaId) {
 
 /**
  * Admin marks an instant order delivered/cancelled.
- * On delivered the value (incl. delivery charge) is added to the user's due balance.
- * Mirrors orderService.updateOrderStatus.
+ * Instant orders are settled cash-on-delivery, so unlike subscription orders,
+ * marking one delivered does NOT add the order amount to the user's due balance.
  */
 async function updateOrderStatus(orderId, areaId, newStatus) {
   const validStatuses = ['delivered', 'cancelled'];
@@ -352,7 +380,6 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
     }
 
     if (newStatus === 'delivered') {
-      await dueService.incrementDueInTransaction(tx, order.user_id, order.area_id, order.total_amount);
       deliveredOrder = order;
     }
     if (newStatus === 'cancelled') {
@@ -367,17 +394,14 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
 
   if (deliveredOrder) {
     try {
-      const updatedDue = await dueService.getUserDue(deliveredOrder.user_id);
-      await notificationService.sendDeliveryNotification(
+      await notificationService.sendCodDeliveryNotification(
         deliveredOrder.user_id,
         deliveredOrder.area_id,
         {
           date: deliveredOrder.date,
-          milk: null,
           extra_items: (deliveredOrder.items || []).map((i) => ({ ...i, name: i.product_name })),
           total_amount: deliveredOrder.total_amount,
         },
-        updatedDue.due_amount,
       );
     } catch (notifErr) {
       console.error('[instant.updateOrderStatus] delivery notification failed:', notifErr.message);
