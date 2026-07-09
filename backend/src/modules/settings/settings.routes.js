@@ -5,6 +5,7 @@ const { success, badRequest } = require('../../utils/response');
 const { db } = require('../../config/firebase');
 const manifestSettings = require('./manifestSettings.service');
 const cartCharges = require('./cartCharges.service');
+const instantHours = require('./instantHours.service');
 
 // GET /api/settings/manifest — Admin: read manifest schedule for admin area
 router.get('/manifest', authenticateAdmin, async (req, res, next) => {
@@ -63,6 +64,38 @@ router.get('/charges/app', authenticateUser, async (req, res, next) => {
     const type = req.query.type || 'scheduled';
     const charges = await cartCharges.getChargesForType(type);
     return success(res, { type, charges });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Instant delivery availability window ────────────────────────────────────
+
+// GET /api/settings/instant-hours — Admin: read the instant delivery hours window
+router.get('/instant-hours', authenticateAdmin, async (req, res, next) => {
+  try {
+    const hours = await instantHours.getHours();
+    return success(res, { hours });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/settings/instant-hours — Admin: update the instant delivery hours window
+router.put('/instant-hours', authenticateAdmin, async (req, res, next) => {
+  try {
+    const hours = await instantHours.updateHours(req.body, req.admin.adminId);
+    return success(res, { hours }, 'Instant delivery hours updated');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/settings/instant-hours/app — App: read hours + live availability
+router.get('/instant-hours/app', authenticateUser, async (req, res, next) => {
+  try {
+    const status = await instantHours.checkAvailability();
+    return success(res, status);
   } catch (err) {
     next(err);
   }

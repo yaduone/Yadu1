@@ -113,6 +113,24 @@ async function sendDeliveryNotification(userId, areaId, order, newDueAmount) {
 }
 
 /**
+ * Sent automatically when admin acknowledges a pending instant order — the
+ * customer's first confirmation that a real person has seen the order and
+ * it's being prepared for delivery.
+ */
+async function sendInstantOrderAcknowledgedNotification(userId, areaId, { orderId, etaMinutes }) {
+  await createNotification(userId, areaId, {
+    type: 'instant_order_acknowledged',
+    title: 'Your Instant Order Is On The Way',
+    body: `Your order has been accepted and will be delivered within ${etaMinutes} minutes.`,
+    meta: {
+      destination: 'orders',
+      order_id: orderId,
+      eta_minutes: etaMinutes,
+    },
+  });
+}
+
+/**
  * Sent automatically when admin marks a cash-on-delivery (instant) order as delivered.
  * Unlike sendDeliveryNotification, this does not reference the due balance since
  * COD orders are settled in cash at delivery time and never added to the due.
@@ -402,6 +420,7 @@ async function purgeExpiredNotifications() {
 module.exports = {
   createNotification,
   sendDeliveryNotification,
+  sendInstantOrderAcknowledgedNotification,
   sendCodDeliveryNotification,
   sendDueReminderNotification,
   sendPaymentRecordedNotification,

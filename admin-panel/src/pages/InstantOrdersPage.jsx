@@ -6,6 +6,7 @@ import { matchesSearch } from '../utils/search';
 import { requestAdminPushToken } from '../firebase';
 import {
   CheckCircle2, Clock, XCircle, CheckSquare, Zap, ShoppingCart, Truck, Settings, Bell, BellOff,
+  PackageCheck, AlertTriangle, Wallet, Save,
 } from 'lucide-react';
 
 function NotifyConfigButton() {
@@ -57,6 +58,7 @@ function NotifyConfigButton() {
 const STATUS_BADGE = {
   delivered: 'badge badge-green',
   pending: 'badge badge-yellow',
+  acknowledged: 'badge badge-blue',
   not_delivered: 'badge badge-red',
   cancelled: 'badge badge-red',
 };
@@ -64,6 +66,7 @@ const STATUS_BADGE = {
 const STATUS_ICON = {
   delivered: <CheckCircle2 size={13} className="text-emerald-500" />,
   pending: <Clock size={13} className="text-amber-500" />,
+  acknowledged: <PackageCheck size={13} className="text-blue-500" />,
   not_delivered: <XCircle size={13} className="text-red-500" />,
   cancelled: <XCircle size={13} className="text-red-400" />,
 };
@@ -71,6 +74,7 @@ const STATUS_ICON = {
 const TABS = [
   { key: 'orders', label: 'Orders', icon: Truck },
   { key: 'carts', label: 'Active Carts', icon: ShoppingCart },
+  { key: 'settings', label: 'Delivery Window', icon: Settings },
 ];
 
 function formatDateInput(date) {
@@ -91,13 +95,23 @@ function displayStatus(status) {
 function statusLabel(status) {
   return {
     delivered: 'Delivered',
-    pending: 'Pending',
+    pending: 'New',
+    acknowledged: 'On The Way',
     not_delivered: 'Not Delivered',
   }[displayStatus(status)] || status;
 }
 
 function itemsQuantity(rec) {
   return (rec.items || []).reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+}
+
+function CodBadge() {
+  return (
+    <span className="badge bg-slate-50 text-slate-500 border border-slate-200 flex items-center gap-1 w-fit">
+      <Wallet size={11} />
+      COD
+    </span>
+  );
 }
 
 export default function InstantOrdersPage() {
@@ -116,6 +130,43 @@ export default function InstantOrdersPage() {
   const [cartsLoading, setCartsLoading] = useState(true);
 
   const [search, setSearch] = useState('');
+
+  // Delivery-window settings state
+  const [hours, setHours] = useState(null);
+  const [hoursDraft, setHoursDraft] = useState(null);
+  const [hoursLoading, setHoursLoading] = useState(true);
+  const [hoursSaving, setHoursSaving] = useState(false);
+  const [hoursMessage, setHoursMessage] = useState({ type: '', text: '' });
+
+  function loadHours() {
+    setHoursLoading(true);
+    api.get('/settings/instant-hours')
+      .then((res) => {
+        const h = res.data.data.hours;
+        setHours(h);
+        setHoursDraft(h);
+      })
+      .catch(console.error)
+      .finally(() => setHoursLoading(false));
+  }
+
+  async function saveHours() {
+    setHoursSaving(true);
+    setHoursMessage({ type: '', text: '' });
+    try {
+      const res = await api.put('/settings/instant-hours', hoursDraft);
+      const h = res.data.data.hours;
+      setHours(h);
+      setHoursDraft(h);
+      setHoursMessage({ type: 'success', text: 'Delivery window updated' });
+    } catch (err) {
+      setHoursMessage({ type: 'error', text: err.response?.data?.error || 'Failed to update delivery window' });
+    } finally {
+      setHoursSaving(false);
+    }
+  }
+
+  useEffect(() => { loadHours(); }, []);
 
   function loadOrders() {
     setOrdersLoading(true);
@@ -139,12 +190,44 @@ export default function InstantOrdersPage() {
   useEffect(() => { loadOrders(); /* eslint-disable-next-line */ }, [date, statusFilter]);
   useEffect(() => { loadCarts(); }, []);
 
+  async function acknowledgeOrder(id) {
+    try {
+      await api.put(`/instant/orders/admin/${id}/acknowledge`);
+      loadOrders();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to acknowledge order');
+    }
+  }
+
   async function markDelivered(id) {
     try {
       await api.put(`/instant/orders/admin/${id}/status`, { status: 'delivered' });
       loadOrders();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed');
+    }
+  }
+
+  async function cancelOrder(id) {
+    if (!window.confirm('Cancel this instant order?')) return;
+    try {
+      await api.put(`/instant/orders/admin/${id}/status`, { status: 'cancelled' });
+      loadOrders();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to cancel order');
+    }
+  }
+
+  async function markSelectedAcknowledged() {
+    if (!selected.length) return;
+    setOrdersLoading(true);
+    try {
+      await Promise.all(selected.map((id) => api.put(`/instant/orders/admin/${id}/acknowledge`)));
+      setSelected([]);
+      loadOrders();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to acknowledge some orders');
+      loadOrders();
     }
   }
 
@@ -171,7 +254,16 @@ export default function InstantOrdersPage() {
     ...(cart.items || []).map((i) => i.product_name),
   ]));
 
+  // Selection is a single actionable group at a time: either all-pending (acknowledge)
+  // or all-acknowledged (deliver) — mixing the two would make bulk actions ambiguous.
   const pendingOrders = visibleOrders.filter((o) => o.status === 'pending');
+  const acknowledgedOrders = visibleOrders.filter((o) => o.status === 'acknowledged');
+  const selectedStatus = selected.length
+    ? (pendingOrders.some((o) => selected.includes(o.id)) ? 'pending' : 'acknowledged')
+    : null;
+  // "Select all" checkbox toggles pending orders by default, or acknowledged
+  // ones if that's the group currently selected.
+  const selectableOrders = selectedStatus === 'acknowledged' ? acknowledgedOrders : pendingOrders;
   const counts = visibleOrders.reduce((acc, o) => {
     const s = displayStatus(o.status);
     acc[s] = (acc[s] || 0) + 1;
@@ -194,7 +286,13 @@ export default function InstantOrdersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {activeTab === 'orders' && selected.length > 0 && (
+          {activeTab === 'orders' && selected.length > 0 && selectedStatus === 'pending' && (
+            <button onClick={markSelectedAcknowledged} className="btn-sm bg-blue-600 text-white hover:bg-blue-700 animate-fade-in shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold">
+              <PackageCheck size={14} />
+              Acknowledge {selected.length}
+            </button>
+          )}
+          {activeTab === 'orders' && selected.length > 0 && selectedStatus === 'acknowledged' && (
             <button onClick={markSelectedDelivered} className="btn-sm bg-violet-600 text-white hover:bg-violet-700 animate-fade-in shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold">
               <CheckSquare size={14} />
               Mark {selected.length} Delivered
@@ -208,7 +306,7 @@ export default function InstantOrdersPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-1 flex gap-1">
         {TABS.map(({ key, label, icon: Icon }) => {
           const active = activeTab === key;
-          const count = key === 'orders' ? orders.length : carts.length;
+          const count = key === 'orders' ? orders.length : key === 'carts' ? carts.length : null;
           return (
             <button
               key={key}
@@ -220,15 +318,28 @@ export default function InstantOrdersPage() {
             >
               <Icon size={15} />
               <span className="truncate">{label}</span>
-              <span className={`hidden sm:inline text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
-                active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {count}
-              </span>
+              {count !== null && (
+                <span className={`hidden sm:inline text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
+                  active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {activeTab === 'orders' && !hoursLoading && hours && (
+        <div className={`rounded-lg border px-3 py-2 text-xs flex items-center gap-2 ${
+          hours.enabled ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-red-200 bg-red-50 text-red-600'
+        }`}>
+          <Clock size={13} className="shrink-0" />
+          {hours.enabled
+            ? `Instant delivery window: ${hours.start_time} - ${hours.end_time} - promised in ${hours.eta_minutes} min after acknowledgement`
+            : 'Instant delivery is currently disabled for customers'}
+        </div>
+      )}
 
       {activeTab === 'orders' && (
         <div className="flex gap-2 flex-wrap">
@@ -238,23 +349,27 @@ export default function InstantOrdersPage() {
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input w-auto flex-1 sm:flex-none" />
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select w-36 flex-1 sm:flex-none">
             <option value="">All Status</option>
-            <option value="pending">Pending</option>
+            <option value="pending">New</option>
+            <option value="acknowledged">On The Way</option>
             <option value="delivered">Delivered</option>
             <option value="not_delivered">Not Delivered</option>
           </select>
         </div>
       )}
 
-      <SearchField
-        value={search}
-        onChange={setSearch}
-        placeholder="Search by customer, phone or item..."
-      />
+      {activeTab !== 'settings' && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by customer, phone or item..."
+        />
+      )}
 
       {activeTab === 'orders' && !ordersLoading && visibleOrders.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {[
-            { key: 'pending', label: 'Pending', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+            { key: 'pending', label: 'New', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+            { key: 'acknowledged', label: 'On The Way', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
             { key: 'delivered', label: 'Delivered', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
             { key: 'not_delivered', label: 'Not Delivered', cls: 'bg-red-50 text-red-600 border-red-200' },
           ].map(({ key, label, cls }) => counts[key] ? (
@@ -284,7 +399,9 @@ export default function InstantOrdersPage() {
                   order={order}
                   selected={selected.includes(order.id)}
                   onSelect={(checked) => setSelected(checked ? [...selected, order.id] : selected.filter((id) => id !== order.id))}
+                  onAcknowledge={() => acknowledgeOrder(order.id)}
                   onDelivered={() => markDelivered(order.id)}
+                  onCancel={() => cancelOrder(order.id)}
                 />
               ))}
             </div>
@@ -296,9 +413,9 @@ export default function InstantOrdersPage() {
                     <th className="w-10 text-center">
                       <input
                         type="checkbox"
-                        checked={pendingOrders.length > 0 && selected.length === pendingOrders.length}
-                        onChange={(e) => setSelected(e.target.checked ? pendingOrders.map((o) => o.id) : [])}
-                        disabled={pendingOrders.length === 0}
+                        checked={selectableOrders.length > 0 && selected.length === selectableOrders.length}
+                        onChange={(e) => setSelected(e.target.checked ? selectableOrders.map((o) => o.id) : [])}
+                        disabled={selectableOrders.length === 0}
                         className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
                       />
                     </th>
@@ -316,7 +433,9 @@ export default function InstantOrdersPage() {
                       order={order}
                       selected={selected.includes(order.id)}
                       onSelect={(checked) => setSelected(checked ? [...selected, order.id] : selected.filter((id) => id !== order.id))}
+                      onAcknowledge={() => acknowledgeOrder(order.id)}
                       onDelivered={() => markDelivered(order.id)}
+                      onCancel={() => cancelOrder(order.id)}
                     />
                   ))}
                 </tbody>
@@ -337,6 +456,84 @@ export default function InstantOrdersPage() {
         ) : (
           <div className="space-y-2">
             {visibleCarts.map((cart) => <CartCard key={cart.id} cart={cart} />)}
+          </div>
+        )
+      )}
+
+      {/* ── Delivery window settings tab ────────────────────────── */}
+      {activeTab === 'settings' && (
+        hoursLoading || !hoursDraft ? (
+          <div className="card h-48 animate-pulse bg-slate-50" />
+        ) : (
+          <div className="card p-5 max-w-lg space-y-4">
+            <div>
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Clock size={16} className="text-violet-600" />
+                Instant Delivery Availability Window
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Customers can only place instant orders during this window. Outside it, the
+                Instant tab shows as unavailable in the app.
+              </p>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={hoursDraft.enabled}
+                onChange={(e) => setHoursDraft({ ...hoursDraft, enabled: e.target.checked })}
+                className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+              />
+              Instant delivery enabled
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-500">Start time</label>
+                <input
+                  type="time"
+                  value={hoursDraft.start_time}
+                  onChange={(e) => setHoursDraft({ ...hoursDraft, start_time: e.target.value })}
+                  className="input mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500">End time</label>
+                <input
+                  type="time"
+                  value={hoursDraft.end_time}
+                  onChange={(e) => setHoursDraft({ ...hoursDraft, end_time: e.target.value })}
+                  className="input mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500">Promised delivery time (minutes after acknowledgement)</label>
+              <input
+                type="number"
+                min="5"
+                max="180"
+                value={hoursDraft.eta_minutes}
+                onChange={(e) => setHoursDraft({ ...hoursDraft, eta_minutes: Number(e.target.value) })}
+                className="input mt-1 w-32"
+              />
+            </div>
+
+            {hoursMessage.text && (
+              <p className={`text-xs font-medium ${hoursMessage.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+                {hoursMessage.text}
+              </p>
+            )}
+
+            <button
+              onClick={saveHours}
+              disabled={hoursSaving || JSON.stringify(hoursDraft) === JSON.stringify(hours)}
+              className="btn bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              <Save size={14} />
+              {hoursSaving ? 'Saving...' : 'Save Window'}
+            </button>
           </div>
         )
       )}
@@ -387,6 +584,7 @@ function ChargeBreakdown({ rec }) {
       <div className="flex justify-between gap-4"><span>Items</span><span>{money(rec.items_total)}</span></div>
       <div className="flex justify-between gap-4"><span>Delivery</span><span>{money(rec.delivery_charge)}</span></div>
       <div className="flex justify-between gap-4 font-bold text-slate-800 pt-0.5 border-t border-slate-100"><span>Total</span><span>{money(rec.total_amount)}</span></div>
+      <div className="pt-0.5"><CodBadge /></div>
     </div>
   );
 }
@@ -401,12 +599,57 @@ function StatusBadge({ status }) {
   );
 }
 
-function OrderCard({ order, selected, onSelect, onDelivered }) {
+function EtaNote({ order }) {
+  if (order.status !== 'acknowledged' || !order.expected_delivery_by) return null;
+  const dueTime = new Date(order.expected_delivery_by).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (order.is_overdue) {
+    return (
+      <span className="badge bg-red-50 text-red-600 border border-red-200 flex items-center gap-1 w-fit">
+        <AlertTriangle size={11} />
+        Overdue - was due {dueTime}
+      </span>
+    );
+  }
+  return <span className="text-[11px] text-blue-600 font-medium">Due by {dueTime}</span>;
+}
+
+function OrderActions({ order, onAcknowledge, onDelivered, onCancel, className = '' }) {
+  if (order.status === 'pending') {
+    return (
+      <div className={`flex gap-1.5 ${className}`}>
+        <button onClick={onAcknowledge} className="btn btn-sm bg-blue-600 text-white flex-1 justify-center hover:bg-blue-700">
+          <PackageCheck size={13} />
+          Acknowledge
+        </button>
+        <button onClick={onCancel} className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50" title="Cancel order">
+          <XCircle size={13} />
+        </button>
+      </div>
+    );
+  }
+  if (order.status === 'acknowledged') {
+    return (
+      <div className={`flex gap-1.5 ${className}`}>
+        <button onClick={onDelivered} className="btn btn-sm bg-violet-600 text-white flex-1 justify-center hover:bg-violet-700">
+          <CheckCircle2 size={13} />
+          Delivered
+        </button>
+        <button onClick={onCancel} className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50" title="Cancel order">
+          <XCircle size={13} />
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+function OrderCard({ order, selected, onSelect, onAcknowledge, onDelivered, onCancel }) {
+  const selectable = order.status === 'pending' || order.status === 'acknowledged';
   return (
-    <div className={`card p-4 ${selected ? 'ring-2 ring-violet-300' : ''}`}>
+    <div className={`card p-4 ${selected ? 'ring-2 ring-violet-300' : ''} ${order.is_overdue ? 'ring-1 ring-red-300' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
-          {order.status === 'pending' && (
+          {selectable && (
             <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} className="mt-0.5 rounded border-slate-300 text-violet-600" />
           )}
           <div className="min-w-0">
@@ -416,38 +659,30 @@ function OrderCard({ order, selected, onSelect, onDelivered }) {
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0 w-32">
           <StatusBadge status={order.status} />
+          <EtaNote order={order} />
           <ChargeBreakdown rec={order} />
         </div>
       </div>
-      {order.status === 'pending' && (
-        <button onClick={onDelivered} className="btn btn-sm bg-violet-600 text-white w-full justify-center mt-3 hover:bg-violet-700">
-          <CheckCircle2 size={13} />
-          Mark Delivered
-        </button>
-      )}
+      <OrderActions order={order} onAcknowledge={onAcknowledge} onDelivered={onDelivered} onCancel={onCancel} className="mt-3" />
     </div>
   );
 }
 
-function OrderRow({ order, selected, onSelect, onDelivered }) {
+function OrderRow({ order, selected, onSelect, onAcknowledge, onDelivered, onCancel }) {
+  const selectable = order.status === 'pending' || order.status === 'acknowledged';
   return (
-    <tr className={selected ? 'bg-violet-50/60' : ''}>
+    <tr className={`${selected ? 'bg-violet-50/60' : ''} ${order.is_overdue ? 'bg-red-50/40' : ''}`}>
       <td className="text-center">
-        {order.status === 'pending' && (
+        {selectable && (
           <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} className="rounded border-slate-300 w-4 h-4 text-violet-600 focus:ring-violet-500" />
         )}
       </td>
       <td><CustomerBlock rec={order} /></td>
       <td className="text-slate-700"><ItemList items={order.items} /></td>
       <td className="min-w-[140px]"><ChargeBreakdown rec={order} /></td>
-      <td><StatusBadge status={order.status} /></td>
+      <td className="space-y-1"><StatusBadge status={order.status} /><EtaNote order={order} /></td>
       <td>
-        {order.status === 'pending' && (
-          <button onClick={onDelivered} className="btn btn-sm bg-violet-600 text-white hover:bg-violet-700">
-            <CheckCircle2 size={13} />
-            Delivered
-          </button>
-        )}
+        <OrderActions order={order} onAcknowledge={onAcknowledge} onDelivered={onDelivered} onCancel={onCancel} />
       </td>
     </tr>
   );

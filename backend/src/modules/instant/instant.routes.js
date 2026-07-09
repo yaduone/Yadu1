@@ -106,7 +106,15 @@ router.get('/carts/admin/list', authenticateAdmin, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/instant/orders/admin/:id/status — mark delivered/cancelled
+// PUT /api/instant/orders/admin/:id/acknowledge — step 1: acknowledge a pending order
+router.put('/orders/admin/:id/acknowledge', authenticateAdmin, async (req, res, next) => {
+  try {
+    const result = await instantService.acknowledgeOrder(req.params.id, req.admin.areaId);
+    return success(res, result, 'Order acknowledged — customer notified');
+  } catch (err) { next(err); }
+});
+
+// PUT /api/instant/orders/admin/:id/status — step 2: mark delivered/cancelled
 router.put('/orders/admin/:id/status', authenticateAdmin, async (req, res, next) => {
   try {
     const { status } = req.body;
