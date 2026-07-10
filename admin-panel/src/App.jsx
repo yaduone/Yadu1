@@ -23,6 +23,7 @@ import NotesPage from './pages/NotesPage';
 import NotifyPage from './pages/NotifyPage';
 import ChargesPage from './pages/ChargesPage';
 import CarouselsPage from './pages/CarouselsPage';
+import OnboardingPage from './pages/OnboardingPage';
 
 export default function App() {
   return (
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="notes" element={<NotesPage />} />
             <Route path="notify" element={<NotifyPage />} />
             <Route path="carousels" element={<CarouselsPage />} />
+            <Route path="onboarding" element={<OnboardingPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
