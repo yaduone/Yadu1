@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import LiveIndicator from '../components/LiveIndicator';
 import SearchField from '../components/SearchField';
 import LocationLink from '../components/LocationLink';
 import { matchesSearch } from '../utils/search';
-import { requestAdminPushToken } from '../firebase';
+import { requestAdminPushToken, onForegroundMessage } from '../firebase';
 import {
   CheckCircle2, Clock, XCircle, CheckSquare, Zap, ShoppingCart, Truck, Settings, Bell, BellOff,
   PackageCheck, AlertTriangle, Wallet, Save,
@@ -61,6 +63,7 @@ const STATUS_BADGE = {
   acknowledged: 'badge badge-blue',
   not_delivered: 'badge badge-red',
   cancelled: 'badge badge-red',
+  rejected: 'badge badge-red',
 };
 
 const STATUS_ICON = {
@@ -69,6 +72,7 @@ const STATUS_ICON = {
   acknowledged: <PackageCheck size={13} className="text-blue-500" />,
   not_delivered: <XCircle size={13} className="text-red-500" />,
   cancelled: <XCircle size={13} className="text-red-400" />,
+  rejected: <XCircle size={13} className="text-red-400" />,
 };
 
 const TABS = [
@@ -98,6 +102,9 @@ function statusLabel(status) {
     pending: 'New',
     acknowledged: 'On The Way',
     not_delivered: 'Not Delivered',
+    // Kept distinct from cancelled: rejected means never accepted in the first
+    // place, either by an admin or by the auto-expiry job.
+    rejected: 'Rejected',
   }[displayStatus(status)] || status;
 }
 
@@ -132,6 +139,8 @@ export default function InstantOrdersPage() {
   const [search, setSearch] = useState('');
 
   // Delivery-window settings state
+  // Order awaiting a rejection reason in the modal, or null.
+  const [rejectTarget, setRejectTarget] = useState(null);
   const [hours, setHours] = useState(null);
   const [hoursDraft, setHoursDraft] = useState(null);
   const [hoursLoading, setHoursLoading] = useState(true);
@@ -168,43 +177,110 @@ export default function InstantOrdersPage() {
 
   useEffect(() => { loadHours(); }, []);
 
-  function loadOrders() {
-    setOrdersLoading(true);
-    setSelected([]);
+  // `silent` drives background refreshes: no skeleton, and the operator's
+  // checkbox selection survives. A visible reload still clears selection, since
+  // that follows an action the operator just took.
+  function loadOrders({ silent = false } = {}) {
+    if (!silent) {
+      setOrdersLoading(true);
+      setSelected([]);
+    }
     const params = new URLSearchParams({ date, limit: '100' });
     if (statusFilter) params.set('status', statusFilter);
-    api.get(`/instant/orders/admin/list?${params}`)
-      .then((res) => setOrders(res.data.data.orders || []))
+    return api.get(`/instant/orders/admin/list?${params}`)
+      .then((res) => {
+        const fresh = res.data.data.orders || [];
+        setOrders(fresh);
+        // Drop any selected order that has since left the list (delivered by a
+        // colleague, filtered out) so bulk actions can't fire on stale ids.
+        if (silent) {
+          setSelected((prev) => prev.filter((id) => fresh.some((o) => o.id === id)));
+        }
+      })
       .catch(console.error)
-      .finally(() => setOrdersLoading(false));
+      .finally(() => { if (!silent) setOrdersLoading(false); });
   }
 
-  function loadCarts() {
-    setCartsLoading(true);
-    api.get('/instant/carts/admin/list')
+  function loadCarts({ silent = false } = {}) {
+    if (!silent) setCartsLoading(true);
+    return api.get('/instant/carts/admin/list')
       .then((res) => setCarts(res.data.data.carts || []))
       .catch(console.error)
-      .finally(() => setCartsLoading(false));
+      .finally(() => { if (!silent) setCartsLoading(false); });
   }
 
   useEffect(() => { loadOrders(); /* eslint-disable-next-line */ }, [date, statusFilter]);
   useEffect(() => { loadCarts(); }, []);
 
+  // Live updates. New instant orders are time-critical — a customer is sitting on
+  // a "Requested" screen waiting — so poll briskly and also refresh the moment an
+  // FCM push announces one, rather than waiting out the interval.
+  const refreshVisibleTab = useCallback(() => {
+    return activeTab === 'carts'
+      ? loadCarts({ silent: true })
+      : loadOrders({ silent: true });
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [activeTab, date, statusFilter]);
+
+  const { lastUpdated, refreshNow } = useLiveRefresh(refreshVisibleTab, {
+    intervalMs: 15_000,
+    enabled: activeTab !== 'settings', // nothing on the settings tab goes stale
+  });
+
+  useEffect(() => {
+    let unsubscribe;
+    let cancelled = false;
+    onForegroundMessage(() => refreshNow()).then((fn) => {
+      // Unmounted before the async messaging setup resolved — tear down at once
+      // rather than leaking the listener.
+      if (cancelled) fn?.();
+      else unsubscribe = fn;
+    });
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [refreshNow]);
+
+  // Order actions patch the row in place instead of refetching the whole list.
+  // The 15s live-refresh reconciles with the server shortly after, so a full
+  // reload here only costs the operator a table flash between rapid actions.
+  // On failure we do reload, since local state can no longer be trusted.
+  function patchOrders(ids, changes) {
+    const idSet = new Set(ids);
+    setOrders((prev) => prev.map((o) => (idSet.has(o.id) ? { ...o, ...changes } : o)));
+  }
+
   async function acknowledgeOrder(id) {
     try {
       await api.put(`/instant/orders/admin/${id}/acknowledge`);
-      loadOrders();
+      patchOrders([id], { status: 'acknowledged' });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to acknowledge order');
+      loadOrders({ silent: true });
+    }
+  }
+
+  // Reject = decline a *pending* order with a reason the customer sees on their
+  // order-status screen. Distinct from cancelling an already-accepted order.
+  async function rejectOrder(id, reason) {
+    try {
+      await api.put(`/instant/orders/admin/${id}/reject`, { reason });
+      setRejectTarget(null);
+      patchOrders([id], { status: 'rejected', rejection_reason: reason });
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to reject order');
+      loadOrders({ silent: true });
     }
   }
 
   async function markDelivered(id) {
     try {
       await api.put(`/instant/orders/admin/${id}/status`, { status: 'delivered' });
-      loadOrders();
+      patchOrders([id], { status: 'delivered' });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed');
+      loadOrders({ silent: true });
     }
   }
 
@@ -212,36 +288,37 @@ export default function InstantOrdersPage() {
     if (!window.confirm('Cancel this instant order?')) return;
     try {
       await api.put(`/instant/orders/admin/${id}/status`, { status: 'cancelled' });
-      loadOrders();
+      patchOrders([id], { status: 'cancelled' });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to cancel order');
+      loadOrders({ silent: true });
     }
   }
 
   async function markSelectedAcknowledged() {
     if (!selected.length) return;
-    setOrdersLoading(true);
+    const ids = selected;
+    setSelected([]);
+    patchOrders(ids, { status: 'acknowledged' });
     try {
-      await Promise.all(selected.map((id) => api.put(`/instant/orders/admin/${id}/acknowledge`)));
-      setSelected([]);
-      loadOrders();
+      await Promise.all(ids.map((id) => api.put(`/instant/orders/admin/${id}/acknowledge`)));
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to acknowledge some orders');
-      loadOrders();
+      loadOrders({ silent: true });
     }
   }
 
   async function markSelectedDelivered() {
     if (!selected.length) return;
     if (!window.confirm(`Mark ${selected.length} instant orders as delivered?`)) return;
-    setOrdersLoading(true);
+    const ids = selected;
+    setSelected([]);
+    patchOrders(ids, { status: 'delivered' });
     try {
-      await Promise.all(selected.map((id) => api.put(`/instant/orders/admin/${id}/status`, { status: 'delivered' })));
-      setSelected([]);
-      loadOrders();
+      await Promise.all(ids.map((id) => api.put(`/instant/orders/admin/${id}/status`, { status: 'delivered' })));
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to update some orders');
-      loadOrders();
+      loadOrders({ silent: true });
     }
   }
 
@@ -336,9 +413,16 @@ export default function InstantOrdersPage() {
         }`}>
           <Clock size={13} className="shrink-0" />
           {hours.enabled
-            ? `Instant delivery window: ${hours.start_time} - ${hours.end_time} - promised in ${hours.eta_minutes} min after acknowledgement`
+            ? `Instant delivery window: ${hours.start_time} - ${hours.end_time} - promised in ${hours.eta_minutes} min after acceptance`
+              + (hours.auto_expire_minutes > 0
+                ? ` - unaccepted orders auto-reject after ${hours.auto_expire_minutes} min`
+                : '')
             : 'Instant delivery is currently disabled for customers'}
         </div>
+      )}
+
+      {activeTab !== 'settings' && (
+        <LiveIndicator lastUpdated={lastUpdated} onRefresh={refreshNow} />
       )}
 
       {activeTab === 'orders' && (
@@ -402,6 +486,7 @@ export default function InstantOrdersPage() {
                   onAcknowledge={() => acknowledgeOrder(order.id)}
                   onDelivered={() => markDelivered(order.id)}
                   onCancel={() => cancelOrder(order.id)}
+                  onReject={() => setRejectTarget(order)}
                 />
               ))}
             </div>
@@ -436,6 +521,7 @@ export default function InstantOrdersPage() {
                       onAcknowledge={() => acknowledgeOrder(order.id)}
                       onDelivered={() => markDelivered(order.id)}
                       onCancel={() => cancelOrder(order.id)}
+                      onReject={() => setRejectTarget(order)}
                     />
                   ))}
                 </tbody>
@@ -520,6 +606,61 @@ export default function InstantOrdersPage() {
               />
             </div>
 
+            <div>
+              <label className="text-xs font-semibold text-slate-500">
+                Auto-reject unaccepted orders after (minutes)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="120"
+                value={hoursDraft.auto_expire_minutes}
+                onChange={(e) => setHoursDraft({ ...hoursDraft, auto_expire_minutes: Number(e.target.value) })}
+                className="input mt-1 w-32"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                If nobody accepts a new order within this time, it is rejected automatically and
+                the customer is notified. Set to <span className="font-semibold">0</span> to disable.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500">
+                Customers can cancel their own order
+              </label>
+              <select
+                value={hoursDraft.customer_cancel_window}
+                onChange={(e) => setHoursDraft({ ...hoursDraft, customer_cancel_window: e.target.value })}
+                className="input mt-1"
+              >
+                <option value="until_delivery">Until it is marked delivered</option>
+                <option value="until_acceptance">Only before you accept it</option>
+                <option value="disabled">Never - they must call the store</option>
+              </select>
+              <p className="text-xs text-slate-400 mt-1">
+                You are notified whenever a customer cancels, and the alert calls out
+                cancellations on orders you had already accepted.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500">
+                Rejection reasons (one per line)
+              </label>
+              <textarea
+                rows={4}
+                value={(hoursDraft.rejection_reasons || []).join('\n')}
+                onChange={(e) => setHoursDraft({
+                  ...hoursDraft,
+                  rejection_reasons: e.target.value.split('\n'),
+                })}
+                className="input mt-1 font-mono text-xs"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Shown as one-tap options when rejecting an order. The customer sees the reason you pick.
+              </p>
+            </div>
+
             {hoursMessage.text && (
               <p className={`text-xs font-medium ${hoursMessage.type === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
                 {hoursMessage.text}
@@ -537,6 +678,89 @@ export default function InstantOrdersPage() {
           </div>
         )
       )}
+
+      {rejectTarget && (
+        <RejectOrderModal
+          order={rejectTarget}
+          reasons={hours?.rejection_reasons || []}
+          onCancel={() => setRejectTarget(null)}
+          onConfirm={(reason) => rejectOrder(rejectTarget.id, reason)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Asks the admin why a pending order is being turned down. The reason is pushed
+ * to the customer and shown on their order-status screen, so it is required.
+ */
+function RejectOrderModal({ order, reasons, onCancel, onConfirm }) {
+  const [reason, setReason] = useState(reasons[0] || '');
+  const [custom, setCustom] = useState('');
+  const usingCustom = reason === '__custom__';
+  const finalReason = usingCustom ? custom.trim() : reason;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div className="card w-full max-w-md p-5 space-y-4">
+        <div>
+          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+            <AlertTriangle size={16} className="text-red-500" />
+            Reject Order
+          </h3>
+          <p className="text-xs text-slate-400 mt-1">
+            {order.user_name || 'Customer'} · {money(order.total_amount)} — they will be
+            notified with the reason you choose.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          {reasons.map((r) => (
+            <label key={r} className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="radio"
+                name="reject-reason"
+                checked={reason === r}
+                onChange={() => setReason(r)}
+                className="text-violet-600 focus:ring-violet-500"
+              />
+              {r}
+            </label>
+          ))}
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="radio"
+              name="reject-reason"
+              checked={usingCustom}
+              onChange={() => setReason('__custom__')}
+              className="text-violet-600 focus:ring-violet-500"
+            />
+            Other
+          </label>
+          {usingCustom && (
+            <input
+              type="text"
+              autoFocus
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              placeholder="Type a reason for the customer"
+              className="input mt-1"
+            />
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button onClick={onCancel} className="btn btn-sm btn-ghost">Keep Order</button>
+          <button
+            onClick={() => onConfirm(finalReason)}
+            disabled={!finalReason}
+            className="btn btn-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            Reject &amp; Notify
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -613,15 +837,17 @@ function EtaNote({ order }) {
   return <span className="text-[11px] text-blue-600 font-medium">Due by {dueTime}</span>;
 }
 
-function OrderActions({ order, onAcknowledge, onDelivered, onCancel, className = '' }) {
+function OrderActions({ order, onAcknowledge, onDelivered, onCancel, onReject, className = '' }) {
   if (order.status === 'pending') {
+    // A pending order was never accepted, so the negative action is Reject
+    // (which requires a reason the customer sees), not Cancel.
     return (
       <div className={`flex gap-1.5 ${className}`}>
         <button onClick={onAcknowledge} className="btn btn-sm bg-blue-600 text-white flex-1 justify-center hover:bg-blue-700">
           <PackageCheck size={13} />
-          Acknowledge
+          Accept
         </button>
-        <button onClick={onCancel} className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50" title="Cancel order">
+        <button onClick={onReject} className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50" title="Reject order with a reason">
           <XCircle size={13} />
         </button>
       </div>
@@ -643,7 +869,32 @@ function OrderActions({ order, onAcknowledge, onDelivered, onCancel, className =
   return null;
 }
 
-function OrderCard({ order, selected, onSelect, onAcknowledge, onDelivered, onCancel }) {
+/**
+ * Why an order ended the way it did — the rejection reason an admin picked, an
+ * auto-expiry, or a customer cancellation. Without this the board shows a bare
+ * "Rejected" with no way to tell a deliberate decline from a missed one.
+ */
+function OutcomeNote({ order }) {
+  if (order.status === 'rejected') {
+    const auto = order.rejected_by === 'auto_expiry';
+    return (
+      <p className={`text-xs mt-0.5 ${auto ? 'text-amber-600' : 'text-slate-400'}`}>
+        {auto ? 'Auto-expired' : 'Rejected'}
+        {order.rejection_reason ? `: ${order.rejection_reason}` : ''}
+      </p>
+    );
+  }
+  if (order.status === 'cancelled') {
+    return (
+      <p className="text-xs mt-0.5 text-slate-400">
+        {order.cancelled_by === 'customer' ? 'Cancelled by customer' : 'Cancelled'}
+      </p>
+    );
+  }
+  return null;
+}
+
+function OrderCard({ order, selected, onSelect, onAcknowledge, onDelivered, onCancel, onReject }) {
   const selectable = order.status === 'pending' || order.status === 'acknowledged';
   return (
     <div className={`card p-4 ${selected ? 'ring-2 ring-violet-300' : ''} ${order.is_overdue ? 'ring-1 ring-red-300' : ''}`}>
@@ -660,15 +911,16 @@ function OrderCard({ order, selected, onSelect, onAcknowledge, onDelivered, onCa
         <div className="flex flex-col items-end gap-1.5 shrink-0 w-32">
           <StatusBadge status={order.status} />
           <EtaNote order={order} />
+          <OutcomeNote order={order} />
           <ChargeBreakdown rec={order} />
         </div>
       </div>
-      <OrderActions order={order} onAcknowledge={onAcknowledge} onDelivered={onDelivered} onCancel={onCancel} className="mt-3" />
+      <OrderActions order={order} onAcknowledge={onAcknowledge} onDelivered={onDelivered} onCancel={onCancel} onReject={onReject} className="mt-3" />
     </div>
   );
 }
 
-function OrderRow({ order, selected, onSelect, onAcknowledge, onDelivered, onCancel }) {
+function OrderRow({ order, selected, onSelect, onAcknowledge, onDelivered, onCancel, onReject }) {
   const selectable = order.status === 'pending' || order.status === 'acknowledged';
   return (
     <tr className={`${selected ? 'bg-violet-50/60' : ''} ${order.is_overdue ? 'bg-red-50/40' : ''}`}>
@@ -680,9 +932,9 @@ function OrderRow({ order, selected, onSelect, onAcknowledge, onDelivered, onCan
       <td><CustomerBlock rec={order} /></td>
       <td className="text-slate-700"><ItemList items={order.items} /></td>
       <td className="min-w-[140px]"><ChargeBreakdown rec={order} /></td>
-      <td className="space-y-1"><StatusBadge status={order.status} /><EtaNote order={order} /></td>
+      <td className="space-y-1"><StatusBadge status={order.status} /><EtaNote order={order} /><OutcomeNote order={order} /></td>
       <td>
-        <OrderActions order={order} onAcknowledge={onAcknowledge} onDelivered={onDelivered} onCancel={onCancel} />
+        <OrderActions order={order} onAcknowledge={onAcknowledge} onDelivered={onDelivered} onCancel={onCancel} onReject={onReject} />
       </td>
     </tr>
   );

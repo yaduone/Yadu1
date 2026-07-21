@@ -34,6 +34,41 @@ function computeTotals(items, deliveryCharge, extraChargesTotal = 0) {
   };
 }
 
+/**
+ * Firestore write sentinels (FieldValue.serverTimestamp()) have no toDate()
+ * until they are committed and re-read — serializing one to JSON yields `{}`.
+ * Treat anything that isn't a real Timestamp as "not set yet".
+ */
+function safeTimestamp(value) {
+  return value && typeof value.toDate === 'function'
+    ? dateUtil.formatTimestamp(value)
+    : null;
+}
+
+/**
+ * The single client-facing shape for an instant order.
+ *
+ * Both the confirm response and the status-screen poll go through this, so the
+ * app never has to cope with two different shapes for the same order — the
+ * screen can swap its state wholesale on every refresh.
+ */
+function orderView(id, order, { placedAt } = {}) {
+  return {
+    ...order,
+    id,
+    placed_at: placedAt || safeTimestamp(order.placed_at),
+    acknowledged_at: safeTimestamp(order.acknowledged_at),
+    rejected_at: safeTimestamp(order.rejected_at),
+    created_at: safeTimestamp(order.created_at),
+    updated_at: safeTimestamp(order.updated_at),
+    // Past the promised ETA but not yet delivered — the app shows a "running
+    // late" state rather than a countdown that has silently gone negative.
+    is_overdue: order.status === 'acknowledged' && order.expected_delivery_by
+      ? new Date(order.expected_delivery_by).getTime() < Date.now()
+      : false,
+  };
+}
+
 function emptyCart(userId, areaId) {
   return {
     user_id: userId,
@@ -120,11 +155,16 @@ async function getCart(userId, areaId) {
 
 
 function availabilityError(availability) {
-  const { hours } = availability;
+  const { hours, window } = availability;
   const message = availability.reason === 'closed'
     ? 'Instant delivery is currently unavailable. Please check back later.'
-    : `Instant delivery is available between ${hours.start_time} and ${hours.end_time}. Please try again during that window.`;
-  return Object.assign(new Error(message), { statusCode: 400, code: 'INSTANT_UNAVAILABLE', hours });
+    : `Instant delivery is available between ${window.start_time_display} and ${window.end_time_display}. Please try again during that window.`;
+  return Object.assign(new Error(message), {
+    statusCode: 400,
+    code: 'INSTANT_UNAVAILABLE',
+    hours,
+    availability,
+  });
 }
 
 async function addItem(userId, areaId, { product_id, quantity }) {
@@ -304,6 +344,14 @@ async function confirmOrder(userId, areaId) {
     );
   }
 
+  // Deadline for the admin to accept. Stored on the order (not derived from the
+  // live setting) so changing the setting later can't retroactively expire
+  // orders that were already placed under the old value.
+  const autoExpireMinutes = Number(availability.hours.auto_expire_minutes) || 0;
+  const expiresAt = autoExpireMinutes > 0
+    ? dateUtil.now().add(autoExpireMinutes, 'minutes').toISOString()
+    : null;
+
   const orderData = {
     user_id: userId,
     area_id: areaId,
@@ -320,6 +368,12 @@ async function confirmOrder(userId, areaId) {
     eta_minutes: availability.hours.eta_minutes,
     acknowledged_at: null,
     expected_delivery_by: null,
+    // Acceptance-deadline / rejection bookkeeping.
+    expires_at: expiresAt,
+    auto_expire_minutes: autoExpireMinutes,
+    rejection_reason: null,
+    rejected_at: null,
+    rejected_by: null,
     placed_at: admin.firestore.FieldValue.serverTimestamp(),
     created_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -344,21 +398,29 @@ async function confirmOrder(userId, areaId) {
     totalAmount: cart.total_amount,
   });
 
-  return { id: orderRef.id, ...orderData };
+  // Serialize through the same view the poll uses. Without this the caller
+  // would receive uncommitted write sentinels as `{}` for every timestamp.
+  return orderView(orderRef.id, orderData, {
+    placedAt: dateUtil.now().format('YYYY-MM-DD HH:mm:ss'),
+  });
 }
 
 // ─── User history ───────────────────────────────────────────────────────────
 
 async function getUserOrders(userId, { page = 1, limit = 20 } = {}) {
   const snap = await db.collection(ORDER_COLLECTION).where('user_id', '==', userId).get();
+  // Sort on the raw Timestamps *before* serializing — orderView turns placed_at
+  // into a string, and .toMillis() on a string would silently collapse every
+  // comparison to 0, losing newest-first ordering within a single day.
   const orders = snap.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .map((doc) => ({ id: doc.id, data: doc.data() }))
     .sort((a, b) => {
-      const ta = a.placed_at?.toMillis?.() ?? 0;
-      const tb = b.placed_at?.toMillis?.() ?? 0;
+      const ta = a.data.placed_at?.toMillis?.() ?? 0;
+      const tb = b.data.placed_at?.toMillis?.() ?? 0;
       if (tb !== ta) return tb - ta;
-      return b.date > a.date ? 1 : -1;
-    });
+      return b.data.date > a.data.date ? 1 : -1;
+    })
+    .map(({ id, data }) => orderView(id, data));
 
   const start = (page - 1) * limit;
   return { orders: orders.slice(start, start + limit), total: orders.length, page, limit };
@@ -382,7 +444,7 @@ async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 } = {}
 
   if (status) {
     orders = orders.filter((o) => (status === 'not_delivered'
-      ? (o.status === 'not_delivered' || o.status === 'cancelled')
+      ? (o.status === 'not_delivered' || o.status === 'cancelled' || o.status === 'rejected')
       : o.status === status));
   }
 
@@ -436,6 +498,7 @@ async function acknowledgeOrder(orderId, areaId) {
       status: 'acknowledged',
       acknowledged_at: admin.firestore.FieldValue.serverTimestamp(),
       expected_delivery_by: expectedDeliveryBy,
+      expires_at: null, // accepted in time — no longer a candidate for auto-expiry
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
     });
   });
@@ -453,6 +516,212 @@ async function acknowledgeOrder(orderId, areaId) {
   }
 
   return { id: orderId, status: 'acknowledged', expected_delivery_by: expectedDeliveryBy };
+}
+
+/**
+ * Admin rejects a pending order with a reason the customer sees on their
+ * order-status screen. Distinct from `cancelled` (which can also happen after
+ * acceptance) so reporting can separate "we never took it" from "we dropped it".
+ */
+async function rejectOrder(orderId, areaId, reason, adminId) {
+  const trimmed = String(reason || '').trim();
+  if (!trimmed) {
+    throw Object.assign(new Error('A rejection reason is required'), { statusCode: 400 });
+  }
+
+  const orderRef = db.collection(ORDER_COLLECTION).doc(orderId);
+  let rejectedOrder = null;
+
+  await db.runTransaction(async (tx) => {
+    rejectedOrder = null;
+    const orderDoc = await tx.get(orderRef);
+    if (!orderDoc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+
+    const order = orderDoc.data();
+    if (order.area_id !== areaId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+    if (order.status !== 'pending') {
+      throw Object.assign(new Error('Only pending orders can be rejected'), { statusCode: 400 });
+    }
+
+    rejectedOrder = order;
+    tx.update(orderRef, {
+      status: 'rejected',
+      rejection_reason: trimmed,
+      rejected_at: admin.firestore.FieldValue.serverTimestamp(),
+      rejected_by: adminId || null,
+      expires_at: null,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  if (rejectedOrder) {
+    try {
+      await notificationService.sendInstantOrderRejectedNotification(
+        rejectedOrder.user_id,
+        rejectedOrder.area_id,
+        { orderId, reason: trimmed, amount: rejectedOrder.total_amount || 0 },
+      );
+    } catch (notifErr) {
+      console.error('[instant.rejectOrder] notification failed:', notifErr.message);
+    }
+  }
+
+  return { id: orderId, status: 'rejected', rejection_reason: trimmed };
+}
+
+/**
+ * Auto-reject pending orders whose acceptance deadline has passed — a customer
+ * should never be left staring at "Requested" forever because nobody was at the
+ * admin panel. Driven by the every-minute expiry job.
+ */
+async function expireStaleOrders() {
+  const nowIso = dateUtil.now().toISOString();
+
+  // Single-field query + in-memory filter, matching the rest of the codebase —
+  // a composite (status + expires_at inequality) query would need a deployed
+  // Firestore index, and this project ships none. The pending set is tiny:
+  // only orders placed today that no admin has touched yet.
+  const snap = await db.collection(ORDER_COLLECTION)
+    .where('status', '==', 'pending')
+    .get();
+
+  const due = snap.docs.filter((doc) => {
+    const expiresAt = doc.data().expires_at;
+    return expiresAt && expiresAt <= nowIso;
+  }).slice(0, 50);
+
+  if (!due.length) return { expired: 0 };
+
+  const expired = [];
+  for (const doc of due) {
+    try {
+      // Re-check inside a transaction: an admin may have accepted between the
+      // query and now.
+      const order = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        if (!fresh.exists) return null;
+        const data = fresh.data();
+        if (data.status !== 'pending') return null;
+
+        tx.update(doc.ref, {
+          status: 'rejected',
+          rejection_reason: 'No response from the store in time',
+          rejected_at: admin.firestore.FieldValue.serverTimestamp(),
+          rejected_by: 'auto_expiry',
+          expires_at: null,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return data;
+      });
+
+      if (order) {
+        expired.push(doc.id);
+        try {
+          await notificationService.sendInstantOrderRejectedNotification(
+            order.user_id,
+            order.area_id,
+            {
+              orderId: doc.id,
+              reason: 'No response from the store in time',
+              amount: order.total_amount || 0,
+            },
+          );
+        } catch (notifErr) {
+          console.error('[instant.expireStaleOrders] notification failed:', notifErr.message);
+        }
+      }
+    } catch (err) {
+      console.error(`[instant.expireStaleOrders] ${doc.id} failed:`, err.message);
+    }
+  }
+
+  if (expired.length) {
+    console.log(`[CRON] Auto-expired ${expired.length} unacknowledged instant order(s)`);
+  }
+  return { expired: expired.length };
+}
+
+/**
+ * Customer cancels their own order from the status screen.
+ *
+ * How late this is allowed is admin-configurable (`customer_cancel_window`).
+ * Cancelling after acceptance matters operationally — a rider may already be
+ * en route — so the admins are pushed a notification rather than finding out
+ * when the delivery fails.
+ *
+ * Nothing is refunded because instant orders are cash-on-delivery and no money
+ * has changed hands.
+ */
+async function cancelOwnOrder(orderId, userId) {
+  const { customer_cancel_window: window } = await instantHours.getHours();
+  if (window === 'disabled') {
+    throw Object.assign(
+      new Error('Orders cannot be cancelled from the app. Please contact the store.'),
+      { statusCode: 400, code: 'CANCEL_DISABLED' },
+    );
+  }
+
+  const orderRef = db.collection(ORDER_COLLECTION).doc(orderId);
+  let cancelledOrder = null;
+
+  await db.runTransaction(async (tx) => {
+    cancelledOrder = null;
+    const orderDoc = await tx.get(orderRef);
+    if (!orderDoc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+
+    const order = orderDoc.data();
+    if (order.user_id !== userId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+
+    if (order.status === 'delivered') {
+      throw Object.assign(
+        new Error('This order has already been delivered and can no longer be cancelled.'),
+        { statusCode: 400 },
+      );
+    }
+    if (order.status !== 'pending' && order.status !== 'acknowledged') {
+      throw Object.assign(new Error('This order is no longer active.'), { statusCode: 400 });
+    }
+    if (window === 'until_acceptance' && order.status === 'acknowledged') {
+      throw Object.assign(
+        new Error('The store has already accepted this order. Please contact them to cancel.'),
+        { statusCode: 400, code: 'CANCEL_WINDOW_PASSED' },
+      );
+    }
+
+    cancelledOrder = order;
+    tx.update(orderRef, {
+      status: 'cancelled',
+      cancelled_by: 'customer',
+      cancelled_at: admin.firestore.FieldValue.serverTimestamp(),
+      expires_at: null, // no longer a candidate for the auto-expiry job
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  if (cancelledOrder) {
+    // Fire-and-forget, mirroring how new orders alert the admins.
+    notificationService.sendAdminInstantOrderCancelledNotification(cancelledOrder.area_id, {
+      orderId,
+      userId,
+      totalAmount: cancelledOrder.total_amount,
+      wasAccepted: cancelledOrder.status === 'acknowledged',
+    });
+  }
+
+  return { id: orderId, status: 'cancelled' };
+}
+
+/**
+ * Single order for the customer's live status screen. Scoped to the owner.
+ */
+async function getUserOrder(orderId, userId) {
+  const doc = await db.collection(ORDER_COLLECTION).doc(orderId).get();
+  if (!doc.exists) throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+
+  const order = doc.data();
+  if (order.user_id !== userId) throw Object.assign(new Error('Forbidden'), { statusCode: 403 });
+
+  return orderView(doc.id, order);
 }
 
 /**
@@ -541,7 +810,9 @@ async function getUserInstantCalendar(userId, startDate, endDate) {
   for (const doc of snap.docs) {
     const o = doc.data();
     if (!o.date || o.date < startDate || o.date >= endDate) continue;
-    const status = o.status === 'cancelled' ? 'not_delivered' : (o.status === 'acknowledged' ? 'pending' : o.status);
+    const status = (o.status === 'cancelled' || o.status === 'rejected')
+      ? 'not_delivered'
+      : (o.status === 'acknowledged' ? 'pending' : o.status);
 
     if (!instant[o.date]) {
       instant[o.date] = {
@@ -579,9 +850,13 @@ module.exports = {
   clearCart,
   confirmOrder,
   getUserOrders,
+  getUserOrder,
+  cancelOwnOrder,
   getAreaOrders,
   getAreaCarts,
   acknowledgeOrder,
+  rejectOrder,
+  expireStaleOrders,
   updateOrderStatus,
   getUserInstantCalendar,
 };

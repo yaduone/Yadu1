@@ -131,6 +131,24 @@ async function sendInstantOrderAcknowledgedNotification(userId, areaId, { orderI
 }
 
 /**
+ * Sent when an instant order is turned down — either by an admin choosing a
+ * reason, or by the auto-expiry job when nobody accepted in time. COD means
+ * there is nothing to refund, so the message just explains and invites a retry.
+ */
+async function sendInstantOrderRejectedNotification(userId, areaId, { orderId, reason }) {
+  await createNotification(userId, areaId, {
+    type: 'instant_order_rejected',
+    title: 'Instant Order Not Accepted',
+    body: `${reason}. You were not charged — please try placing your order again.`,
+    meta: {
+      destination: 'orders',
+      order_id: orderId,
+      reason,
+    },
+  });
+}
+
+/**
  * Sent automatically when admin marks a cash-on-delivery (instant) order as delivered.
  * Unlike sendDeliveryNotification, this does not reference the due balance since
  * COD orders are settled in cash at delivery time and never added to the due.
@@ -398,6 +416,53 @@ async function sendAdminInstantOrderNotification(areaId, { orderId, userId, tota
 }
 
 /**
+ * Alerts every admin in the area when a customer cancels their own instant
+ * order. Time-critical when the order was already accepted — a rider may be on
+ * the way — so the copy leads with that.
+ */
+async function sendAdminInstantOrderCancelledNotification(areaId, { orderId, userId, totalAmount, wasAccepted }) {
+  try {
+    const adminsSnap = await db.collection('admins').where('area_id', '==', areaId).get();
+    const tokens = adminsSnap.docs.map((doc) => doc.data().fcm_token).filter(Boolean);
+    if (!tokens.length) return;
+
+    const userDoc = userId ? await db.collection('users').doc(userId).get() : null;
+    const userName = (userDoc && userDoc.exists ? userDoc.data().name : null) || 'A customer';
+
+    const title = wasAccepted ? 'Accepted Order Cancelled' : 'Instant Order Cancelled';
+    const body = wasAccepted
+      ? `${userName} cancelled an order you already accepted - Rs. ${Number(totalAmount || 0).toFixed(2)}. Stop the delivery if it is on the way.`
+      : `${userName} cancelled their order - Rs. ${Number(totalAmount || 0).toFixed(2)}.`;
+    const adminPanelUrl = `${ADMIN_PANEL_URL}/instant-orders`;
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: fcmData({ type: 'instant_order_cancelled', order_id: orderId, url: adminPanelUrl }),
+      webpush: {
+        fcmOptions: { link: adminPanelUrl },
+        notification: { icon: '/favicon.svg' },
+      },
+    });
+
+    const invalidTokens = tokens.filter((_, index) => {
+      const errorCode = response.responses[index]?.error?.code;
+      return errorCode === 'messaging/registration-token-not-registered' ||
+        errorCode === 'messaging/invalid-registration-token';
+    });
+    if (invalidTokens.length) {
+      const batch = db.batch();
+      adminsSnap.docs
+        .filter((doc) => invalidTokens.includes(doc.data().fcm_token))
+        .forEach((doc) => batch.update(doc.ref, { fcm_token: admin.firestore.FieldValue.delete() }));
+      await batch.commit();
+    }
+  } catch (err) {
+    console.warn('[FCM] admin instant cancellation push failed:', err.message);
+  }
+}
+
+/**
  * Delete expired notification records during routine cleanup.
  */
 async function purgeExpiredNotifications() {
@@ -421,6 +486,7 @@ module.exports = {
   createNotification,
   sendDeliveryNotification,
   sendInstantOrderAcknowledgedNotification,
+  sendInstantOrderRejectedNotification,
   sendCodDeliveryNotification,
   sendDueReminderNotification,
   sendPaymentRecordedNotification,
@@ -429,5 +495,6 @@ module.exports = {
   sendAreaBroadcast,
   sendCustomNotification,
   sendAdminInstantOrderNotification,
+  sendAdminInstantOrderCancelledNotification,
   purgeExpiredNotifications,
 };

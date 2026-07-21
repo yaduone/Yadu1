@@ -3,6 +3,7 @@ const app = require('./src/app');
 const config = require('./src/config');
 const { initCronJobs } = require('./src/jobs/nightlyManifest');
 const { initLivestreamScheduler } = require('./src/jobs/livestreamScheduler');
+const { initInstantOrderExpiry } = require('./src/jobs/instantOrderExpiry');
 
 const PORT = config.port;
 
@@ -15,4 +16,5 @@ app.listen(PORT, () => {
   // Initialize cron jobs
   initCronJobs();
   initLivestreamScheduler();
+  initInstantOrderExpiry();
 });

@@ -6,6 +6,7 @@ const { db } = require('../../config/firebase');
 const manifestSettings = require('./manifestSettings.service');
 const cartCharges = require('./cartCharges.service');
 const instantHours = require('./instantHours.service');
+const appVersion = require('./appVersion.service');
 
 // GET /api/settings/manifest — Admin: read manifest schedule for admin area
 router.get('/manifest', authenticateAdmin, async (req, res, next) => {
@@ -96,6 +97,41 @@ router.get('/instant-hours/app', authenticateUser, async (req, res, next) => {
   try {
     const status = await instantHours.checkAvailability();
     return success(res, status);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── App version / Play Store update gate ────────────────────────────────────
+
+// GET /api/settings/app-version — Admin: read the published-version record
+router.get('/app-version', authenticateAdmin, async (req, res, next) => {
+  try {
+    const version = await appVersion.getSettings();
+    return success(res, { version });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/settings/app-version — Admin: publish a new version / move the
+// force-update cutoff without shipping a build
+router.put('/app-version', authenticateAdmin, async (req, res, next) => {
+  try {
+    const version = await appVersion.updateSettings(req.body, req.admin.adminId);
+    return success(res, { version }, 'App version settings updated');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/settings/app-version/app?build=22 — App: is there a newer build?
+// Deliberately unauthenticated: the update gate runs on the splash screen,
+// before a session is restored, and must also work for a forced update.
+router.get('/app-version/app', async (req, res, next) => {
+  try {
+    const result = await appVersion.checkForUpdate(req.query.build);
+    return success(res, result);
   } catch (err) {
     next(err);
   }

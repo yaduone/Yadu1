@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import LiveIndicator from '../components/LiveIndicator';
 import SearchField from '../components/SearchField';
 import LocationLink from '../components/LocationLink';
 import { matchesSearch } from '../utils/search';
@@ -79,41 +81,72 @@ export default function OrdersPage() {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('milk');
 
-  function loadOrders() {
-    setLoading(true);
-    setSelectedOrders([]);
+  // `silent` drives background refreshes: no skeleton, and the operator's
+  // checkbox selection survives so a bulk action isn't cleared mid-use.
+  function loadOrders({ silent = false } = {}) {
+    if (!silent) {
+      setLoading(true);
+      setSelectedOrders([]);
+    }
     const params = new URLSearchParams({ date, limit: '100' });
     if (statusFilter) params.set('status', statusFilter);
-    api.get(`/orders/admin/list?${params}`)
-      .then((res) => setOrders(res.data.data.orders))
+    return api.get(`/orders/admin/list?${params}`)
+      .then((res) => {
+        const fresh = res.data.data.orders || [];
+        setOrders(fresh);
+        // Drop selected orders that have left the list so bulk actions can't
+        // fire against stale ids.
+        if (silent) {
+          setSelectedOrders((prev) => prev.filter((id) => fresh.some((o) => o.id === id)));
+        }
+      })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }
 
   useEffect(() => { loadOrders(); }, [date, statusFilter]);
 
+  // Scheduled deliveries move on a slower rhythm than instant orders, so a
+  // gentler interval keeps the board current without needless load.
+  const refreshSilently = useCallback(
+    () => loadOrders({ silent: true }),
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    [date, statusFilter],
+  );
+
+  const { lastUpdated, refreshNow } = useLiveRefresh(refreshSilently, { intervalMs: 30_000 });
+
+  // Patch rows in place rather than refetching the board after every action —
+  // the 30s live refresh reconciles with the server. A failure does reload,
+  // since local state can no longer be trusted at that point.
+  function patchOrders(ids, changes) {
+    const idSet = new Set(ids);
+    setOrders((prev) => prev.map((o) => (idSet.has(o.id) ? { ...o, ...changes } : o)));
+  }
+
   async function markDelivered(orderId) {
     try {
       await api.put(`/orders/admin/${orderId}/status`, { status: 'delivered' });
-      loadOrders();
+      patchOrders([orderId], { status: 'delivered' });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed');
+      loadOrders({ silent: true });
     }
   }
 
   async function markSelectedDelivered() {
     if (!selectedOrders.length) return;
     if (!window.confirm(`Mark ${selectedOrders.length} orders as delivered?`)) return;
-    setLoading(true);
+    const ids = selectedOrders;
+    setSelectedOrders([]);
+    patchOrders(ids, { status: 'delivered' });
     try {
       await Promise.all(
-        selectedOrders.map((id) => api.put(`/orders/admin/${id}/status`, { status: 'delivered' }))
+        ids.map((id) => api.put(`/orders/admin/${id}/status`, { status: 'delivered' }))
       );
-      setSelectedOrders([]);
-      loadOrders();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to update some orders');
-      loadOrders();
+      loadOrders({ silent: true });
     }
   }
 
@@ -217,6 +250,8 @@ export default function OrdersPage() {
           );
         })}
       </div>
+
+      {!loading && <LiveIndicator lastUpdated={lastUpdated} onRefresh={refreshNow} />}
 
       {!loading && tabOrders.length > 0 && (
         <SearchField

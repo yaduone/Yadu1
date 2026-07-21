@@ -4,6 +4,9 @@ const instantService = require('./instant.service');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, created, badRequest } = require('../../utils/response');
 
+// Note: the delivery-window/availability payload the storefront banner reads is
+// served by the pre-existing GET /api/settings/instant-hours/app.
+
 // ─── User cart ────────────────────────────────────────────────────────────────
 
 // GET /api/instant/cart — current instant cart
@@ -82,6 +85,24 @@ router.get('/orders', authenticateUser, requireCompleteProfile, async (req, res,
   } catch (err) { next(err); }
 });
 
+// GET /api/instant/orders/:id — single order, polled by the live status screen.
+// Two segments, so it never shadows the three-segment /orders/admin/list route.
+router.get('/orders/:id', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+  try {
+    const order = await instantService.getUserOrder(req.params.id, req.user.userId);
+    return success(res, { order });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/instant/orders/:id/cancel — customer cancels their own order.
+// Two segments before the action, so it never collides with the admin routes.
+router.put('/orders/:id/cancel', authenticateUser, requireCompleteProfile, async (req, res, next) => {
+  try {
+    const result = await instantService.cancelOwnOrder(req.params.id, req.user.userId);
+    return success(res, result, 'Order cancelled');
+  } catch (err) { next(err); }
+});
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 // GET /api/instant/orders/admin/list — area instant orders
@@ -111,6 +132,21 @@ router.put('/orders/admin/:id/acknowledge', authenticateAdmin, async (req, res, 
   try {
     const result = await instantService.acknowledgeOrder(req.params.id, req.admin.areaId);
     return success(res, result, 'Order acknowledged — customer notified');
+  } catch (err) { next(err); }
+});
+
+// PUT /api/instant/orders/admin/:id/reject — decline a pending order with a reason
+router.put('/orders/admin/:id/reject', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason) return badRequest(res, 'reason is required');
+    const result = await instantService.rejectOrder(
+      req.params.id,
+      req.admin.areaId,
+      reason,
+      req.admin.adminId,
+    );
+    return success(res, result, 'Order rejected — customer notified');
   } catch (err) { next(err); }
 });
 
