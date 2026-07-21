@@ -72,12 +72,12 @@ flutter run                  # Requires Firebase setup first
 ### Backend API Tests (use curl, Postman, or similar)
 
 #### Auth
-- [ ] POST /api/auth/admin/login with rajendra_admin / Raj@1234 → get JWT
+- [ ] POST /api/auth/admin/login with bareilly_admin / Bar@1234 → get JWT
 - [ ] POST /api/auth/admin/login with wrong password → 401
 - [ ] GET /api/health → 200
 
 #### Areas
-- [ ] GET /api/areas → returns Rajendranagar and Satellite
+- [ ] GET /api/areas → returns Bareilly and Satellite
 
 #### Products
 - [ ] GET /api/products → returns 8 seeded products
@@ -108,6 +108,8 @@ flutter run                  # Requires Firebase setup first
 #### Orders (admin)
 - [ ] GET /api/orders/admin/list?date=YYYY-MM-DD → lists orders
 - [ ] PUT /api/orders/admin/:id/status → marks delivered
+- [ ] A past order still pending is returned and persisted as not_delivered
+- [ ] A fully skipped delivery date appears as not_delivered with reason skipped
 
 #### Manifests (admin)
 - [ ] POST /api/manifests/regenerate → generates PDF
@@ -118,6 +120,7 @@ flutter run                  # Requires Firebase setup first
 - [ ] GET /api/reports/admin/dashboard → returns stats
 - [ ] GET /api/reports/admin/daily?from=...&to=... → daily stats
 - [ ] GET /api/reports/user/summary → user insights
+- [ ] User calendar legend/status uses Delivered (green), Pending (yellow), and Not Delivered (red)
 
 #### Livestreams
 - [ ] POST /api/livestreams (admin) → creates livestream
@@ -125,7 +128,7 @@ flutter run                  # Requires Firebase setup first
 - [ ] GET /api/livestreams/active (user) → returns active stream
 
 ### Admin Panel Tests
-- [ ] Login with rajendra_admin / Raj@1234 → dashboard loads
+- [ ] Login with bareilly_admin / Bar@1234 → dashboard loads
 - [ ] Login with satellite_admin / Sat@1234 → dashboard loads
 - [ ] Wrong credentials → error message shown
 - [ ] Dashboard shows stats cards and charts
@@ -143,7 +146,7 @@ flutter run                  # Requires Firebase setup first
 - [ ] OTP login screen appears
 - [ ] OTP sent and received
 - [ ] After verification, profile completion screen appears (new user)
-- [ ] Area dropdown shows Rajendranagar and Satellite
+- [ ] Area dropdown shows Bareilly and Satellite
 - [ ] After profile completion, home screen loads
 - [ ] Home screen shows subscription status and tomorrow cart
 - [ ] Create subscription flow works

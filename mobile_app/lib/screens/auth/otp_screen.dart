@@ -27,7 +27,13 @@ class _OtpScreenState extends State<OtpScreen>
   late Animation<Offset> _slideAnimation;
 
   int _resendSeconds = 60;
+  int _sessionSeconds = 300;
   Timer? _resendTimer;
+  Timer? _sessionTimer;
+  String? _filledAutomaticCode;
+  DateTime? _automaticCodeShownAt;
+  bool _automaticUpdateQueued = false;
+  bool _authenticationNavigationQueued = false;
 
   @override
   void initState() {
@@ -46,6 +52,7 @@ class _OtpScreenState extends State<OtpScreen>
     );
     _controller.forward();
     _startResendTimer();
+    _startSessionTimer();
 
     // Auto-focus the pin field after animation settles
     Future.delayed(const Duration(milliseconds: 400), () {
@@ -62,11 +69,21 @@ class _OtpScreenState extends State<OtpScreen>
     });
   }
 
+  void _startSessionTimer() {
+    _sessionSeconds = 300;
+    _sessionTimer?.cancel();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_sessionSeconds <= 1) t.cancel();
+      if (mounted) setState(() => _sessionSeconds--);
+    });
+  }
+
   Future<void> _handleResend() async {
     final auth = context.read<AppAuthProvider>();
     await auth.resendOtp();
     if (mounted && auth.error == null) {
       _startResendTimer();
+      _startSessionTimer();
       _pinController.clear();
     }
   }
@@ -77,12 +94,15 @@ class _OtpScreenState extends State<OtpScreen>
     _pinFocusNode.dispose();
     _controller.dispose();
     _resendTimer?.cancel();
+    _sessionTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AppAuthProvider>();
+
+    _queueAutomaticVerificationUpdate(auth);
     final mq = MediaQuery.of(context);
     final screenH = mq.size.height;
     final carouselH = screenH * 0.52;
@@ -117,6 +137,7 @@ class _OtpScreenState extends State<OtpScreen>
                   pinFocusNode: _pinFocusNode,
                   auth: auth,
                   resendSeconds: _resendSeconds,
+                  sessionSeconds: _sessionSeconds,
                   onResend: _handleResend,
                   onProceed: _handleVerify,
                   onCompleted: _handleVerify,
@@ -163,6 +184,7 @@ class _OtpScreenState extends State<OtpScreen>
 
   Future<void> _handleVerify() async {
     final auth = context.read<AppAuthProvider>();
+    if (auth.isAutoVerifying || auth.autoVerified) return;
     final otp = _pinController.text.trim();
 
     if (otp.length < 6) {
@@ -180,7 +202,57 @@ class _OtpScreenState extends State<OtpScreen>
         MaterialPageRoute(builder: (_) => const AuthGate()),
         (route) => false,
       );
+    } else if (auth.error != null &&
+        (auth.error!.contains('expired') || auth.error!.contains('session'))) {
+      // OTP session expired — clear the input and reset session timer so the
+      // resend button becomes available immediately (override any remaining cooldown).
+      _pinController.clear();
+      setState(() {
+        _resendSeconds = 0;
+        _sessionSeconds = 0;
+      });
     }
+  }
+
+  void _queueAutomaticVerificationUpdate(AppAuthProvider auth) {
+    if (_automaticUpdateQueued ||
+        (auth.autoRetrievedOtp == null && !auth.autoVerified)) {
+      return;
+    }
+    _automaticUpdateQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _automaticUpdateQueued = false;
+      if (!mounted) return;
+
+      final currentAuth = context.read<AppAuthProvider>();
+      final code = currentAuth.autoRetrievedOtp;
+      if (code != null && code.length == 6 && _filledAutomaticCode != code) {
+        _filledAutomaticCode = code;
+        _pinController.text = code;
+        _pinFocusNode.unfocus();
+        _automaticCodeShownAt = DateTime.now();
+      }
+
+      if (!currentAuth.autoVerified || _authenticationNavigationQueued) return;
+      _authenticationNavigationQueued = true;
+
+      final shownAt = _automaticCodeShownAt;
+      final shownFor = shownAt == null
+          ? Duration.zero
+          : DateTime.now().difference(shownAt);
+      final remaining = code != null &&
+              shownFor < const Duration(milliseconds: 650)
+          ? const Duration(milliseconds: 650) - shownFor
+          : Duration.zero;
+
+      Future<void>.delayed(remaining, () {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (route) => false,
+        );
+      });
+    });
   }
 }
 
@@ -191,6 +263,7 @@ class _OtpCard extends StatelessWidget {
   final FocusNode pinFocusNode;
   final AppAuthProvider auth;
   final int resendSeconds;
+  final int sessionSeconds;
   final Future<void> Function() onResend;
   final Future<void> Function() onProceed;
   final Future<void> Function() onCompleted;
@@ -200,6 +273,7 @@ class _OtpCard extends StatelessWidget {
     required this.pinFocusNode,
     required this.auth,
     required this.resendSeconds,
+    required this.sessionSeconds,
     required this.onResend,
     required this.onProceed,
     required this.onCompleted,
@@ -337,6 +411,55 @@ class _OtpCard extends StatelessWidget {
                 keyboardType: TextInputType.number,
               ),
 
+              const SizedBox(height: 12),
+              _OtpActivityBanner(auth: auth),
+
+              if (sessionSeconds <= 60 && sessionSeconds > 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.timer_outlined, size: 16, color: Colors.orange.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'OTP expires in ${sessionSeconds}s. Tap Resend OTP if it expires.',
+                          style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (sessionSeconds <= 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'OTP has expired. Please request a new one.',
+                          style: TextStyle(fontSize: 12, color: Colors.red.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (auth.error != null) ...[
                 const SizedBox(height: 12),
                 InlineErrorBanner(message: auth.error!),
@@ -367,6 +490,69 @@ class _OtpCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OtpActivityBanner extends StatelessWidget {
+  final AppAuthProvider auth;
+  const _OtpActivityBanner({required this.auth});
+
+  @override
+  Widget build(BuildContext context) {
+    final codeDetected = auth.autoRetrievedOtp != null;
+    final title = codeDetected
+        ? 'OTP detected automatically'
+        : auth.isAutoVerifying
+            ? 'Verifying your number automatically'
+            : 'OTP sent successfully';
+    final message = codeDetected
+        ? auth.isAutoVerifying
+            ? 'The code was filled in for you. Signing you in securely.'
+            : 'The code was filled automatically. Tap Verify if needed.'
+        : auth.isAutoVerifying
+            ? 'Your device verified this number without manual entry.'
+            : 'Waiting for SMS auto-fill, or enter the six-digit code manually.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: codeDetected ? const Color(0xFFE8F5E9) : AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          if (auth.isAutoVerifying)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              codeDetected
+                  ? Icons.verified_rounded
+                  : Icons.mark_email_read_outlined,
+              size: 19,
+              color: codeDetected ? AppColors.success : AppColors.primary,
+            ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppType.small.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: AppType.micro.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -27,6 +27,17 @@ class AppAuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  // Tracks the current verifyPhoneNumber call so stale codeAutoRetrievalTimeout
+  // callbacks from previous calls cannot overwrite a newer _verificationId.
+  int _currentCallId = 0;
+
+  bool _autoVerified = false;
+  bool get autoVerified => _autoVerified;
+  bool _isAutoVerifying = false;
+  bool get isAutoVerifying => _isAutoVerifying;
+  String? _autoRetrievedOtp;
+  String? get autoRetrievedOtp => _autoRetrievedOtp;
+
   String? _error;
   String? get error => _error;
 
@@ -55,6 +66,9 @@ class AppAuthProvider extends ChangeNotifier {
     _profileLoaded = false;
     _isLoading = false;
     _error = null;
+    _autoVerified = false;
+    _isAutoVerifying = false;
+    _autoRetrievedOtp = null;
     notifyListeners();
   }
 
@@ -86,6 +100,9 @@ class AppAuthProvider extends ChangeNotifier {
 
     _isLoading = true;
     _error = null;
+    _autoVerified = false;
+    _isAutoVerifying = false;
+    _autoRetrievedOtp = null;
     notifyListeners();
 
     // Reuse resend token when sending to the same number to avoid quota hits.
@@ -93,19 +110,20 @@ class AppAuthProvider extends ChangeNotifier {
         (_lastPhone == phoneNumber) ? _resendToken : null;
     _lastPhone = phoneNumber;
 
+    final callId = ++_currentCallId;
+
     try {
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 60),
         forceResendingToken: resendToken,
         verificationCompleted: (credential) async {
-          await _auth.signInWithCredential(credential);
-          // Auth state listener will call loadProfile automatically.
+          await _completeAutomaticVerification(credential);
         },
         verificationFailed: (e) {
+          if (callId != _currentCallId) return;
           _isLoading = false;
           if (e.code == 'too-many-requests') {
-            // Impose a 5-minute client-side cooldown on too-many-requests.
             _otpCooldowns[phoneNumber] =
                 DateTime.now().add(const Duration(minutes: 5));
           }
@@ -113,15 +131,18 @@ class AppAuthProvider extends ChangeNotifier {
           notifyListeners();
         },
         codeSent: (verificationId, token) {
+          if (callId != _currentCallId) return;
           _verificationId = verificationId;
           _resendToken = token;
           _isLoading = false;
-          // Set a 60s cooldown so the resend button matches Firebase's limit.
           _otpCooldowns[phoneNumber] =
               DateTime.now().add(const Duration(seconds: 60));
           notifyListeners();
         },
         codeAutoRetrievalTimeout: (verificationId) {
+          // Only accept timeout callbacks from the current call to prevent a
+          // stale call from overwriting a newer valid _verificationId.
+          if (callId != _currentCallId) return;
           _verificationId = verificationId;
         },
       );
@@ -144,19 +165,26 @@ class AppAuthProvider extends ChangeNotifier {
 
     _isLoading = true;
     _error = null;
+    _autoVerified = false;
+    _isAutoVerifying = false;
+    _autoRetrievedOtp = null;
     notifyListeners();
+
+    final callId = ++_currentCallId;
+    final phone = _lastPhone!;
 
     try {
       await _auth.verifyPhoneNumber(
-        phoneNumber: _lastPhone!,
+        phoneNumber: phone,
         timeout: const Duration(seconds: 60),
         forceResendingToken: _resendToken,
         verificationCompleted: (credential) async {
-          await _auth.signInWithCredential(credential);
+          await _completeAutomaticVerification(credential);
         },
         verificationFailed: (e) {
+          if (callId != _currentCallId) return;
           if (e.code == 'too-many-requests') {
-            _otpCooldowns[_lastPhone!] =
+            _otpCooldowns[phone] =
                 DateTime.now().add(const Duration(minutes: 5));
           }
           _error = ErrorHandler.message(e);
@@ -164,14 +192,16 @@ class AppAuthProvider extends ChangeNotifier {
           notifyListeners();
         },
         codeSent: (verificationId, token) {
+          if (callId != _currentCallId) return;
           _verificationId = verificationId;
           _resendToken = token;
           _isLoading = false;
-          _otpCooldowns[_lastPhone!] =
+          _otpCooldowns[phone] =
               DateTime.now().add(const Duration(seconds: 60));
           notifyListeners();
         },
         codeAutoRetrievalTimeout: (verificationId) {
+          if (callId != _currentCallId) return;
           _verificationId = verificationId;
         },
       );
@@ -180,6 +210,31 @@ class AppAuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _completeAutomaticVerification(PhoneAuthCredential credential) async {
+    _autoRetrievedOtp = credential.smsCode;
+    _isAutoVerifying = true;
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // Keep the detected code visible briefly before authenticated navigation.
+      if (_autoRetrievedOtp != null) {
+        await Future<void>.delayed(const Duration(milliseconds: 650));
+      }
+      await _auth.signInWithCredential(credential);
+      await _syncUser();
+      _verificationId = null;
+      _autoVerified = true;
+    } catch (e) {
+      _error = ErrorHandler.message(e);
+    }
+
+    _isAutoVerifying = false;
+    _isLoading = false;
+    notifyListeners();
   }
 
   Future<bool> verifyOtp(String otp) async {
@@ -264,6 +319,10 @@ class AppAuthProvider extends ChangeNotifier {
     }
     _profileLoaded = true;
     notifyListeners();
+  }
+
+  Future<void> requestDeletion() async {
+    await _api.post('/users/request-deletion', {});
   }
 
   Future<void> logout() async {

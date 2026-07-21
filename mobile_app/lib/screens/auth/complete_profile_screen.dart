@@ -8,7 +8,12 @@ import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
 class CompleteProfileScreen extends StatefulWidget {
-  const CompleteProfileScreen({super.key});
+  /// When set, the screen is being shown as a post-registration gate: it offers
+  /// a "Skip for now" action instead of a back button, and reports completion
+  /// through this callback rather than popping a route.
+  final VoidCallback? onDone;
+
+  const CompleteProfileScreen({super.key, this.onDone});
 
   @override
   State<CompleteProfileScreen> createState() => _CompleteProfileScreenState();
@@ -17,7 +22,6 @@ class CompleteProfileScreen extends StatefulWidget {
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _nameController = TextEditingController();
   final _line1Controller = TextEditingController();
-  final _line2Controller = TextEditingController();
   final _landmarkController = TextEditingController();
   final _pincodeController = TextEditingController();
   String? _selectedAreaId;
@@ -25,22 +29,25 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadRajendranagar();
+    _loadDefaultArea();
   }
 
-  Future<void> _loadRajendranagar() async {
+  Future<void> _loadDefaultArea() async {
     try {
       final res = await ApiService().get('/areas');
       final list = (res['data']?['areas'] as List?) ?? [];
       final areas = list.cast<Map<String, dynamic>>();
-      final raj = areas.firstWhere(
-        (a) => a['slug'] == 'rajendranagar',
+      final area = areas.firstWhere(
+        (a) => a['slug'] == 'bareilly',
         orElse: () => areas.isNotEmpty ? areas.first : <String, dynamic>{},
       );
+      if (!mounted) return;
       setState(() {
-        _selectedAreaId = raj['id'] as String?;
+        _selectedAreaId = area['id'] as String?;
       });
-    } catch (_) {}
+    } catch (e) {
+      // Area list unavailable; user can select manually
+    }
   }
 
   @override
@@ -51,7 +58,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         backgroundColor: AppColors.scaffoldBg,
-        leading: IconButton(
+        automaticallyImplyLeading: widget.onDone == null,
+        leading: widget.onDone != null
+            ? null
+            : IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -71,6 +81,20 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Complete Profile', style: AppType.h2),
+        actions: [
+          if (widget.onDone != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton(
+                onPressed: widget.onDone,
+                child: Text(
+                  'Skip for now',
+                  style: AppType.captionBold
+                      .copyWith(color: AppColors.textSecondary),
+                ),
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -108,9 +132,6 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   const SizedBox(height: 18),
                   _buildField('Address Line 1', _line1Controller,
                       Icons.home_outlined),
-                  const SizedBox(height: 14),
-                  _buildField('Address Line 2 (Optional)',
-                      _line2Controller, Icons.apartment_outlined),
                   const SizedBox(height: 14),
                   _buildField('Landmark (Optional)', _landmarkController,
                       Icons.place_outlined),
@@ -174,14 +195,17 @@ if (_line1Controller.text.trim().isEmpty) {
       areaId: _selectedAreaId!,
       address: {
         'line1': _line1Controller.text.trim(),
-        'line2': _line2Controller.text.trim(),
         'landmark': _landmarkController.text.trim(),
         'pincode': _pincodeController.text.trim(),
       },
     );
     if (!mounted) return;
     if (auth.isProfileComplete) {
-      Navigator.pop(context);
+      if (widget.onDone != null) {
+        widget.onDone!();
+      } else {
+        Navigator.pop(context);
+      }
     }
     // error shown inline via InlineErrorBanner
   }

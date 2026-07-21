@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
@@ -27,7 +28,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             title: 'Your Privacy Matters',
             subtitle:
                 'We collect only what we need to deliver your milk. Here\'s exactly what we do with your data.',
-            lastUpdated: 'Last updated: April 25, 2026',
+            lastUpdated: 'Last updated: May 5, 2026',
           ),
           SizedBox(height: 24),
           _Section(
@@ -462,34 +463,64 @@ class _ContactCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'If you have any questions about this Privacy Policy or how we handle your data, raise a support ticket from the Dues screen or contact us directly.',
+            'If you have any questions about this Privacy Policy or how we handle your data, visit Help & Support from your Profile, raise a support ticket from the Dues screen, or contact us directly.',
             style: AppType.caption.copyWith(
                 color: Colors.white.withValues(alpha: 0.85), height: 1.6),
           ),
           const SizedBox(height: 16),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.alternate_email_rounded,
-                    size: 16, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(
-                  'support@yaduone.in',
-                  style: AppType.captionBold.copyWith(color: Colors.white),
-                ),
-              ],
-            ),
+          Row(
+            children: [
+              _ContactChip(
+                icon: Icons.alternate_email_rounded,
+                label: 'yaduone111@gmail.com',
+                onTap: () => launchUrl(Uri.parse('mailto:yaduone111@gmail.com')),
+              ),
+              const SizedBox(width: 10),
+              _ContactChip(
+                icon: Icons.call_rounded,
+                label: '+91 92867 34980',
+                onTap: () => launchUrl(Uri.parse('tel:+919286734980')),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ContactChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ContactChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(label,
+                style: AppType.small.copyWith(
+                    color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }

@@ -145,8 +145,9 @@ If no matching livestream exists → show "No live stream available" message.
 ### User Reports (computed on-demand)
 - **Total milk delivered**: SUM of orders.milk.quantity_litres WHERE status = "delivered"
 - **Total milk pending**: SUM of orders.milk.quantity_litres WHERE status = "pending"
+- **Not delivered days**: COUNT of orders WHERE status = "not_delivered", plus an active future skip override not yet finalized
 - **Total spent**: SUM of orders.total_amount WHERE status = "delivered"
-- **Skipped days**: COUNT of next_day_overrides WHERE type = "skip" (historical)
+- **Skipped days**: COUNT of persisted orders WHERE non_delivery_reason = "skipped", plus active skip overrides not yet finalized
 - **Monthly summary**: Group by month, aggregate above metrics
 
 ### Admin Reports (computed on-demand)
@@ -161,11 +162,15 @@ If no matching livestream exists → show "No live stream available" message.
 
 ```
 [pending] → [delivered]   (admin marks as delivered)
-          → [cancelled]   (admin cancels / user cancels before cutoff)
+          → [not_delivered] (past day was not marked delivered)
+[skip override] → [not_delivered] (persisted with reason "skipped")
 ```
 
 Orders are created by the nightly job with status "pending".
-Admin marks orders as delivered during/after delivery.
+Admin marks orders as delivered on the delivery date. At the next calendar day,
+any order still pending is persisted as `not_delivered` with reason
+`not_marked_delivered`; it is not billed. A fully skipped date is retained for
+calendar history but excluded from route manifests.
 
 ---
 
@@ -182,11 +187,11 @@ Admin marks orders as delivered during/after delivery.
 ## 10. Seed Data Plan
 
 ### Areas
-1. Rajendranagar (slug: rajendranagar)
+1. Bareilly (slug: bareilly)
 2. Satellite (slug: satellite)
 
 ### Admins
-1. rajendra_admin / Raj@1234 → area: Rajendranagar, role: area_admin
+1. bareilly_admin / Bar@1234 → area: Bareilly, role: area_admin
 2. satellite_admin / Sat@1234 → area: Satellite, role: area_admin
 
 ### Price Config

@@ -4,6 +4,9 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../services/api_service.dart';
+import '../../utils/transitions.dart';
+import '../dues/due_screen.dart';
+import '../livestream/livestream_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -123,6 +126,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (_) {
       _load(); // resync on failure
     }
+  }
+
+  Future<void> _openLivestream(dynamic notification) async {
+    await _markRead(notification['id'] as String);
+    if (!mounted) return;
+    Navigator.push(context, SlideUpRoute(page: const LivestreamScreen()));
+  }
+
+  Future<void> _openDues(dynamic notification) async {
+    await _markRead(notification['id'] as String);
+    if (!mounted) return;
+    Navigator.push(context, SlideUpRoute(page: const DueScreen()));
   }
 
   @override
@@ -278,12 +293,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             case 'due_reminder':
               return _DueReminderCard(
                 notification: n,
-                onTap: () => _markRead(n['id']),
+                onTap: () => _openDues(n),
               );
             case 'payment_recorded':
               return _PaymentRecordedCard(
                 notification: n,
-                onTap: () => _markRead(n['id']),
+                onTap: () => _openDues(n),
               );
             case 'order_cancelled':
               return _OrderCancelledCard(
@@ -298,7 +313,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             case 'livestream_started':
               return _LivestreamCard(
                 notification: n,
-                onTap: () => _markRead(n['id']),
+                onTap: () => _openLivestream(n),
+              );
+            case 'livestream_reminder':
+              return _LivestreamCard(
+                notification: n,
+                isReminder: true,
+                onTap: () => _openLivestream(n),
               );
             default:
               return _GenericCard(
@@ -916,7 +937,8 @@ class _SubscriptionUpdatedCard extends StatelessWidget {
 class _LivestreamCard extends StatelessWidget {
   final dynamic notification;
   final VoidCallback onTap;
-  const _LivestreamCard({required this.notification, required this.onTap});
+  final bool isReminder;
+  const _LivestreamCard({required this.notification, required this.onTap, this.isReminder = false});
 
   @override
   Widget build(BuildContext context) {
@@ -924,19 +946,23 @@ class _LivestreamCard extends StatelessWidget {
     final meta = n['meta'] as Map? ?? {};
     final unread = _isUnread(n);
     final title = meta['title'] as String? ?? 'Live Stream';
+    final slot = meta['slot'] == 'evening' ? 'Evening' : 'Morning';
+    final start = DateTime.tryParse(meta['scheduled_start_at'] as String? ?? '')?.toLocal();
+    final schedule = start == null ? '' : DateFormat('d MMM, h:mm a').format(start);
+    final accent = isReminder ? const Color(0xFFFB8C00) : const Color(0xFFE64A19);
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
-          color: unread ? const Color(0xFFFFEDE7) : Colors.white,
+          color: unread ? (isReminder ? const Color(0xFFFFF3E0) : const Color(0xFFFFEDE7)) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: unread ? const Color(0xFFE64A19).withValues(alpha: 0.4) : AppColors.border,
+            color: unread ? accent.withValues(alpha: 0.4) : AppColors.border,
           ),
           boxShadow: unread
-              ? [BoxShadow(color: const Color(0xFFE64A19).withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 4))]
+              ? [BoxShadow(color: accent.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 4))]
               : [],
         ),
         padding: const EdgeInsets.all(16),
@@ -947,10 +973,10 @@ class _LivestreamCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFE64A19).withValues(alpha: 0.12),
+                color: accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.live_tv_rounded, color: Color(0xFFE64A19), size: 22),
+              child: Icon(isReminder ? Icons.schedule_rounded : Icons.live_tv_rounded, color: accent, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -962,11 +988,11 @@ class _LivestreamCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE64A19),
+                          color: accent,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('LIVE',
-                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                        child: Text(isReminder ? 'UPCOMING' : 'LIVE',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -981,7 +1007,7 @@ class _LivestreamCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    title,
+                    isReminder && schedule.isNotEmpty ? '$slot Slot / $schedule' : title,
                     style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4),
                   ),
                   const SizedBox(height: 4),
@@ -995,7 +1021,7 @@ class _LivestreamCard extends StatelessWidget {
                 width: 8,
                 height: 8,
                 margin: const EdgeInsets.only(top: 4),
-                decoration: const BoxDecoration(color: Color(0xFFE64A19), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
               ),
           ],
         ),

@@ -4,20 +4,39 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
+import '../../utils/cart_delivery_copy.dart';
+import '../../widgets/app_snackbar.dart';
 import '../../widgets/premium_components.dart';
 import '../../providers/cart_provider.dart';
+import '../../models/pending_cart_item.dart';
 
-class ProductDetailScreen extends StatefulWidget {
-  final dynamic product;
-  const ProductDetailScreen({super.key, required this.product});
-
-  @override
-  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+/// Opens the product description popup, sliding up from below and
+/// overlaying the current screen (per the admin-set product photo +
+/// description wireframe).
+Future<void> showProductDetailSheet(
+  BuildContext context,
+  Map<String, dynamic> product,
+) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.45),
+    builder: (_) => ProductDetailSheet(product: product),
+  );
 }
 
-class _ProductDetailScreenState extends State<ProductDetailScreen> {
+class ProductDetailSheet extends StatefulWidget {
+  final Map<String, dynamic> product;
+  const ProductDetailSheet({super.key, required this.product});
+
+  @override
+  State<ProductDetailSheet> createState() => _ProductDetailSheetState();
+}
+
+class _ProductDetailSheetState extends State<ProductDetailSheet> {
   int _quantity = 1;
-  bool _addingToCart = false;
   final ValueNotifier<int> _currentImageIndex = ValueNotifier(0);
   final PageController _pageController = PageController();
 
@@ -32,201 +51,241 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final p = widget.product;
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: Stack(
-        children: [
-          // Scrollable content
-          CustomScrollView(
-            slivers: [
-              // Image slider header
-              SliverAppBar(
-                expandedHeight: 320,
-                pinned: true,
-                backgroundColor: AppColors.scaffoldBg,
-                leading: IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.55,
+      maxChildSize: 0.96,
+      expand: false,
+      snap: true,
+      snapSizes: const [0.55, 0.9, 0.96],
+      builder: (context, scrollController) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: Material(
+            color: AppColors.scaffoldBg,
+            child: Stack(
+              children: [
+                CustomScrollView(
+                  controller: scrollController,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildImageSlider(p),
+                        ],
+                      ),
                     ),
-                    child: const Icon(Icons.arrow_back_ios_new, size: 16),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                flexibleSpace: FlexibleSpaceBar(
-                  background: _buildImageSlider(p),
-                ),
-              ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    p['name'] ?? '',
+                                    style: AppType.h1,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  '₹${(p['price'] as num).toStringAsFixed(0)}',
+                                  style: AppType.price.copyWith(
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            if (p['category'] != null)
+                              Text(
+                                p['category'] ?? '',
+                                style: AppType.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            const SizedBox(height: 16),
 
-              // Product info
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(p['name'] ?? '', style: AppType.h1),
-                      const SizedBox(height: 4),
-                      if (p['category'] != null)
-                        Text(
-                          p['category'] ?? '',
-                          style: AppType.caption
-                              .copyWith(color: AppColors.textSecondary),
+                            // Trust badges
+                            const Row(
+                              children: [
+                                Expanded(
+                                  child: TrustBadge(
+                                    icon: Icons.verified_rounded,
+                                    label: 'Quality Guaranteed',
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: TrustBadge(
+                                    icon: Icons.verified_rounded,
+                                    label: 'Freshness Guaranteed',
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            if (p['unit'] != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceBg,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  p['unit'] ?? '',
+                                  style: AppType.small.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+
+                            const SizedBox(height: 24),
+
+                            // Description (set by admin)
+                            if (p['description'] != null &&
+                                (p['description'] as String).isNotEmpty) ...[
+                              Text('About', style: AppType.bodyBold),
+                              const SizedBox(height: 8),
+                              Text(
+                                p['description'] ?? '',
+                                style: AppType.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                  height: 1.6,
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 24),
+
+                            // Quantity selector
+                            const SectionLabel('Quantity'),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: HapticStepper(
+                                value: _quantity.toDouble(),
+                                step: 1,
+                                min: 1,
+                                max: 20,
+                                suffix: '',
+                                onChanged: (v) =>
+                                    setState(() => _quantity = v.toInt()),
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 120,
+                            ), // room for floating bar
+                          ],
                         ),
-                      const SizedBox(height: 16),
+                      ),
+                    ),
+                  ],
+                ),
 
-                      // Trust badges
-                      const Row(
-                        children: [
-                          Expanded(
-                            child: TrustBadge(
-                              icon: Icons.verified_rounded,
-                              label: 'Quality Guaranteed',
-                            ),
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: TrustBadge(
-                              icon: Icons.verified_rounded,
-                              label: 'Freshness Guaranteed',
-                            ),
+                // Close button
+                Positioned(
+                  top: 18,
+                  right: 16,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 20),
-
-                      // Price
-                      Row(
-                        children: [
-                          Text(
-                            '₹${(p['price'] as num).toStringAsFixed(0)}',
-                            style: AppType.price.copyWith(color: AppColors.primary),
-                          ),
-                          const SizedBox(width: 8),
-                          if (p['unit'] != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceBg,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                p['unit'] ?? '',
-                                style: AppType.small
-                                    .copyWith(color: AppColors.textSecondary),
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Description
-                      if (p['description'] != null) ...[
-                        Text('About', style: AppType.bodyBold),
-                        const SizedBox(height: 8),
-                        Text(
-                          p['description'] ?? '',
-                          style: AppType.caption.copyWith(
-                            color: AppColors.textSecondary,
-                            height: 1.6,
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 24),
-
-                      // Quantity selector
-                      const SectionLabel('Quantity'),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: HapticStepper(
-                          value: _quantity.toDouble(),
-                          step: 1,
-                          min: 1,
-                          max: 20,
-                          suffix: '',
-                          onChanged: (v) =>
-                              setState(() => _quantity = v.toInt()),
-                        ),
-                      ),
-
-                      const SizedBox(height: 120), // room for floating bar
-                    ],
+                      child: const Icon(Icons.close_rounded, size: 18),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
 
-          // Floating bottom bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: StickyBottomBar(
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+                // Floating bottom bar
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: StickyBottomBar(
+                    child: Row(
                       children: [
-                        Text('Total',
-                            style: AppType.small
-                                .copyWith(color: AppColors.textSecondary)),
-                        Text(
-                          '₹${((p['price'] as num) * _quantity).toStringAsFixed(0)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppType.h2.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w800,
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Total',
+                                style: AppType.small.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              Text(
+                                '₹${((p['price'] as num) * _quantity).toStringAsFixed(0)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppType.h2.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 3,
+                          child: SizedBox(
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: _addToCart,
+                              child: Text(
+                                "Add to Tomorrow's Cart",
+                                style: AppType.captionBold.copyWith(
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 3,
-                    child: SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _addingToCart ? null : _addToCart,
-                        child: _addingToCart
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2.5),
-                              )
-                            : Text(
-                                "Add to Tomorrow's Cart",
-                                style: AppType.captionBold
-                                    .copyWith(color: Colors.white),
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -235,7 +294,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (images is! List || images.isEmpty) return [];
     final all = images.whereType<String>().toList();
     final cover = (p['cover_image_large'] ?? p['cover_image_small']) as String?;
-    if (cover != null && cover.isNotEmpty && all.contains(cover) && all[0] != cover) {
+    if (cover != null &&
+        cover.isNotEmpty &&
+        all.contains(cover) &&
+        all[0] != cover) {
       return [cover, ...all.where((u) => u != cover)];
     }
     return all;
@@ -245,29 +307,34 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final urls = _imageUrls(p);
     if (urls.isEmpty) return _imageFallback();
 
-    final topPadding = MediaQuery.of(context).padding.top;
-
     return Stack(
       alignment: Alignment.bottomCenter,
       children: [
-        Padding(
-          padding: EdgeInsets.only(top: topPadding),
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: urls.length,
-            onPageChanged: (i) => _currentImageIndex.value = i,
-            itemBuilder: (_, i) => CachedNetworkImage(
-              imageUrl: urls[i],
-              fit: BoxFit.cover,
-              memCacheWidth: 800,
-              fadeInDuration: const Duration(milliseconds: 300),
-              placeholder: (_, __) => Container(
-                color: AppColors.surfaceBg,
-                child: const Center(
-                  child: Icon(Icons.image_rounded, color: AppColors.textHint, size: 48),
+        SizedBox(
+          height: 280,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: urls.length,
+              onPageChanged: (i) => _currentImageIndex.value = i,
+              itemBuilder: (_, i) => CachedNetworkImage(
+                imageUrl: urls[i],
+                fit: BoxFit.cover,
+                memCacheWidth: 800,
+                fadeInDuration: const Duration(milliseconds: 300),
+                placeholder: (_, __) => Container(
+                  color: AppColors.surfaceBg,
+                  child: const Center(
+                    child: Icon(
+                      Icons.image_rounded,
+                      color: AppColors.textHint,
+                      size: 48,
+                    ),
+                  ),
                 ),
+                errorWidget: (_, __, ___) => _imageFallback(),
               ),
-              errorWidget: (_, __, ___) => _imageFallback(),
             ),
           ),
         ),
@@ -286,7 +353,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     width: active ? 20 : 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: active ? AppColors.primary : Colors.white.withValues(alpha: 0.7),
+                      color: active
+                          ? AppColors.primary
+                          : Colors.white.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );
@@ -298,46 +367,36 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  Future<void> _addToCart() async {
+  void _addToCart() {
     HapticFeedback.mediumImpact();
-    setState(() => _addingToCart = true);
     final cart = context.read<CartProvider>();
-    final ok = await cart.addItem(widget.product['id'], _quantity);
-    if (!mounted) return;
-    setState(() => _addingToCart = false);
-    if (ok) {
-      HapticFeedback.heavyImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added to tomorrow\'s cart',
-              style: AppType.small.copyWith(color: Colors.white)),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-      );
-      Navigator.pop(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(cart.error ?? 'Failed to add item. Please try again.',
-              style: AppType.small.copyWith(color: Colors.white)),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-      );
-    }
+    // Stage into the local pending cache; it shows in the cart and is flushed
+    // to the server when the user confirms.
+    cart.addPendingItem(
+      PendingCartItem.fromProduct(
+        Map<String, dynamic>.from(widget.product),
+        _quantity,
+      ),
+    );
+    HapticFeedback.heavyImpact();
+    AppSnackbar.show(
+      context,
+      '$_quantity item${_quantity > 1 ? 's' : ''} added. Confirm in your cart to schedule for ${CartDeliveryCopy.dateLabel(cart.tomorrowStatus)}.',
+      type: SnackType.success,
+      duration: const Duration(seconds: 5),
+    );
+    Navigator.pop(context);
   }
 
   Widget _imageFallback() {
     return Container(
       color: AppColors.surfaceBg,
       child: const Center(
-        child: Icon(Icons.local_grocery_store_rounded,
-            color: AppColors.textHint, size: 64),
+        child: Icon(
+          Icons.local_grocery_store_rounded,
+          color: AppColors.textHint,
+          size: 64,
+        ),
       ),
     );
   }

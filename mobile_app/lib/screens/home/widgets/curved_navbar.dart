@@ -1,7 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/instant_theme.dart';
+import '../../../providers/instant_mode_provider.dart';
 import '../../../widgets/tappable.dart';
 
 class BottomNavCurvePainter extends CustomPainter {
@@ -65,6 +68,9 @@ class CurvedNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     const height = 62.0;
+    final accent = context.watch<InstantModeProvider>().isInstant
+        ? InstantColors.primary
+        : AppColors.primary;
 
     return BottomAppBar(
       color: Colors.transparent,
@@ -96,12 +102,14 @@ class CurvedNavBar extends StatelessWidget {
                   icon: Icons.insights_rounded,
                   label: 'Reports',
                   selected: currentIndex == 1,
+                  accent: accent,
                   onPressed: () => onTap(1),
                 ),
                 _NavIcon(
                   icon: Icons.shopping_bag_rounded,
                   label: 'Cart',
                   selected: currentIndex == 2,
+                  accent: accent,
                   onPressed: () => onTap(2),
                 ),
                 const SizedBox(width: 56), // Home FAB gap
@@ -109,12 +117,14 @@ class CurvedNavBar extends StatelessWidget {
                   icon: Icons.live_tv_rounded,
                   label: 'Live',
                   selected: false,
+                  accent: accent,
                   onPressed: onFabPressed,
                 ),
                 _NavIcon(
                   icon: CupertinoIcons.person,
                   label: 'Profile',
                   selected: currentIndex == 3,
+                  accent: accent,
                   onPressed: () => onTap(3),
                 ),
               ],
@@ -132,7 +142,7 @@ class CurvedNavBar extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
+                      color: accent.withValues(alpha: 0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -140,7 +150,7 @@ class CurvedNavBar extends StatelessWidget {
                 ),
                 child: FloatingActionButton(
                   shape: const CircleBorder(),
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: accent,
                   elevation: 0,
                   onPressed: () => onTap(0),
                   child: AnimatedSwitcher(
@@ -167,12 +177,14 @@ class _NavIcon extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
+  final Color accent;
   final VoidCallback onPressed;
 
   const _NavIcon({
     required this.icon,
     required this.label,
     required this.selected,
+    required this.accent,
     required this.onPressed,
   });
 
@@ -194,7 +206,7 @@ class _NavIcon extends StatelessWidget {
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: selected
-                    ? AppColors.primary.withValues(alpha: 0.1)
+                    ? accent.withValues(alpha: 0.1)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -204,7 +216,7 @@ class _NavIcon extends StatelessWidget {
                   icon,
                   key: ValueKey(selected),
                   size: selected ? 23 : 22,
-                  color: selected ? AppColors.primary : AppColors.textHint,
+                  color: selected ? accent : AppColors.textHint,
                 ),
               ),
             ),
@@ -214,7 +226,7 @@ class _NavIcon extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? AppColors.primary : AppColors.textHint,
+                color: selected ? accent : AppColors.textHint,
               ),
               child: Text(label),
             ),

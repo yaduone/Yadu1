@@ -245,7 +245,7 @@ class _LoginCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('YaduONE',
+                        Text('YaduOne',
                             style: AppType.h2.copyWith(letterSpacing: -0.5)),
                         Text(
                           'Soch nayi sanskaar wahi',

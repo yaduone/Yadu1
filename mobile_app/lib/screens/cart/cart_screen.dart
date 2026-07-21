@@ -9,9 +9,14 @@ import '../../widgets/tappable.dart';
 import '../../widgets/app_snackbar.dart';
 import '../../utils/transitions.dart';
 import '../../utils/constants.dart';
+import '../../utils/cart_delivery_copy.dart';
 import '../../providers/cart_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/pending_cart_item.dart';
 import '../products/products_screen.dart';
 import '../home/home_screen.dart';
+import '../auth/complete_profile_screen.dart';
+import 'cart_confirmation_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -20,49 +25,58 @@ class CartScreen extends StatefulWidget {
   State<CartScreen> createState() => _CartScreenState();
 }
 
-class _CartScreenState extends State<CartScreen>
-    with SingleTickerProviderStateMixin {
+class _CartScreenState extends State<CartScreen> {
   final ValueNotifier<bool> _showSavePill = ValueNotifier(false);
+  final ValueNotifier<String> _savePillText = ValueNotifier('Cart modified');
   bool _skipping = false;
-  late AnimationController _fadeCtrl;
-  late Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
-    _fadeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CartProvider>().loadTomorrowStatus();
-      context.read<CartProvider>().loadProducts();
-      _fadeCtrl.forward();
+      final cart = context.read<CartProvider>();
+      cart.ensureTomorrowStatusLoaded();
+      cart.loadProducts();
+      cart.loadCharges();
     });
   }
 
   @override
   void dispose() {
-    _fadeCtrl.dispose();
     _showSavePill.dispose();
+    _savePillText.dispose();
     super.dispose();
   }
 
-  void _showAutoSave() {
+  void _showAutoSave([String message = 'Cart modified']) {
+    _savePillText.value = message;
     _showSavePill.value = true;
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) _showSavePill.value = false;
     });
   }
 
+  void _showCartUpdatedConfirmation({int? addedQuantity}) {
+    final status = context.read<CartProvider>().tomorrowStatus;
+    _showAutoSave('Cart modified for ${CartDeliveryCopy.dateLabel(status)}');
+    AppSnackbar.show(
+      context,
+      CartDeliveryCopy.updatedMessage(status, addedQuantity: addedQuantity),
+      type: SnackType.success,
+      duration: const Duration(seconds: 6),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final isProfileComplete = context.select<AppAuthProvider, bool>(
+      (a) => a.isProfileComplete,
+    );
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           // Navigate to home tab (index 0)
           context.findAncestorStateOfType<HomeScreenState>()?.changeTab(0);
@@ -71,289 +85,392 @@ class _CartScreenState extends State<CartScreen>
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/333.jpg',
-              fit: BoxFit.cover,
-              cacheWidth: 800,
-            ),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.55),
-                    Colors.black.withValues(alpha: 0.15),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.35, 0.65],
-                ),
+          children: [
+            RepaintBoundary(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Image.asset(
+                      'assets/images/333.jpg',
+                      fit: BoxFit.cover,
+                      cacheWidth: 800,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.55),
+                            Colors.black.withValues(alpha: 0.15),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.35, 0.65],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          SafeArea(
-        child: Stack(
-          children: [
-            cart.tomorrowStatus == null
-                ? cart.error != null
-                    ? FullScreenError(
-                        message: cart.error!,
-                        icon: cart.error!.contains('internet') ||
-                                cart.error!.contains('network')
-                            ? Icons.wifi_off_rounded
-                            : Icons.error_outline_rounded,
-                        onRetry: () {
-                          cart.clearError();
-                          cart.loadTomorrowStatus();
-                        },
-                      )
-                    : const Center(child: SkeletonCardLoader())
-                : FadeTransition(
-                    opacity: _fadeAnim,
-                    child: RefreshIndicator(
-                      color: AppColors.primary,
-                      onRefresh: cart.loadTomorrowStatus,
-                      child: ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        children: [
-                          const SizedBox(height: 20),
-
-                          // ── Header ─────────────────────────────────
-                          Row(
+            SafeArea(
+              child: Stack(
+                children: [
+                  !isProfileComplete
+                      ? Center(child: _CartProfileIncomplete())
+                      : cart.tomorrowStatus == null
+                      ? cart.error != null
+                            ? FullScreenError(
+                                message: cart.error!,
+                                icon:
+                                    cart.error!.contains('internet') ||
+                                        cart.error!.contains('network')
+                                    ? Icons.wifi_off_rounded
+                                    : Icons.error_outline_rounded,
+                                onRetry: () {
+                                  cart.clearError();
+                                  cart.loadTomorrowStatus();
+                                },
+                              )
+                            : const Center(child: SkeletonCardLoader())
+                      : RefreshIndicator(
+                          color: AppColors.primary,
+                          onRefresh: cart.loadTomorrowStatus,
+                          child: ListView(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      cart.isLocked
-                                          ? 'Day After Tomorrow'
-                                          : "Tomorrow's Cart",
-                                      style: AppType.h1.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black54,
-                                            blurRadius: 10,
+                              const SizedBox(height: 20),
+
+                              // ── Header ─────────────────────────────────
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          cart.isLocked
+                                              ? 'Day After Tomorrow'
+                                              : "Tomorrow's Cart",
+                                          style: AppType.h1.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black54,
+                                                blurRadius: 10,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          cart.tomorrowStatus!['date'] ?? '',
+                                          style: AppType.caption.copyWith(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.82,
+                                            ),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (!cart.isSkipped && cart.totalAmount > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '₹${cart.totalAmount.toStringAsFixed(0)}',
+                                        style: AppType.captionBold.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+
+                              // ── Locked banner ───────────────────────────
+                              if (cart.isLocked) ...[
+                                const SizedBox(height: 14),
+                                _LockedBanner(),
+                              ],
+
+                              const SizedBox(height: 14),
+                              _CartDeliverySummaryCard(
+                                status: cart.tomorrowStatus!,
+                                isLocked: cart.isLocked,
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // ── Milk Section ────────────────────────────
+                              if (cart.effectiveMilk != null) ...[
+                                const SectionLabel(
+                                  'Milk Delivery',
+                                  color: Colors.white70,
+                                ),
+                                const SizedBox(height: 12),
+                                _MilkCard(
+                                  milk: cart.effectiveMilk!,
+                                  isLocked: cart.isLocked,
+                                  onQuantityConfirmed: (v) async {
+                                    HapticFeedback.lightImpact();
+                                    final ok = await cart.modifyQuantity(v);
+                                    if (!context.mounted) return;
+                                    if (ok) {
+                                      _showAutoSave(
+                                        'Milk updated for ${CartDeliveryCopy.dateLabel(cart.tomorrowStatus)}',
+                                      );
+                                    } else {
+                                      AppSnackbar.error(
+                                        context,
+                                        cart.error ??
+                                            'Failed to update quantity.',
+                                      );
+                                    }
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+
+                              // ── Skip / Revert ───────────────────────────
+                              if (!cart.isLocked &&
+                                  !cart.isSkipped &&
+                                  cart.effectiveMilk != null)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: _skipping
+                                        ? null
+                                        : () async {
+                                            HapticFeedback.mediumImpact();
+                                            setState(() => _skipping = true);
+                                            final ok = await cart
+                                                .skipTomorrow();
+                                            if (!context.mounted) return;
+                                            setState(() => _skipping = false);
+                                            if (ok) {
+                                              _showAutoSave(
+                                                'Delivery skipped for ${CartDeliveryCopy.dateLabel(cart.tomorrowStatus)}',
+                                              );
+                                            } else {
+                                              AppSnackbar.error(
+                                                context,
+                                                cart.error ??
+                                                    'Failed to skip delivery.',
+                                              );
+                                            }
+                                          },
+                                    icon: _skipping
+                                        ? const SizedBox(
+                                            width: 15,
+                                            height: 15,
+                                            child: CircularProgressIndicator(
+                                              color: AppColors.error,
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.event_busy_rounded,
+                                            size: 15,
+                                          ),
+                                    label: Text(
+                                      _skipping ? 'Skipping…' : 'Skip tomorrow',
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.error,
+                                      textStyle: AppType.small.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                              if (cart.isSkipped) ...[
+                                const SizedBox(height: 12),
+                                _SkippedCard(
+                                  onRevert: () async {
+                                    HapticFeedback.mediumImpact();
+                                    final ok = await cart.revertOverride();
+                                    if (!context.mounted) return;
+                                    if (ok) {
+                                      _showAutoSave(
+                                        'Delivery restored for ${CartDeliveryCopy.dateLabel(cart.tomorrowStatus)}',
+                                      );
+                                    } else {
+                                      AppSnackbar.error(
+                                        context,
+                                        cart.error ?? 'Failed to undo skip.',
+                                      );
+                                    }
+                                  },
+                                ),
+                              ],
+
+                              const SizedBox(height: 24),
+
+                              // ── Extra Items ─────────────────────────────
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: [
+                                  const SectionLabel(
+                                    'Extra Items',
+                                    color: Colors.white70,
+                                  ),
+                                  Tappable(
+                                    onTap: () => _showQuickAddSheet(context),
+                                    scaleFactor: 0.93,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryLight,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.add_rounded,
+                                            size: 16,
+                                            color: AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Quick Add',
+                                            style: AppType.micro.copyWith(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      cart.tomorrowStatus!['date'] ?? '',
-                                      style: AppType.caption.copyWith(
-                                        color: Colors.white.withValues(alpha: 0.82),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                              if (!cart.isSkipped && cart.totalAmount > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.5),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '₹${cart.totalAmount.toStringAsFixed(0)}',
-                                    style: AppType.captionBold.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                              const SizedBox(height: 12),
 
-                          // ── Locked banner ───────────────────────────
-                          if (cart.isLocked) ...[
-                            const SizedBox(height: 14),
-                            _LockedBanner(),
-                          ],
-
-                          const SizedBox(height: 24),
-
-                          // ── Milk Section ────────────────────────────
-                          if (cart.effectiveMilk != null) ...[
-                            const SectionLabel('Milk Delivery', color: Colors.white70),
-                            const SizedBox(height: 12),
-                            _MilkCard(
-                              milk: cart.effectiveMilk!,
-                              isLocked: cart.isLocked,
-                              onQuantityConfirmed: (v) async {
-                                HapticFeedback.lightImpact();
-                                final ok = await cart.modifyQuantity(v);
-                                if (!context.mounted) return;
-                                if (ok) {
-                                  _showAutoSave();
-                                } else {
-                                  AppSnackbar.error(context,
-                                      cart.error ?? 'Failed to update quantity.');
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-
-                          // ── Skip / Revert ───────────────────────────
-                          if (!cart.isLocked &&
-                              !cart.isSkipped &&
-                              cart.effectiveMilk != null)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: _skipping
-                                    ? null
-                                    : () async {
+                              if (cart.extraItems.isEmpty &&
+                                  !cart.hasPendingChanges)
+                                _EmptyExtrasCard()
+                              else
+                                ...cart.extraItems.map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _ExtraItemCard(
+                                      item: item,
+                                      isLocked: cart.isLocked,
+                                      onRemove: () async {
                                         HapticFeedback.mediumImpact();
-                                        setState(() => _skipping = true);
-                                        final ok = await cart.skipTomorrow();
-                                        if (!context.mounted) return;
-                                        setState(() => _skipping = false);
+                                        final ok = await cart.removeItem(
+                                          item['product_id'],
+                                        );
+                                        if (!context.mounted) return false;
                                         if (ok) {
-                                          _showAutoSave();
+                                          _showAutoSave(
+                                            'Cart modified for ${CartDeliveryCopy.dateLabel(cart.tomorrowStatus)}',
+                                          );
                                         } else {
-                                          AppSnackbar.error(context,
-                                              cart.error ?? 'Failed to skip delivery.');
+                                          AppSnackbar.error(
+                                            context,
+                                            cart.error ??
+                                                'Failed to remove item.',
+                                          );
                                         }
+                                        return ok;
                                       },
-                                icon: _skipping
-                                    ? const SizedBox(
-                                        width: 15,
-                                        height: 15,
-                                        child: CircularProgressIndicator(
-                                            color: AppColors.error,
-                                            strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.event_busy_rounded,
-                                        size: 15),
-                                label: Text(_skipping ? 'Skipping…' : 'Skip tomorrow'),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: AppColors.error,
-                                  textStyle: AppType.small.copyWith(
-                                      fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-
-                          if (cart.isSkipped) ...[
-                            const SizedBox(height: 12),
-                            _SkippedCard(
-                              onRevert: () async {
-                                HapticFeedback.mediumImpact();
-                                final ok = await cart.revertOverride();
-                                if (!context.mounted) return;
-                                if (ok) {
-                                  _showAutoSave();
-                                } else {
-                                  AppSnackbar.error(context,
-                                      cart.error ?? 'Failed to undo skip.');
-                                }
-                              },
-                            ),
-                          ],
-
-                          const SizedBox(height: 24),
-
-                          // ── Extra Items ─────────────────────────────
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const SectionLabel('Extra Items', color: Colors.white70),
-                              Tappable(
-                                onTap: () => _showQuickAddSheet(context),
-                                scaleFactor: 0.93,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryLight,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.add_rounded,
-                                          size: 16, color: AppColors.primary),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Quick Add',
-                                        style: AppType.micro.copyWith(
-                                            color: AppColors.primary,
-                                            fontWeight: FontWeight.w700),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
+
+                              // ── Unconfirmed local changes ───────────────
+                              if (cart.hasPendingChanges) ...[
+                                const SizedBox(height: 6),
+                                _PendingChangesHeader(
+                                  count: cart.pendingCartItems.length,
+                                ),
+                                const SizedBox(height: 10),
+                                ...cart.pendingCartItems.map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _PendingItemCard(
+                                      item: item,
+                                      onRemove: () {
+                                        HapticFeedback.mediumImpact();
+                                        cart.removePendingItem(item.productId);
+                                      },
+                                      onQuantityChanged: (q) => cart
+                                          .updatePendingItemQuantity(
+                                            item.productId,
+                                            q,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                _ConfirmChangesButton(
+                                  pendingTotal: cart.pendingTotal,
+                                  count: cart.pendingCartItems.length,
+                                  onConfirm: _showCartConfirmation,
+                                ),
+                              ],
+
+                              // ── Total ───────────────────────────────────
+                              if (!cart.isSkipped && cart.totalAmount > 0) ...[
+                                const SizedBox(height: 16),
+                                _TotalCard(amount: cart.totalAmount),
+                              ],
+
+                              const SizedBox(height: 100),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                        ),
 
-                          if (cart.extraItems.isEmpty)
-                            _EmptyExtrasCard()
-                          else
-                            ...cart.extraItems.map((item) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _ExtraItemCard(
-                                    item: item,
-                                    isLocked: cart.isLocked,
-                                    onRemove: () async {
-                                      HapticFeedback.mediumImpact();
-                                      final ok = await cart
-                                          .removeItem(item['product_id']);
-                                      if (!context.mounted) return false;
-                                      if (ok) {
-                                        _showAutoSave();
-                                      } else {
-                                        AppSnackbar.error(context,
-                                            cart.error ?? 'Failed to remove item.');
-                                      }
-                                      return ok;
-                                    },
-                                  ),
-                                )),
-
-                          // ── Total ───────────────────────────────────
-                          if (!cart.isSkipped && cart.totalAmount > 0) ...[
-                            const SizedBox(height: 16),
-                            _TotalCard(amount: cart.totalAmount),
-                          ],
-
-                          const SizedBox(height: 100),
-                        ],
+                  // Auto-save pill — uses ValueListenableBuilder to avoid full tree rebuild
+                  Positioned(
+                    top: 8,
+                    left: 0,
+                    right: 0,
+                    child: ValueListenableBuilder<String>(
+                      valueListenable: _savePillText,
+                      builder: (_, message, __) => ValueListenableBuilder<bool>(
+                        valueListenable: _showSavePill,
+                        builder: (_, visible, __) => Center(
+                          child: AutoSavePill(visible: visible, text: message),
+                        ),
                       ),
                     ),
                   ),
-
-            // Auto-save pill — uses ValueListenableBuilder to avoid full tree rebuild
-            Positioned(
-              top: 8,
-              left: 0,
-              right: 0,
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _showSavePill,
-                builder: (_, visible, __) => Center(child: AutoSavePill(visible: visible)),
+                ],
               ),
             ),
           ],
         ),
-          ),
-        ],
-      ),
       ),
     );
   }
@@ -367,7 +484,119 @@ class _CartScreenState extends State<CartScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => _QuickAddSheet(
         cart: cart,
-        onAdded: _showAutoSave,
+        onAdded: _showPendingAddedMessage,
+      ),
+    );
+  }
+
+  /// Items added via Quick Add land in the local pending cache (not yet sent to
+  /// the server) — tell the user they still need to confirm.
+  void _showPendingAddedMessage(int count) {
+    final cart = context.read<CartProvider>();
+    _showAutoSave('Saved to cart');
+    AppSnackbar.show(
+      context,
+      '$count item${count > 1 ? 's' : ''} added. Tap Confirm to schedule them for ${CartDeliveryCopy.dateLabel(cart.tomorrowStatus)}.',
+      type: SnackType.info,
+      duration: const Duration(seconds: 5),
+    );
+  }
+
+  /// Opens the full-screen review of the locally-saved changes before they are
+  /// flushed to the server (and on to the admin / target-date cart).
+  void _showCartConfirmation() {
+    final cart = context.read<CartProvider>();
+    if (!cart.hasPendingChanges) return;
+    // Ensure the latest admin-configured charges are available.
+    cart.loadCharges();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => CartConfirmationScreen(
+          pendingItems: cart.pendingCartItems,
+          confirmedTotal: cart.confirmedTotal,
+          pendingTotal: cart.pendingTotal,
+          charges: cart.charges,
+          deliveryDate: CartDeliveryCopy.dateLabel(cart.tomorrowStatus),
+          onConfirm: _confirmPendingCart,
+          onCancel: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmPendingCart() async {
+    final cart = context.read<CartProvider>();
+    final ok = await cart.confirmPendingCart();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    if (ok) {
+      _showCartUpdatedConfirmation();
+    } else {
+      AppSnackbar.error(
+        context,
+        cart.error ?? 'Could not confirm your changes. Please try again.',
+      );
+    }
+  }
+}
+
+// ── Profile Incomplete Card ───────────────────────────────────────────────────
+
+class _CartProfileIncomplete extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: const Icon(
+              Icons.person_add_rounded,
+              size: 36,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Profile Incomplete',
+            style: AppType.h2.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Complete your profile to manage tomorrow\'s cart and deliveries.',
+            textAlign: TextAlign.center,
+            style: AppType.caption.copyWith(
+              color: Colors.white.withValues(alpha: 0.75),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              SlideUpRoute(page: const CompleteProfileScreen()),
+            ),
+            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+            label: const Text('Complete Profile'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.primary,
+              minimumSize: const Size(200, 48),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -395,8 +624,11 @@ class _LockedBanner extends StatelessWidget {
               color: Colors.orange.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.lock_clock_rounded,
-                size: 18, color: Colors.orange),
+            child: const Icon(
+              Icons.lock_clock_rounded,
+              size: 18,
+              color: Colors.orange,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -412,6 +644,134 @@ class _LockedBanner extends StatelessWidget {
 }
 
 // ── Milk Card ─────────────────────────────────────────────────────────────────
+
+class _CartDeliverySummaryCard extends StatelessWidget {
+  final Map<String, dynamic> status;
+  final bool isLocked;
+
+  const _CartDeliverySummaryCard({
+    required this.status,
+    required this.isLocked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveMilk = status['effective_milk'];
+    final hasMilk = effectiveMilk is Map;
+    final extraCount = ((status['extra_items'] as List?) ?? const []).length;
+    final milkKey = hasMilk
+        ? (effectiveMilk['milk_type'] as String? ?? '').toLowerCase()
+        : '';
+    final milkType = hasMilk
+        ? AppConstants.milkTypeLabels[milkKey] ?? 'Milk'
+        : null;
+
+    return PremiumCard(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              isLocked
+                  ? Icons.event_available_rounded
+                  : Icons.local_shipping_rounded,
+              color: AppColors.primary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isLocked ? 'Next editable delivery' : 'Scheduled delivery',
+                  style: AppType.captionBold,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  CartDeliveryCopy.targetPhrase(status),
+                  style: AppType.small.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  CartDeliveryCopy.cartSummary(status),
+                  style: AppType.small.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+                if (hasMilk || extraCount > 0) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (hasMilk)
+                        _DeliverySummaryChip(
+                          icon: Icons.water_drop_rounded,
+                          label: milkType!,
+                        ),
+                      if (extraCount > 0)
+                        _DeliverySummaryChip(
+                          icon: Icons.shopping_bag_rounded,
+                          label:
+                              '$extraCount extra ${extraCount == 1 ? 'item' : 'items'}',
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeliverySummaryChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _DeliverySummaryChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primary),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppType.micro.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _MilkCard extends StatefulWidget {
   final Map<String, dynamic> milk;
@@ -463,53 +823,90 @@ class _MilkCardState extends State<_MilkCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Top row: icon + info + stepper ─────────────────────
-          Row(
-            children: [
-              _MilkTypeIcon(milkType: (widget.milk['milk_type'] as String? ?? '').toLowerCase()),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '${AppConstants.milkTypeLabels[widget.milk['milk_type'] as String] ?? (widget.milk['milk_type'] as String).toUpperCase()} Milk',
-                            overflow: TextOverflow.ellipsis,
-                            style: AppType.bodyBold,
-                          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 276;
+              final info = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${AppConstants.milkTypeLabels[widget.milk['milk_type'] as String] ?? (widget.milk['milk_type'] as String).toUpperCase()} Milk',
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.bodyBold,
                         ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.lock_outline_rounded,
-                            size: 13, color: AppColors.textHint),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: _isDirty
-                          ? Text(
-                              '${_pendingQty % 1 == 0 ? _pendingQty.toInt() : _pendingQty}L  ·  ₹${(_pricePerLitre * _pendingQty).toStringAsFixed(0)}/day',
-                              key: ValueKey(_pendingQty),
-                              style: AppType.small
-                                  .copyWith(color: AppColors.primary),
-                            )
-                          : Text(
-                              '₹${widget.milk['price_per_litre']}/L',
-                              key: const ValueKey('base'),
-                              style: AppType.small
-                                  .copyWith(color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 13,
+                        color: AppColors.textHint,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _isDirty
+                        ? Text(
+                            '${_pendingQty % 1 == 0 ? _pendingQty.toInt() : _pendingQty}L  ·  ₹${(_pricePerLitre * _pendingQty).toStringAsFixed(0)}/day',
+                            key: ValueKey(_pendingQty),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.small.copyWith(
+                              color: AppColors.primary,
                             ),
-                    ),
-                  ],
-                ),
-              ),
-              _MiniStepper(
+                          )
+                        : Text(
+                            '₹${widget.milk['price_per_litre']}/L',
+                            key: const ValueKey('base'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.small.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                  ),
+                ],
+              );
+              final stepper = _MiniStepper(
                 value: _pendingQty,
                 disabled: widget.isLocked || _saving,
                 onChanged: (v) => setState(() => _pendingQty = v),
-              ),
-            ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        _MilkTypeIcon(
+                          milkType: (widget.milk['milk_type'] as String? ?? '')
+                              .toLowerCase(),
+                        ),
+                        Expanded(child: info),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Align(alignment: Alignment.centerRight, child: stepper),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  _MilkTypeIcon(
+                    milkType: (widget.milk['milk_type'] as String? ?? '')
+                        .toLowerCase(),
+                  ),
+                  Expanded(child: info),
+                  stepper,
+                ],
+              );
+            },
           ),
 
           // ── Confirm row (slides in when dirty) ─────────────────
@@ -526,7 +923,8 @@ class _MilkCardState extends State<_MilkCard> {
                               ? null
                               : () => setState(() => _pendingQty = _actualQty),
                           style: TextButton.styleFrom(
-                              foregroundColor: AppColors.textSecondary),
+                            foregroundColor: AppColors.textSecondary,
+                          ),
                           child: const Text('Cancel'),
                         ),
                         const SizedBox(width: 8),
@@ -536,8 +934,9 @@ class _MilkCardState extends State<_MilkCard> {
                                 ? null
                                 : () async {
                                     setState(() => _saving = true);
-                                    await widget
-                                        .onQuantityConfirmed(_pendingQty);
+                                    await widget.onQuantityConfirmed(
+                                      _pendingQty,
+                                    );
                                     if (mounted) {
                                       setState(() => _saving = false);
                                     }
@@ -550,13 +949,16 @@ class _MilkCardState extends State<_MilkCard> {
                                     width: 18,
                                     height: 18,
                                     child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2),
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : Text(
                                     'Update · ₹${(_pricePerLitre * _pendingQty).toStringAsFixed(0)}/day',
                                     style: AppType.small.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700),
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                           ),
                         ),
@@ -598,8 +1000,11 @@ class _SkippedCardState extends State<_SkippedCard> {
               color: AppColors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Icon(Icons.event_busy_rounded,
-                size: 24, color: AppColors.error),
+            child: const Icon(
+              Icons.event_busy_rounded,
+              size: 24,
+              color: AppColors.error,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -624,7 +1029,9 @@ class _SkippedCardState extends State<_SkippedCard> {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        color: AppColors.error, strokeWidth: 2),
+                      color: AppColors.error,
+                      strokeWidth: 2,
+                    ),
                   )
                 : const Icon(Icons.undo_rounded, size: 16),
             label: Text(_reverting ? 'Undoing…' : 'Undo Skip'),
@@ -663,14 +1070,19 @@ class _EmptyExtrasCard extends StatelessWidget {
                     color: AppColors.surfaceBg,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.local_dining_rounded,
-                      size: 28, color: AppColors.textHint),
+                  child: const Icon(
+                    Icons.local_dining_rounded,
+                    size: 28,
+                    color: AppColors.textHint,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   'Your morning is missing something fresh',
                   textAlign: TextAlign.center,
-                  style: AppType.caption.copyWith(color: AppColors.textSecondary),
+                  style: AppType.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -737,8 +1149,8 @@ class _ProductGlimpseStrip extends StatelessWidget {
           final url = (cover != null && cover.isNotEmpty)
               ? cover
               : (images is List && images.isNotEmpty
-                  ? images[0] as String?
-                  : null);
+                    ? images[0] as String?
+                    : null);
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -780,9 +1192,7 @@ class _ProductGlimpseStrip extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppType.micro.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  style: AppType.micro.copyWith(color: AppColors.textSecondary),
                 ),
               ),
             ],
@@ -837,13 +1247,18 @@ class _ExtraItemCardState extends State<_ExtraItemCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.item['product_name'] ?? '',
-                      style: AppType.captionBold),
+                  Text(
+                    widget.item['product_name'] ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.captionBold,
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     'Qty: ${widget.item['quantity']}',
-                    style: AppType.small
-                        .copyWith(color: AppColors.textSecondary),
+                    style: AppType.small.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -877,10 +1292,15 @@ class _ExtraItemCardState extends State<_ExtraItemCard> {
                       ? const Padding(
                           padding: EdgeInsets.all(8),
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.error),
+                            strokeWidth: 2,
+                            color: AppColors.error,
+                          ),
                         )
-                      : const Icon(Icons.delete_outline_rounded,
-                          size: 16, color: AppColors.error),
+                      : const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 16,
+                          color: AppColors.error,
+                        ),
                 ),
               ),
             ],
@@ -919,34 +1339,313 @@ class _TotalCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Tomorrow\'s Total',
-                style: AppType.small.copyWith(
-                    color: Colors.white.withValues(alpha: 0.8)),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '₹${amount.toStringAsFixed(2)}',
-                style: AppType.h2.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Delivery Total',
+                  style: AppType.small.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '₹${amount.toStringAsFixed(2)}',
+                    style: AppType.h2.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 12),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.receipt_long_rounded,
-                color: Colors.white, size: 22),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Pending (locally-saved, unconfirmed) changes ──────────────────────────────
+
+class _PendingChangesHeader extends StatelessWidget {
+  final int count;
+
+  const _PendingChangesHeader({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(
+          Icons.edit_calendar_rounded,
+          size: 16,
+          color: Colors.amberAccent,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Unconfirmed changes',
+            style: AppType.captionBold.copyWith(
+              color: Colors.white,
+              shadows: [const Shadow(color: Colors.black54, blurRadius: 8)],
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.amber.withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.6)),
+          ),
+          child: Text(
+            '$count saved locally',
+            style: AppType.micro.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PendingItemCard extends StatelessWidget {
+  final PendingCartItem item;
+  final VoidCallback onRemove;
+  final ValueChanged<int> onQuantityChanged;
+
+  const _PendingItemCard({
+    required this.item,
+    required this.onRemove,
+    required this.onQuantityChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.amber.withValues(alpha: 0.55),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withValues(alpha: 0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _PendingThumb(coverImage: item.coverImage),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.productName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.captionBold,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Not saved yet',
+                        style: AppType.micro.copyWith(
+                          color: Colors.amber[800],
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '₹${item.price.toStringAsFixed(0)}/${item.unit}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.small.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _PendingQtyStepper(
+            quantity: item.quantity,
+            onChanged: onQuantityChanged,
+          ),
+          const SizedBox(width: 8),
+          Tappable(
+            onTap: onRemove,
+            scaleFactor: 0.9,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                size: 16,
+                color: AppColors.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingThumb extends StatelessWidget {
+  final String? coverImage;
+
+  const _PendingThumb({required this.coverImage});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = coverImage;
+    return Container(
+      width: 44,
+      height: 44,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: url != null && url.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                memCacheWidth: 88,
+                memCacheHeight: 88,
+                errorWidget: (_, __, ___) => const Icon(
+                  Icons.shopping_bag_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+            )
+          : const Icon(
+              Icons.shopping_bag_rounded,
+              color: AppColors.primary,
+              size: 20,
+            ),
+    );
+  }
+}
+
+class _PendingQtyStepper extends StatelessWidget {
+  final int quantity;
+  final ValueChanged<int> onChanged;
+
+  const _PendingQtyStepper({required this.quantity, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _btn(Icons.remove_rounded, () => onChanged(quantity - 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            '$quantity',
+            style: AppType.captionBold.copyWith(color: AppColors.primary),
+          ),
+        ),
+        _btn(Icons.add_rounded, () => onChanged(quantity + 1)),
+      ],
+    );
+  }
+
+  Widget _btn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: const BoxDecoration(
+          color: AppColors.primaryLight,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 14, color: AppColors.primary),
+      ),
+    );
+  }
+}
+
+class _ConfirmChangesButton extends StatelessWidget {
+  final double pendingTotal;
+  final int count;
+  final VoidCallback onConfirm;
+
+  const _ConfirmChangesButton({
+    required this.pendingTotal,
+    required this.count,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: () {
+        HapticFeedback.mediumImpact();
+        onConfirm();
+      },
+      icon: const Icon(Icons.check_circle_rounded, size: 20),
+      label: Text(
+        'Confirm $count change${count > 1 ? 's' : ''} · ₹${pendingTotal.toStringAsFixed(0)}',
+        style: AppType.button.copyWith(color: Colors.white),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.success,
+        minimumSize: const Size.fromHeight(50),
       ),
     );
   }
@@ -956,7 +1655,7 @@ class _TotalCard extends StatelessWidget {
 
 class _QuickAddSheet extends StatefulWidget {
   final CartProvider cart;
-  final VoidCallback onAdded;
+  final ValueChanged<int> onAdded;
 
   const _QuickAddSheet({required this.cart, required this.onAdded});
 
@@ -967,7 +1666,9 @@ class _QuickAddSheet extends StatefulWidget {
 class _QuickAddSheetState extends State<_QuickAddSheet> {
   // productId -> quantity staged for adding
   final Map<String, int> _basket = {};
-  bool _confirming = false;
+  // Adds are instant (local pending cache), but kept as a guard against
+  // double-taps while the sheet is dismissing.
+  final bool _confirming = false;
 
   int get _totalItems => _basket.values.fold(0, (s, q) => s + q);
 
@@ -979,231 +1680,288 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      padding: EdgeInsets.fromLTRB(
-          24, 20, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
+    final mediaQuery = MediaQuery.of(context);
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: mediaQuery.size.height * 0.85),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Quick Add', style: AppType.h2),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap items to add to your order',
+                    style: AppType.small.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Product chips ─────────────────────────────────────
+                  AnimatedBuilder(
+                    animation: widget.cart,
+                    builder: (context, _) {
+                      final products = widget.cart.products;
+                      if (products.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          ),
+                        );
+                      }
+
+                      final essentials = products.take(6).toList();
+                      return Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: essentials.map((p) {
+                          final id = (p['id'] as String?) ?? '';
+                          final qty = _basket[id] ?? 0;
+                          final inBasket = qty > 0;
+
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            decoration: BoxDecoration(
+                              color: inBasket
+                                  ? AppColors.primaryLight
+                                  : AppColors.surfaceBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: inBasket
+                                    ? AppColors.primary
+                                    : AppColors.border,
+                                width: inBasket ? 1.5 : 1,
+                              ),
+                            ),
+                            child: inBasket
+                                ? _BasketChip(
+                                    name: p['name'] ?? '',
+                                    qty: qty,
+                                    maxNameWidth: (mediaQuery.size.width - 144)
+                                        .clamp(40.0, double.infinity)
+                                        .toDouble(),
+                                    onIncrement: _confirming
+                                        ? null
+                                        : () => setState(
+                                            () => _basket[id] = qty + 1,
+                                          ),
+                                    onDecrement: _confirming
+                                        ? null
+                                        : () => setState(() {
+                                            if (qty <= 1) {
+                                              _basket.remove(id);
+                                            } else {
+                                              _basket[id] = qty - 1;
+                                            }
+                                          }),
+                                  )
+                                : Tappable(
+                                    onTap: _confirming
+                                        ? null
+                                        : () {
+                                            HapticFeedback.lightImpact();
+                                            setState(() => _basket[id] = 1);
+                                          },
+                                    scaleFactor: 0.93,
+                                    enableFeedback: false,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 10,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.add_circle_outline_rounded,
+                                            size: 18,
+                                            color: AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          ConstrainedBox(
+                                            constraints: BoxConstraints(
+                                              maxWidth:
+                                                  (mediaQuery.size.width - 112)
+                                                      .clamp(
+                                                        40.0,
+                                                        double.infinity,
+                                                      )
+                                                      .toDouble(),
+                                            ),
+                                            child: Text(
+                                              p['name'] ?? '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: AppType.captionBold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  // ── Basket summary + confirm ──────────────────────────
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                    child: _basket.isNotEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Summary chips
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: _basket.entries.map((e) {
+                                    final product = widget.cart.products
+                                        .firstWhere(
+                                          (p) => (p['id'] as String?) == e.key,
+                                          orElse: () => <String, dynamic>{},
+                                        );
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: (mediaQuery.size.width - 92)
+                                              .clamp(40.0, double.infinity)
+                                              .toDouble(),
+                                        ),
+                                        child: Text(
+                                          '${product['name'] ?? e.key} ×${e.value}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppType.micro.copyWith(
+                                            color: AppColors.success,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 12),
+                                // Confirm button
+                                ElevatedButton.icon(
+                                  onPressed: _confirming ? null : _confirmAdd,
+                                  icon: _confirming
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.check_rounded,
+                                          size: 18,
+                                        ),
+                                  label: Text(
+                                    _confirming
+                                        ? 'Adding…'
+                                        : 'Add $_totalItems item${_totalItems > 1 ? 's' : ''} to Cart',
+                                    style: AppType.button.copyWith(
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(48),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Browse all
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _confirming
+                          ? null
+                          : () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                SlideRightRoute(page: const ProductsScreen()),
+                              );
+                            },
+                      icon: const Icon(Icons.storefront_rounded, size: 18),
+                      label: const Text('Browse All Products'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          Text('Quick Add', style: AppType.h2),
-          const SizedBox(height: 4),
-          Text('Tap items to add to your order',
-              style: AppType.small.copyWith(color: AppColors.textSecondary)),
-          const SizedBox(height: 20),
-
-          // ── Product chips ─────────────────────────────────────
-          AnimatedBuilder(
-            animation: widget.cart,
-            builder: (context, _) {
-              final products = widget.cart.products;
-              if (products.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  ),
-                );
-              }
-
-              final essentials = products.take(6).toList();
-              return Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: essentials.map((p) {
-                  final id = (p['id'] as String?) ?? '';
-                  final qty = _basket[id] ?? 0;
-                  final inBasket = qty > 0;
-
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    decoration: BoxDecoration(
-                      color: inBasket
-                          ? AppColors.primaryLight
-                          : AppColors.surfaceBg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: inBasket ? AppColors.primary : AppColors.border,
-                        width: inBasket ? 1.5 : 1,
-                      ),
-                    ),
-                    child: inBasket
-                        ? _BasketChip(
-                            name: p['name'] ?? '',
-                            qty: qty,
-                            onIncrement: _confirming
-                                ? null
-                                : () => setState(
-                                    () => _basket[id] = qty + 1),
-                            onDecrement: _confirming
-                                ? null
-                                : () => setState(() {
-                                      if (qty <= 1) {
-                                        _basket.remove(id);
-                                      } else {
-                                        _basket[id] = qty - 1;
-                                      }
-                                    }),
-                          )
-                        : Tappable(
-                            onTap: _confirming
-                                ? null
-                                : () {
-                                    HapticFeedback.lightImpact();
-                                    setState(() => _basket[id] = 1);
-                                  },
-                            scaleFactor: 0.93,
-                            enableFeedback: false,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                      Icons.add_circle_outline_rounded,
-                                      size: 18,
-                                      color: AppColors.primary),
-                                  const SizedBox(width: 8),
-                                  Text(p['name'] ?? '',
-                                      style: AppType.captionBold),
-                                ],
-                              ),
-                            ),
-                          ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-
-          // ── Basket summary + confirm ──────────────────────────
-          AnimatedSize(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            child: _basket.isNotEmpty
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Summary chips
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: _basket.entries.map((e) {
-                            final product = widget.cart.products
-                                .firstWhere(
-                                    (p) => (p['id'] as String?) == e.key,
-                                    orElse: () => <String, dynamic>{});
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.success
-                                    .withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${product['name'] ?? e.key} ×${e.value}',
-                                style: AppType.micro.copyWith(
-                                  color: AppColors.success,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 12),
-                        // Confirm button
-                        ElevatedButton.icon(
-                          onPressed: _confirming ? null : _confirmAdd,
-                          icon: _confirming
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Icon(Icons.check_rounded, size: 18),
-                          label: Text(
-                            _confirming
-                                ? 'Adding…'
-                                : 'Add $_totalItems item${_totalItems > 1 ? 's' : ''} to Cart',
-                            style: AppType.button
-                                .copyWith(color: Colors.white),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(48),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Browse all
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _confirming
-                  ? null
-                  : () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        SlideRightRoute(page: const ProductsScreen()),
-                      );
-                    },
-              icon: const Icon(Icons.storefront_rounded, size: 18),
-              label: const Text('Browse All Products'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Future<void> _confirmAdd() async {
+  void _confirmAdd() {
     if (_basket.isEmpty) return;
-    setState(() => _confirming = true);
 
-    bool anyFailed = false;
+    // Stage items into the local pending cache instead of hitting the server.
+    // They become visible in the cart and are flushed on confirmation.
     for (final entry in _basket.entries) {
-      final ok = await widget.cart.addItem(entry.key, entry.value);
-      if (!ok) anyFailed = true;
-      if (!mounted) return;
+      final product = widget.cart.products.firstWhere(
+        (p) => (p['id'] as String?) == entry.key,
+        orElse: () => <String, dynamic>{},
+      );
+      if (product.isEmpty) continue;
+      widget.cart.addPendingItem(
+        PendingCartItem.fromProduct(product, entry.value),
+      );
     }
 
-    if (!context.mounted) return;
-    setState(() => _confirming = false);
-
-    if (anyFailed) {
-      AppSnackbar.error(
-          context, widget.cart.error ?? 'Some items could not be added.');
-    } else {
-      Navigator.pop(context);
-      widget.onAdded();
-    }
+    final added = _totalItems;
+    Navigator.pop(context);
+    widget.onAdded(added);
   }
 }
 
@@ -1212,12 +1970,14 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
 class _BasketChip extends StatelessWidget {
   final String name;
   final int qty;
+  final double maxNameWidth;
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
 
   const _BasketChip({
     required this.name,
     required this.qty,
+    required this.maxNameWidth,
     required this.onIncrement,
     required this.onDecrement,
   });
@@ -1238,8 +1998,11 @@ class _BasketChip extends StatelessWidget {
                 color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.remove_rounded,
-                  size: 14, color: Colors.white),
+              child: const Icon(
+                Icons.remove_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
             ),
           ),
           Padding(
@@ -1247,11 +2010,21 @@ class _BasketChip extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(name,
-                    style: AppType.captionBold
-                        .copyWith(color: AppColors.primary)),
-                Text('qty $qty',
-                    style: AppType.micro.copyWith(color: AppColors.primary)),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxNameWidth),
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.captionBold.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Text(
+                  'qty $qty',
+                  style: AppType.micro.copyWith(color: AppColors.primary),
+                ),
               ],
             ),
           ),
@@ -1264,8 +2037,11 @@ class _BasketChip extends StatelessWidget {
                 color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.add_rounded,
-                  size: 14, color: Colors.white),
+              child: const Icon(
+                Icons.add_rounded,
+                size: 14,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -1283,7 +2059,11 @@ class _MilkTypeIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool useEmoji = milkType == 'cow' || milkType == 'buffalo';
-    final String emoji = milkType == 'cow' ? '🐄' : milkType == 'buffalo' ? '🐃' : '';
+    final String emoji = milkType == 'cow'
+        ? '🐄'
+        : milkType == 'buffalo'
+        ? '🐃'
+        : '';
     final bool isInfant = milkType == 'toned' || milkType == 'double_toned';
 
     return Container(
@@ -1318,7 +2098,9 @@ class _ExtraItemThumb extends StatelessWidget {
       (p) => p['id'] == productId || p['_id'] == productId,
       orElse: () => <String, dynamic>{},
     );
-    final cover = (product['cover_image_small'] ?? product['cover_image_large']) as String?;
+    final cover =
+        (product['cover_image_small'] ?? product['cover_image_large'])
+            as String?;
     final images = product['images'];
     final url = (cover != null && cover.isNotEmpty)
         ? cover
@@ -1341,12 +2123,17 @@ class _ExtraItemThumb extends StatelessWidget {
                 memCacheWidth: 88,
                 memCacheHeight: 88,
                 errorWidget: (_, __, ___) => const Icon(
-                    Icons.shopping_bag_rounded,
-                    color: AppColors.primary, size: 20),
+                  Icons.shopping_bag_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
             )
-          : const Icon(Icons.shopping_bag_rounded,
-              color: AppColors.primary, size: 20),
+          : const Icon(
+              Icons.shopping_bag_rounded,
+              color: AppColors.primary,
+              size: 20,
+            ),
     );
   }
 }
@@ -1369,8 +2156,10 @@ class _MiniStepper extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _btn(Icons.remove_rounded,
-            disabled || value <= 0.5 ? null : () => onChanged(value - 0.5)),
+        _btn(
+          Icons.remove_rounded,
+          disabled || value <= 0.5 ? null : () => onChanged(value - 0.5),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
@@ -1380,8 +2169,10 @@ class _MiniStepper extends StatelessWidget {
             ),
           ),
         ),
-        _btn(Icons.add_rounded,
-            disabled || value >= 10 ? null : () => onChanged(value + 0.5)),
+        _btn(
+          Icons.add_rounded,
+          disabled || value >= 10 ? null : () => onChanged(value + 0.5),
+        ),
       ],
     );
   }
@@ -1398,9 +2189,11 @@ class _MiniStepper extends StatelessWidget {
           color: isDisabled ? AppColors.border : AppColors.primaryLight,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon,
-            size: 16,
-            color: isDisabled ? AppColors.textHint : AppColors.primary),
+        child: Icon(
+          icon,
+          size: 16,
+          color: isDisabled ? AppColors.textHint : AppColors.primary,
+        ),
       ),
     );
   }

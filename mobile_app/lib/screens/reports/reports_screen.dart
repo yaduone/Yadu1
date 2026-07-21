@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../widgets/delivery_calendar.dart';
 import '../../services/api_service.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/transitions.dart';
 import '../home/home_screen.dart';
+import '../auth/complete_profile_screen.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -36,6 +40,12 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   Future<void> _loadReport() async {
+    final isProfileComplete =
+        context.read<AppAuthProvider>().isProfileComplete;
+    if (!isProfileComplete) {
+      setState(() => _loading = false);
+      return;
+    }
     try {
       final res = await ApiService().get('/reports/user/summary');
       setState(() {
@@ -52,7 +62,7 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           // Navigate to home tab (index 0)
           context.findAncestorStateOfType<HomeScreenState>()?.changeTab(0);
@@ -114,17 +124,7 @@ class _ReportsScreenState extends State<ReportsScreen>
               )
             : _report == null
                 ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error_outline_rounded,
-                            size: 48, color: AppColors.textHint),
-                        const SizedBox(height: 12),
-                        Text('Failed to load reports',
-                            style: AppType.caption
-                                .copyWith(color: AppColors.textSecondary)),
-                      ],
-                    ),
+                    child: _buildEmptyState(context),
                   )
                 : RefreshIndicator(
                     color: AppColors.primary,
@@ -208,9 +208,9 @@ class _ReportsScreenState extends State<ReportsScreen>
                               const SizedBox(width: 12),
                               Expanded(
                                 child: _statTile(
-                                  'Skipped',
-                                  '${_report!['total_skipped_days']} days',
-                                  Icons.event_busy_rounded,
+                                  'Not Delivered',
+                                  '${_report!['total_not_delivered_days'] ?? _report!['total_skipped_days']} days',
+                                  Icons.cancel_rounded,
                                   AppColors.error,
                                 ),
                               ),
@@ -292,6 +292,85 @@ class _ReportsScreenState extends State<ReportsScreen>
       ),
     ),
   );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final isProfileComplete =
+        context.read<AppAuthProvider>().isProfileComplete;
+    if (!isProfileComplete) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Icon(Icons.person_add_rounded,
+                  size: 36, color: Colors.white70),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Profile Incomplete',
+              style: AppType.h2.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Complete your profile to view your delivery reports and insights.',
+              textAlign: TextAlign.center,
+              style: AppType.caption.copyWith(
+                color: Colors.white.withValues(alpha: 0.75),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                SlideUpRoute(page: const CompleteProfileScreen()),
+              ),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: const Text('Complete Profile'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.primary,
+                minimumSize: const Size(200, 48),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.error_outline_rounded, size: 48, color: Colors.white54),
+        const SizedBox(height: 12),
+        Text(
+          'Failed to load reports',
+          style: AppType.caption.copyWith(color: Colors.white70),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton(
+          onPressed: () {
+            setState(() => _loading = true);
+            _loadReport();
+          },
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.white54),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Retry'),
+        ),
+      ],
+    );
   }
 
   Widget _statTile(

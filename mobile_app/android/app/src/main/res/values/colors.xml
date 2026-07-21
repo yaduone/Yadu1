@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches AppColors.scaffoldBg = Color(0xFFFAFCFF) in Flutter.
+         Used as the native window background so the OS splash and Flutter's
+         first frame share the exact same color — eliminating the white flash. -->
+    <color name="splash_bg">#FAFCFF</color>
+</resources>

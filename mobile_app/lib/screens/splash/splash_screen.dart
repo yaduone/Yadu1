@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../services/update_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
-import '../auth/login_screen.dart';
+import '../../widgets/update_dialog.dart';
 import '../../main.dart' show AuthGate;
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final Future<void> Function() initializeServices;
+
+  const SplashScreen({super.key, required this.initializeServices});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -37,16 +38,27 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _exitFade;
 
   String _statusText = 'Initialising…';
+  String _appVersion = '';
   double _progress = 0.0;
+  bool _isStarting = false;
+  bool _startupFailed = false;
 
-  static const _minSplashMs = 2400;
+  // Matches the intro animation duration (1200ms) plus a short pause.
+  // Reduced from 2400ms — there is no reason to hold users longer than
+  // the animation takes to complete.
+  static const _minSplashMs = 1400;
 
   @override
   void initState() {
     super.initState();
     _buildAnimations();
     _ctrl.forward();
-    _runLoading();
+    unawaited(UpdateService.currentVersion().then((v) {
+      if (mounted) setState(() => _appVersion = v);
+    }));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_runLoading());
+    });
   }
 
   void _buildAnimations() {
@@ -104,23 +116,42 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _runLoading() async {
+    if (_isStarting) return;
+    _isStarting = true;
+    if (_startupFailed && mounted) {
+      setState(() => _startupFailed = false);
+    }
+
     final stopwatch = Stopwatch()..start();
 
-    _setStatus('Loading preferences…', 0.15);
-    final prefsTask = SharedPreferences.getInstance();
+    _setStatus('Starting securely…', 0.15);
+    try {
+      await widget.initializeServices();
+    } catch (_) {
+      _isStarting = false;
+      if (!mounted) return;
+      setState(() {
+        _startupFailed = true;
+        _statusText = 'Unable to start the app';
+        _progress = 0;
+      });
+      return;
+    }
 
-    _setStatus('Checking session…', 0.35);
-    final authTask = fb_auth.FirebaseAuth.instance.authStateChanges().first;
+    if (!mounted) return;
 
-    final results = await Future.wait([prefsTask, authTask]);
-    final prefs = results[0] as SharedPreferences;
-    final user = results[1] as fb_auth.User?;
-
-    _setStatus('Loading account data…', 0.60);
-    prefs.getString('cached_user_name');
-    prefs.getString('cached_subscription_status');
+    _setStatus('Restoring session…', 0.55);
 
     _setStatus('Almost ready…', 0.85);
+
+    // Gate on the Play Store version before letting anyone in. A forced update
+    // parks the user on this dialog; a soft one they can dismiss with "Later".
+    final update = await UpdateService.check();
+    if (!mounted) return;
+    if (update.updateAvailable) {
+      await UpdateDialog.show(context, update);
+      if (!mounted) return;
+    }
 
     final elapsed = stopwatch.elapsedMilliseconds;
     if (elapsed < _minSplashMs) {
@@ -128,19 +159,18 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     _setStatus('Done!', 1.0);
-    await Future.delayed(const Duration(milliseconds: 200));
+    await Future.delayed(const Duration(milliseconds: 150));
 
     // Play exit fade-out before navigating
     await _exitCtrl.forward();
 
     if (!mounted) return;
 
-    final Widget destination =
-        user == null ? const LoginScreen() : const AuthGate();
-
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => destination,
+        // Keep listening while Firebase restores a persisted session. Reading
+        // currentUser only once here can be null briefly on slower devices.
+        pageBuilder: (_, __, ___) => const AuthGate(),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 400),
@@ -227,6 +257,8 @@ class _SplashScreenState extends State<SplashScreen>
                           'assets/images/image.png',
                           width: 140,
                           height: 140,
+                          cacheWidth: 420,
+                          cacheHeight: 420,
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -239,7 +271,7 @@ class _SplashScreenState extends State<SplashScreen>
                   FadeTransition(
                     opacity: _logoFade,
                     child: Text(
-                      'YaduONE',
+                      'YaduOne',
                       style: AppType.h1.copyWith(
                         color: AppColors.textPrimary,
                         letterSpacing: -0.5,
@@ -299,6 +331,13 @@ class _SplashScreenState extends State<SplashScreen>
                                 .copyWith(color: AppColors.textSecondary),
                           ),
                         ),
+                        if (_startupFailed) ...[
+                          const SizedBox(height: 16),
+                          OutlinedButton(
+                            onPressed: _runLoading,
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -308,7 +347,7 @@ class _SplashScreenState extends State<SplashScreen>
                   FadeTransition(
                     opacity: _progressFade,
                     child: Text(
-                      'v1.0.0',
+                      _appVersion.isEmpty ? '' : 'v$_appVersion',
                       style: AppType.small.copyWith(
                         color: AppColors.textHint,
                         fontSize: 11,

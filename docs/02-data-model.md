@@ -10,13 +10,13 @@ Represents service delivery areas.
 | Field | Type | Description |
 |-------|------|-------------|
 | id | string (auto) | Document ID |
-| name | string | Area name (e.g., "Rajendranagar") |
-| slug | string | URL-safe identifier (e.g., "rajendranagar") |
+| name | string | Area name (e.g., "Bareilly") |
+| slug | string | URL-safe identifier (e.g., "bareilly") |
 | is_active | boolean | Whether area is currently serviced |
 | created_at | timestamp | Creation time |
 | updated_at | timestamp | Last update time |
 
-**Seed Data**: Rajendranagar, Satellite
+**Seed Data**: Bareilly, Satellite
 
 ---
 
@@ -160,7 +160,8 @@ Finalized daily orders (created from cart + subscription by nightly job).
 | milk | object | { milk_type, quantity_litres, price_per_litre, total } or null |
 | extra_items | array | Same structure as cart items |
 | total_amount | number | Grand total |
-| status | string | "pending", "delivered", "cancelled" |
+| status | string | "pending", "delivered", "not_delivered", "cancelled" (legacy/manual cancellation) |
+| non_delivery_reason | string/null | "skipped", "not_marked_delivered", "cancelled", or null |
 | notes | string | Optional delivery notes |
 | created_at | timestamp | Creation time |
 | updated_at | timestamp | Last update time |

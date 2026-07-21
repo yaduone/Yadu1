@@ -18,6 +18,11 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 const _milkValues = {'Cow': 'cow', 'Buffalo': 'buffalo', 'Child Pack': 'toned'};
+const _milkTypeEmojis = {
+  'cow': '🐄',
+  'buffalo': '🐃',
+  'toned': '👶',
+};
 const _milkLogos = {
   'Cow': '\u{1F404}',
   'Buffalo': '\u{1F403}',
@@ -161,12 +166,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 name:
                     AppConstants.milkTypeLabels[s['milk_type'] as String] ??
                     (s['milk_type'] as String).toUpperCase(),
+                emoji: _milkTypeEmojis[s['milk_type'] as String],
                 isSubscriptionActive: isActive,
                 size: 64,
               ),
               const SizedBox(height: 16),
               Text(
-                '${AppConstants.milkTypeLabels[s['milk_type'] as String] ?? (s['milk_type'] as String).toUpperCase()} Milk',
+                '${AppConstants.milkTypeLabels[s['milk_type'] as String] ?? (s['milk_type'] as String).toUpperCase()} ',
                 style: AppType.h2,
               ),
               const SizedBox(height: 6),

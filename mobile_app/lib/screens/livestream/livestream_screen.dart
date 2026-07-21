@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../services/api_service.dart';
+import '../../widgets/remote_carousel.dart';
 
 class LivestreamScreen extends StatefulWidget {
   const LivestreamScreen({super.key});
@@ -14,8 +18,10 @@ class LivestreamScreen extends StatefulWidget {
 
 class _LivestreamScreenState extends State<LivestreamScreen> {
   Map<String, dynamic>? _livestream;
+  Map<String, dynamic>? _upcoming;
   bool _loading = true;
   YoutubePlayerController? _controller;
+  Timer? _transitionTimer;
   double? _morningReading;
   bool _morningNA = false;
   double? _eveningReading;
@@ -35,10 +41,13 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
       ]);
 
       final streamData = results[0]['data']?['livestream'] as Map<String, dynamic>?;
+      final upcomingData = results[0]['data']?['upcoming'] as Map<String, dynamic>?;
       final lactData = results[1]['data'] as Map<String, dynamic>?;
       final morningVal = lactData?['lactometer_morning'];
       final eveningVal = lactData?['lactometer_evening'];
 
+      _controller?.dispose();
+      _controller = null;
       if (streamData != null) {
         final rawUrl = streamData['youtube_url'] ?? '';
         final videoId = YoutubePlayer.convertUrlToId(rawUrl) ??
@@ -56,21 +65,39 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
           );
         }
       }
+      if (!mounted) return;
       setState(() {
         _livestream = streamData;
+        _upcoming = upcomingData;
         _morningReading = morningVal != null ? (morningVal as num).toDouble() : null;
         _morningNA = lactData != null && lactData.containsKey('lactometer_morning') && morningVal == null;
         _eveningReading = eveningVal != null ? (eveningVal as num).toDouble() : null;
         _eveningNA = lactData != null && lactData.containsKey('lactometer_evening') && eveningVal == null;
         _loading = false;
       });
+      _scheduleLiveRefresh(upcomingData);
     } catch (_) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _scheduleLiveRefresh(Map<String, dynamic>? upcoming) {
+    _transitionTimer?.cancel();
+    final startValue = upcoming?['scheduled_start_at'] as String?;
+    if (startValue == null) return;
+    final start = DateTime.tryParse(startValue)?.toLocal();
+    if (start == null) return;
+    final delay = start.difference(DateTime.now());
+    if (delay.isNegative) {
+      _loadData();
+      return;
+    }
+    _transitionTimer = Timer(delay + const Duration(seconds: 1), _loadData);
   }
 
   @override
   void dispose() {
+    _transitionTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
@@ -154,11 +181,13 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                                 size: 36, color: Colors.white),
                           ),
                           const SizedBox(height: 20),
-                          Text('No live stream available',
+                          Text(_upcoming == null ? 'No live stream available' : '${_slotLabel(_upcoming!['slot'])} live stream scheduled',
                               style: AppType.h3.copyWith(color: Colors.white)),
                           const SizedBox(height: 8),
                           Text(
-                            'Check back later for live updates\nfrom your area',
+                            _upcoming == null
+                                ? 'Check back later for live updates\nfrom your area'
+                                : 'The viewing link will open automatically\nwhen the stream begins.',
                             textAlign: TextAlign.center,
                             style: AppType.caption.copyWith(
                                 color: Colors.white70, height: 1.5),
@@ -167,6 +196,10 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
                       ),
                     ),
                   ),
+                  if (_upcoming != null) ...[
+                    const SizedBox(height: 28),
+                    _scheduledStreamCard(_upcoming!),
+                  ],
                   const SizedBox(height: 32),
                   _lactometerCard(),
                   const SizedBox(height: 24),
@@ -268,18 +301,62 @@ class _LivestreamScreenState extends State<LivestreamScreen> {
             style: AppType.h3.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.asset(
-              'assets/images/lact.png',
-              width: double.infinity,
-              fit: BoxFit.contain,
+          const RemoteCarousel(
+            location: 'livestream',
+            fallbackAssets: ['assets/images/lact.png'],
+            heightDivisor: 2.0,
+            borderRadius: 16,
+            dotColor: Colors.white,
+            fit: BoxFit.contain,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _scheduledStreamCard(Map<String, dynamic> stream) {
+    final start = DateTime.tryParse(stream['scheduled_start_at'] as String? ?? '')?.toLocal();
+    final startLabel = start == null ? 'Scheduled soon' : DateFormat('EEE, d MMM / h:mm a').format(start);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFB74D).withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.schedule_rounded, color: Color(0xFFFFCC80)),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${_slotLabel(stream['slot'])} Slot',
+                    style: AppType.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(startLabel, style: AppType.small.copyWith(color: Colors.white70)),
+                const SizedBox(height: 4),
+                Text('Reminder sent 30 minutes before start',
+                    style: AppType.micro.copyWith(color: Colors.white60)),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  String _slotLabel(dynamic slot) => slot == 'evening' ? 'Evening' : 'Morning';
 
   Widget _lactometerCard() {
     final now = DateTime.now();

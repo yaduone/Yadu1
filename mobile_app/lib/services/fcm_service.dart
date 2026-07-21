@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -13,16 +14,38 @@ class FcmService {
   FcmService._();
   static final FcmService instance = FcmService._();
 
+  static void registerBackgroundHandler() {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
+
   final _messaging = FirebaseMessaging.instance;
   final _localNotifications = FlutterLocalNotificationsPlugin();
+  Future<void>? _initialization;
+  void Function(Map<String, dynamic> data)? _onNotificationTap;
 
   static const _channelId = 'yaduone_default';
   static const _channelName = 'YaduONE Notifications';
 
-  Future<void> init() async {
-    // Register background handler before anything else
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  Future<void> init({void Function(Map<String, dynamic> data)? onNotificationTap}) async {
+    if (onNotificationTap != null) {
+      _onNotificationTap = onNotificationTap;
+    }
+    final inProgress = _initialization;
+    if (inProgress != null) return inProgress;
 
+    final initialization = _initialize();
+    _initialization = initialization;
+    try {
+      await initialization;
+    } catch (_) {
+      if (identical(_initialization, initialization)) {
+        _initialization = null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _initialize() async {
     // Request permission (iOS; Android 13+ handled via manifest)
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
@@ -32,6 +55,16 @@ class FcmService {
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         iOS: DarwinInitializationSettings(),
       ),
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+        try {
+          final decoded = jsonDecode(payload);
+          if (decoded is Map<String, dynamic>) {
+            _openNotification(decoded);
+          }
+        } catch (_) {}
+      },
     );
 
     if (Platform.isAndroid) {
@@ -48,6 +81,14 @@ class FcmService {
 
     // Show local notification when app is in foreground
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _openNotification(message.data);
+    });
+
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) {
+      _openNotification(initialMessage.data);
+    }
 
     // Register token and listen for refreshes
     await _registerToken();
@@ -70,7 +111,12 @@ class FcmService {
         ),
         iOS: const DarwinNotificationDetails(),
       ),
+      payload: jsonEncode(message.data),
     );
+  }
+
+  void _openNotification(Map<String, dynamic> data) {
+    _onNotificationTap?.call(data);
   }
 
   Future<void> _registerToken() async {

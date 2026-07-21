@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_typography.dart';
+import '../theme/instant_theme.dart';
 import '../providers/calendar_provider.dart';
+import '../utils/delivery_status.dart';
 import 'premium_components.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +49,11 @@ class _DeliveryCalendarCardState extends State<DeliveryCalendarCard> {
 
   void _load() {
     Future.microtask(() {
-      if (mounted) context.read<CalendarProvider>().loadMonth(_monthKey);
+      if (mounted) {
+        context
+            .read<CalendarProvider>()
+            .loadMonth(_monthKey, forceRefresh: true);
+      }
     });
   }
 
@@ -72,6 +78,7 @@ class _DeliveryCalendarCardState extends State<DeliveryCalendarCard> {
       builder: (context, cal, _) {
         final loading = cal.isLoading(_monthKey);
         final days = cal.dayMap(_monthKey);
+        final instant = cal.instantMap(_monthKey);
         final summary = cal.summary(_monthKey);
 
         return PremiumCard(
@@ -83,6 +90,8 @@ class _DeliveryCalendarCardState extends State<DeliveryCalendarCard> {
                 month: _focusedMonth,
                 onPrev: _prevMonth,
                 onNext: _nextMonth,
+                onRefresh: () =>
+                    cal.loadMonth(_monthKey, forceRefresh: true),
                 canGoNext: DateTime(_focusedMonth.year, _focusedMonth.month + 1)
                     .isBefore(DateTime(
                         DateTime.now().year, DateTime.now().month + 1)),
@@ -108,8 +117,9 @@ class _DeliveryCalendarCardState extends State<DeliveryCalendarCard> {
                 _CalendarGrid(
                   month: _focusedMonth,
                   days: days,
-                  onDayTap: (date, data) =>
-                      _showDayDetail(context, date, data),
+                  instant: instant,
+                  onDayTap: (date, data, instantData) =>
+                      _showDayDetail(context, date, data, instantData),
                 ),
 
               if (!loading && summary != null) ...[
@@ -128,14 +138,15 @@ class _DeliveryCalendarCardState extends State<DeliveryCalendarCard> {
     );
   }
 
-  void _showDayDetail(
-      BuildContext context, DateTime date, Map<String, dynamic>? data) {
+  void _showDayDetail(BuildContext context, DateTime date,
+      Map<String, dynamic>? data, Map<String, dynamic>? instantData) {
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _DayDetailSheet(date: date, data: data),
+      builder: (_) =>
+          _DayDetailSheet(date: date, data: data, instantData: instantData),
     );
   }
 }
@@ -197,7 +208,11 @@ class _CalendarSheetState extends State<_CalendarSheet> {
 
   void _load() {
     Future.microtask(() {
-      if (mounted) context.read<CalendarProvider>().loadMonth(_monthKey);
+      if (mounted) {
+        context
+            .read<CalendarProvider>()
+            .loadMonth(_monthKey, forceRefresh: true);
+      }
     });
   }
 
@@ -275,6 +290,7 @@ class _CalendarSheetState extends State<_CalendarSheet> {
               builder: (context, cal, _) {
                 final loading = cal.isLoading(_monthKey);
                 final days = cal.dayMap(_monthKey);
+                final instant = cal.instantMap(_monthKey);
                 final summary = cal.summary(_monthKey);
 
                 return ListView(
@@ -284,6 +300,8 @@ class _CalendarSheetState extends State<_CalendarSheet> {
                       month: _focusedMonth,
                       onPrev: _prevMonth,
                       onNext: _nextMonth,
+                      onRefresh: () =>
+                          cal.loadMonth(_monthKey, forceRefresh: true),
                       canGoNext: DateTime(_focusedMonth.year,
                               _focusedMonth.month + 1)
                           .isBefore(DateTime(DateTime.now().year,
@@ -316,8 +334,9 @@ class _CalendarSheetState extends State<_CalendarSheet> {
                       _CalendarGrid(
                         month: _focusedMonth,
                         days: days,
-                        onDayTap: (date, data) =>
-                            _showDayDetail(context, date, data),
+                        instant: instant,
+                        onDayTap: (date, data, instantData) =>
+                            _showDayDetail(context, date, data, instantData),
                       ),
 
                     if (!loading && summary != null) ...[
@@ -339,14 +358,15 @@ class _CalendarSheetState extends State<_CalendarSheet> {
     );
   }
 
-  void _showDayDetail(
-      BuildContext context, DateTime date, Map<String, dynamic>? data) {
+  void _showDayDetail(BuildContext context, DateTime date,
+      Map<String, dynamic>? data, Map<String, dynamic>? instantData) {
     showModalBottomSheet(
       context: context,
       useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _DayDetailSheet(date: date, data: data),
+      builder: (_) =>
+          _DayDetailSheet(date: date, data: data, instantData: instantData),
     );
   }
 }
@@ -502,25 +522,40 @@ class _MonthNavigator extends StatelessWidget {
   final DateTime month;
   final VoidCallback onPrev;
   final VoidCallback onNext;
+  final VoidCallback onRefresh;
   final bool canGoNext;
 
   const _MonthNavigator({
     required this.month,
     required this.onPrev,
     required this.onNext,
+    required this.onRefresh,
     required this.canGoNext,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _navBtn(Icons.chevron_left_rounded, onPrev, true),
-        Text(DateFormat('MMMM yyyy').format(month), style: AppType.h3),
-        _navBtn(Icons.chevron_right_rounded, onNext, canGoNext),
-      ],
-    );
+    return Row(children: [
+      SizedBox(
+        width: 78,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _navBtn(Icons.chevron_left_rounded, onPrev, true),
+        ),
+      ),
+      Expanded(
+        child: Text(DateFormat('MMMM yyyy').format(month),
+            textAlign: TextAlign.center, style: AppType.h3),
+      ),
+      SizedBox(
+        width: 78,
+        child: Row(children: [
+          _navBtn(Icons.refresh_rounded, onRefresh, true),
+          const SizedBox(width: 6),
+          _navBtn(Icons.chevron_right_rounded, onNext, canGoNext),
+        ]),
+      ),
+    ]);
   }
 
   Widget _navBtn(IconData icon, VoidCallback onTap, bool enabled) {
@@ -556,8 +591,8 @@ class _Legend extends StatelessWidget {
       children: const [
         _LegendDot(color: AppColors.success, label: 'Delivered'),
         _LegendDot(color: AppColors.warning, label: 'Pending'),
-        _LegendDot(color: AppColors.error, label: 'Skipped'),
-        _LegendDot(color: Color(0xFF9CA3AF), label: 'Cancelled'),
+        _LegendDot(color: AppColors.error, label: 'Not Delivered'),
+        _LegendDot(color: InstantColors.primary, label: 'Instant'),
       ],
     );
   }
@@ -594,11 +629,17 @@ class _LegendDot extends StatelessWidget {
 class _CalendarGrid extends StatelessWidget {
   final DateTime month;
   final Map<String, dynamic> days;
-  final void Function(DateTime date, Map<String, dynamic>? data) onDayTap;
+  final Map<String, dynamic> instant;
+  final void Function(
+    DateTime date,
+    Map<String, dynamic>? data,
+    Map<String, dynamic>? instantData,
+  ) onDayTap;
 
   const _CalendarGrid({
     required this.month,
     required this.days,
+    required this.instant,
     required this.onDayTap,
   });
 
@@ -640,15 +681,17 @@ class _CalendarGrid extends StatelessWidget {
             final date = DateTime(month.year, month.month, day);
             final dateKey = DateFormat('yyyy-MM-dd').format(date);
             final data = days[dateKey] as Map<String, dynamic>?;
+            final instantData = instant[dateKey] as Map<String, dynamic>?;
             final isFuture = date.isAfter(today);
             final isToday = DateUtils.isSameDay(date, today);
 
             return _DayCell(
               day: day,
               data: data,
+              instantData: instantData,
               isToday: isToday,
               isFuture: isFuture,
-              onTap: () => onDayTap(date, data),
+              onTap: () => onDayTap(date, data, instantData),
             );
           },
         ),
@@ -660,6 +703,7 @@ class _CalendarGrid extends StatelessWidget {
 class _DayCell extends StatelessWidget {
   final int day;
   final Map<String, dynamic>? data;
+  final Map<String, dynamic>? instantData;
   final bool isToday;
   final bool isFuture;
   final VoidCallback onTap;
@@ -667,24 +711,15 @@ class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
     required this.data,
+    required this.instantData,
     required this.isToday,
     required this.isFuture,
     required this.onTap,
   });
 
   Color get _statusColor {
-    switch (data?['status'] as String?) {
-      case 'delivered':
-        return AppColors.success;
-      case 'pending':
-        return AppColors.warning;
-      case 'skipped':
-        return AppColors.error;
-      case 'cancelled':
-        return const Color(0xFF9CA3AF);
-      default:
-        return Colors.transparent;
-    }
+    if (data == null) return Colors.transparent;
+    return DeliveryStatus.color(data?['status'] as String?);
   }
 
   // First letter of milk type for delivered days: C / B / P
@@ -702,54 +737,74 @@ class _DayCell extends StatelessWidget {
     final dotColor = _statusColor;
     final initial = _milkInitial;
     final hasData = data != null;
+    final hasInstant = instantData != null;
+
+    final Color bgColor = isToday
+        ? AppColors.primary.withValues(alpha: 0.1)
+        : hasData
+            ? dotColor.withValues(alpha: 0.07)
+            : hasInstant
+                ? InstantColors.primary.withValues(alpha: 0.08)
+                : Colors.transparent;
 
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          color: isToday
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : hasData
-                  ? dotColor.withValues(alpha: 0.07)
-                  : Colors.transparent,
+          color: bgColor,
           borderRadius: BorderRadius.circular(10),
           border: isToday
               ? Border.all(color: AppColors.primary, width: 1.5)
               : null,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            Text(
-              '$day',
-              style: AppType.small.copyWith(
-                color: isFuture
-                    ? AppColors.textHint
-                    : isToday
-                        ? AppColors.primary
-                        : AppColors.textPrimary,
-                fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 2),
-            if (initial != null)
-              Text(
-                initial,
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w800,
-                  color: dotColor,
-                  height: 1.1,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$day',
+                  style: AppType.small.copyWith(
+                    color: isFuture
+                        ? AppColors.textHint
+                        : isToday
+                            ? AppColors.primary
+                            : AppColors.textPrimary,
+                    fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+                  ),
                 ),
-              )
-            else
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: dotColor,
-                  shape: BoxShape.circle,
+                const SizedBox(height: 2),
+                if (initial != null)
+                  Text(
+                    initial,
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      color: dotColor,
+                      height: 1.1,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: dotColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+            // Purple instant marker (top-right corner)
+            if (hasInstant)
+              Positioned(
+                top: 3,
+                right: 3,
+                child: Icon(
+                  Icons.bolt_rounded,
+                  size: 11,
+                  color: InstantColors.primary,
                 ),
               ),
           ],
@@ -775,25 +830,26 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _SummaryTile(
-              count: summary['delivered'] ?? 0,
-              label: 'Delivered',
-              color: AppColors.success),
+          Expanded(
+            child: _SummaryTile(
+                count: summary['delivered'] ?? 0,
+                label: 'Delivered',
+                color: AppColors.success),
+          ),
           _vDivider(),
-          _SummaryTile(
-              count: summary['pending'] ?? 0,
-              label: 'Pending',
-              color: AppColors.warning),
+          Expanded(
+            child: _SummaryTile(
+                count: summary['pending'] ?? 0,
+                label: 'Pending',
+                color: AppColors.warning),
+          ),
           _vDivider(),
-          _SummaryTile(
-              count: summary['skipped'] ?? 0,
-              label: 'Skipped',
-              color: AppColors.error),
-          _vDivider(),
-          _SummaryTile(
-              count: summary['cancelled'] ?? 0,
-              label: 'Cancelled',
-              color: const Color(0xFF9CA3AF)),
+          Expanded(
+            child: _SummaryTile(
+                count: summary['not_delivered'] ?? 0,
+                label: 'Not Delivered',
+                color: AppColors.error),
+          ),
         ],
       ),
     );
@@ -821,6 +877,8 @@ class _SummaryTile extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(label,
+            maxLines: 2,
+            textAlign: TextAlign.center,
             style: AppType.micro.copyWith(color: AppColors.textSecondary)),
       ],
     );
@@ -947,37 +1005,20 @@ class _RecentDeliveriesLog extends StatelessWidget {
 class _DayDetailSheet extends StatelessWidget {
   final DateTime date;
   final Map<String, dynamic>? data;
+  final Map<String, dynamic>? instantData;
 
-  const _DayDetailSheet({required this.date, required this.data});
+  const _DayDetailSheet({
+    required this.date,
+    required this.data,
+    this.instantData,
+  });
 
   Color get _statusColor {
-    switch (data?['status']) {
-      case 'delivered':
-        return AppColors.success;
-      case 'pending':
-        return AppColors.warning;
-      case 'skipped':
-        return AppColors.error;
-      case 'cancelled':
-        return const Color(0xFF9CA3AF);
-      default:
-        return AppColors.textHint;
-    }
+    return DeliveryStatus.color(data?['status'] as String?);
   }
 
   IconData get _statusIcon {
-    switch (data?['status']) {
-      case 'delivered':
-        return Icons.check_circle_rounded;
-      case 'pending':
-        return Icons.schedule_rounded;
-      case 'skipped':
-        return Icons.event_busy_rounded;
-      case 'cancelled':
-        return Icons.cancel_rounded;
-      default:
-        return Icons.info_outline_rounded;
-    }
+    return DeliveryStatus.icon(data?['status'] as String?);
   }
 
   @override
@@ -1035,18 +1076,19 @@ class _DayDetailSheet extends StatelessWidget {
                       style: AppType.h3,
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
                         _StatusBadge(
                           label: status != null
-                              ? status.toUpperCase()
+                              ? DeliveryStatus.label(status).toUpperCase()
                               : isFuture
                                   ? 'UPCOMING'
                                   : 'NO RECORD',
                           color: color,
                         ),
                         if (slot != null && slot.isNotEmpty) ...[
-                          const SizedBox(width: 6),
                           _SlotBadge(slot: slot),
                         ],
                       ],
@@ -1057,7 +1099,7 @@ class _DayDetailSheet extends StatelessWidget {
             ],
           ),
 
-          if (data == null) ...[
+          if (data == null && instantData == null) ...[
             const SizedBox(height: 20),
             Center(
               child: Text(
@@ -1068,10 +1110,27 @@ class _DayDetailSheet extends StatelessWidget {
                     .copyWith(color: AppColors.textSecondary),
               ),
             ),
-          ] else ...[
+          ],
+          if (data != null) ...[
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 16),
+
+            if (DeliveryStatus.normalize(status) == 'not_delivered') ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  DeliveryStatus.notDeliveredExplanation(data),
+                  style: AppType.small.copyWith(color: AppColors.error),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             if (milk != null) ...[
               _DetailRow(
@@ -1141,9 +1200,113 @@ class _DayDetailSheet extends StatelessWidget {
             ],
           ],
 
+          if (instantData != null) ...[
+            const SizedBox(height: 20),
+            _InstantDaySection(instantData: instantData!),
+          ],
+
           const SizedBox(height: 8),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Instant orders for a day (purple section in the day-detail sheet)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InstantDaySection extends StatelessWidget {
+  final Map<String, dynamic> instantData;
+
+  const _InstantDaySection({required this.instantData});
+
+  @override
+  Widget build(BuildContext context) {
+    final orders = (instantData['orders'] as List?) ?? const [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.bolt_rounded,
+                size: 16, color: InstantColors.primary),
+            const SizedBox(width: 6),
+            Text(
+              'Instant Orders',
+              style: AppType.captionBold.copyWith(color: InstantColors.primary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...orders.map((raw) {
+          final order = raw as Map<String, dynamic>;
+          final status = order['status'] as String? ?? 'pending';
+          final total = (order['total_amount'] as num?)?.toDouble() ?? 0;
+          final deliveryCharge =
+              (order['delivery_charge'] as num?)?.toInt() ?? 0;
+          final items = (order['items'] as List?) ?? const [];
+          final itemNames = items
+              .map((i) => (i as Map)['product_name']?.toString() ?? '')
+              .where((s) => s.isNotEmpty)
+              .join(', ');
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: InstantColors.primary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: InstantColors.primary.withValues(alpha: 0.15)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        itemNames.isEmpty ? 'Instant order' : itemNames,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.small.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _StatusBadge(
+                      label: DeliveryStatus.label(status).toUpperCase(),
+                      color: DeliveryStatus.color(status),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      deliveryCharge > 0
+                          ? 'incl. ₹$deliveryCharge delivery'
+                          : 'Free delivery',
+                      style: AppType.micro
+                          .copyWith(color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      '₹${total.toStringAsFixed(0)}',
+                      style: AppType.captionBold
+                          .copyWith(color: InstantColors.primary),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 }

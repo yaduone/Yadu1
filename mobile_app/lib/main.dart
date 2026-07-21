@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,31 +16,26 @@ import 'providers/auth_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/calendar_provider.dart';
+import 'providers/instant_provider.dart';
+import 'providers/instant_mode_provider.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/complete_profile_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/dues/due_screen.dart';
+import 'screens/livestream/livestream_screen.dart';
+import 'screens/notifications/notifications_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 import 'services/fcm_service.dart';
+import 'services/onboarding_service.dart';
+import 'utils/transitions.dart';
 
-void main() async {
+Future<void>? _startupInitialization;
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // App Check: Play Integrity on release, debug provider in dev.
-  // This eliminates the reCAPTCHA fallback during Firebase Phone Auth.
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: kDebugMode
-        ? AndroidProvider.debug
-        : AndroidProvider.playIntegrity,
-  );
-
-  await FcmService.instance.init();
-
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  FcmService.registerBackgroundHandler();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -49,6 +46,50 @@ void main() async {
   );
 
   runApp(const DairyDeliveryApp());
+}
+
+Future<void> initializeStartupServices() async {
+  final inProgress = _startupInitialization;
+  if (inProgress != null) return inProgress;
+
+  final initialization = _initializeStartupServices();
+  _startupInitialization = initialization;
+
+  try {
+    await initialization;
+  } catch (_) {
+    if (identical(_startupInitialization, initialization)) {
+      _startupInitialization = null;
+    }
+    rethrow;
+  }
+}
+
+Future<void> _initializeStartupServices() async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // App Check: Play Integrity on release, debug provider in dev.
+  // IMPORTANT: Play Integrity requires Google Play App Signing SHA-1 to be
+  // registered in Firebase Console.
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode
+          ? AndroidProvider.debug
+          : AndroidProvider.playIntegrity,
+    );
+  } catch (_) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+    );
+  }
+
+  // Platform configuration is non-critical for the first visible frame.
+  unawaited(SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]));
 }
 
 class DairyDeliveryApp extends StatelessWidget {
@@ -62,25 +103,37 @@ class DairyDeliveryApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
+        ChangeNotifierProvider(create: (_) => InstantProvider()),
+        ChangeNotifierProvider(create: (_) => InstantModeProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: appNavigatorKey,
         title: 'YaduONE',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const SplashScreen(),
+        home: const SplashScreen(initializeServices: initializeStartupServices),
       ),
     );
   }
 }
 
 /// Listens to Firebase auth state and routes accordingly.
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  // Cache the stream so it is not recreated on every rebuild.
+  final Stream<fb_auth.User?> _authStream =
+      fb_auth.FirebaseAuth.instance.authStateChanges();
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<fb_auth.User?>(
-      stream: fb_auth.FirebaseAuth.instance.authStateChanges(),
+      stream: _authStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
@@ -153,24 +206,97 @@ class _ProfileGate extends StatefulWidget {
 }
 
 class _ProfileGateState extends State<_ProfileGate> {
+  /// null while the pages are still loading; true once the intro has been
+  /// dismissed for this session (or there is nothing to show).
+  bool? _onboardingDone;
+  List<OnboardingPage> _onboardingPages = const [];
+
+  /// True once the profile form has been skipped or saved this session.
+  bool _profileStepDismissed = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initializeNotifications());
       context.read<AppAuthProvider>().loadProfile();
+      unawaited(_loadOnboardingState());
     });
+  }
+
+  /// The intro is shown on every sign-in, to new and returning users alike, so
+  /// this always fetches rather than checking a "seen" flag.
+  Future<void> _loadOnboardingState() async {
+    try {
+      final pages = await OnboardingService.instance.fetchPages();
+      if (!mounted) return;
+      if (pages.isEmpty) {
+        // Nothing configured by admin yet — nothing to show.
+        setState(() => _onboardingDone = true);
+      } else {
+        setState(() {
+          _onboardingPages = pages;
+          _onboardingDone = false;
+        });
+      }
+    } catch (_) {
+      // Onboarding is a nice-to-have; never block sign-in on it.
+      if (mounted) setState(() => _onboardingDone = true);
+    }
+  }
+
+  Future<void> _initializeNotifications() async {
+    try {
+      await FcmService.instance.init(onNotificationTap: _openNotification);
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('Notification setup deferred: $error');
+      }
+    }
+  }
+
+  void _openNotification(Map<String, dynamic> data) {
+    final navigator = appNavigatorKey.currentState;
+    if (navigator == null) return;
+
+    final destination = data['destination'] as String?;
+    final type = data['type'] as String?;
+    final Widget page;
+    if (destination == 'dues' || type == 'due_reminder' || type == 'payment_recorded') {
+      page = const DueScreen();
+    } else if (destination == 'livestream' ||
+        type == 'livestream_reminder' ||
+        type == 'livestream_started') {
+      page = const LivestreamScreen();
+    } else {
+      page = const NotificationsScreen();
+    }
+    navigator.push(SlideUpRoute(page: page));
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AppAuthProvider>();
 
-    if (!auth.profileLoaded) {
+    if (!auth.profileLoaded || _onboardingDone == null) {
       return const _HomeSkeletonLoadingScreen();
     }
 
-    // Allow users with incomplete profiles to reach Home
-    // HomeScreen will show a banner prompting profile completion
+    if (_onboardingDone == false) {
+      return OnboardingScreen(
+        pages: _onboardingPages,
+        onDone: () => setState(() => _onboardingDone = true),
+      );
+    }
+
+    // New sign-ups land on the profile form first; it can be skipped, after
+    // which HomeScreen's banner keeps prompting for completion.
+    if (!auth.isProfileComplete && !_profileStepDismissed) {
+      return CompleteProfileScreen(
+        onDone: () => setState(() => _profileStepDismissed = true),
+      );
+    }
+
     return const HomeScreen();
   }
 }

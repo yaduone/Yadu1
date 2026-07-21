@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,10 +9,15 @@ import '../../theme/app_typography.dart';
 import '../../widgets/premium_components.dart';
 import '../../widgets/tappable.dart';
 import '../../utils/transitions.dart';
+import '../../utils/delivery_status.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/cart_provider.dart';
+import '../../providers/instant_mode_provider.dart';
 import '../../services/api_service.dart';
+import '../../widgets/remote_carousel.dart';
+import '../instant/instant_store_screen.dart';
+import '../../widgets/app_snackbar.dart';
 import '../subscription/subscription_screen.dart';
 import '../cart/cart_screen.dart';
 import '../reports/reports_screen.dart';
@@ -22,7 +26,6 @@ import '../profile/profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../dues/due_screen.dart';
 import '../products/products_screen.dart';
-import '../products/product_detail_screen.dart';
 import '../auth/complete_profile_screen.dart';
 import 'widgets/curved_navbar.dart';
 import 'package:intl/intl.dart';
@@ -62,10 +65,7 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: FadeIndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: FadeIndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: CurvedNavBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
@@ -85,10 +85,10 @@ class _HomeTab extends StatefulWidget {
   State<_HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin {
+class _HomeTabState extends State<_HomeTab>
+    with SingleTickerProviderStateMixin {
   double? _dueAmount;
   List<dynamic> _calendarOrders = [];
-  int _carouselIndex = 0;
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
   final ScrollController _scrollCtrl = ScrollController();
@@ -102,10 +102,12 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
     super.initState();
     _loadDue();
     _loadCalendarOrders();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -117,8 +119,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
 
   void _onScroll() {
     final offset = _scrollCtrl.offset.clamp(0.0, double.infinity);
-    final progress = ((offset - _kCollapseStart) / (_kCollapseEnd - _kCollapseStart))
-        .clamp(0.0, 1.0);
+    final progress =
+        ((offset - _kCollapseStart) / (_kCollapseEnd - _kCollapseStart)).clamp(
+          0.0,
+          1.0,
+        );
     if ((progress - _collapseProgress.value).abs() > 0.008) {
       _collapseProgress.value = progress;
     }
@@ -137,8 +142,10 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
     try {
       final res = await ApiService().get('/dues/me');
       if (mounted) {
-        setState(() =>
-            _dueAmount = (res['data']?['due_amount'] as num?)?.toDouble() ?? 0);
+        setState(
+          () => _dueAmount =
+              (res['data']?['due_amount'] as num?)?.toDouble() ?? 0,
+        );
       }
     } catch (_) {}
   }
@@ -152,8 +159,28 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
     } catch (_) {}
   }
 
+  void _openProducts() {
+    Navigator.push(
+      context,
+      SlideRightRoute(
+        page: ProductsScreen(
+          onGoToCart: () {
+            if (mounted) {
+              context.findAncestorStateOfType<HomeScreenState>()?.changeTab(2);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Instant Delivery mode swaps the whole Home tab for the purple storefront.
+    if (context.watch<InstantModeProvider>().isInstant) {
+      return const InstantStoreScreen();
+    }
+
     final name = context.select<AppAuthProvider, String>(
       (a) => a.userData?['name'] ?? 'User',
     );
@@ -168,277 +195,354 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // ── Premium sky background ────────────────────────────────
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/bg.jpg',
-              fit: BoxFit.cover,
-              cacheWidth: 800,
-            ),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF063B66).withValues(alpha: 0.18),
-                    Colors.white.withValues(alpha: 0.34),
-                    const Color(0xFFF7FBFF).withValues(alpha: 0.92),
-                  ],
-                  stops: const [0.0, 0.45, 1.0],
+          // ── Premium sky background (isolated layer — never repaints on scroll/rebuild) ──
+          RepaintBoundary(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Image.asset(
+                    'assets/images/bg.jpg',
+                    fit: BoxFit.cover,
+                    cacheWidth: 800,
+                  ),
                 ),
-              ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          const Color(0xFF063B66).withValues(alpha: 0.18),
+                          Colors.white.withValues(alpha: 0.34),
+                          const Color(0xFFF7FBFF).withValues(alpha: 0.92),
+                        ],
+                        stops: const [0.0, 0.45, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: -90,
+                  top: 150,
+                  child: _SoftBlob(
+                    color: const Color(0xFF2A9D8F).withValues(alpha: 0.18),
+                  ),
+                ),
+                Positioned(
+                  right: -110,
+                  bottom: 70,
+                  child: _SoftBlob(
+                    color: const Color(0xFF2E8EEA).withValues(alpha: 0.14),
+                  ),
+                ),
+              ],
             ),
-          ),
-          Positioned(
-            left: -90,
-            top: 150,
-            child: _SoftBlob(color: const Color(0xFF2A9D8F).withValues(alpha: 0.18)),
-          ),
-          Positioned(
-            right: -110,
-            bottom: 70,
-            child: _SoftBlob(color: const Color(0xFF2E8EEA).withValues(alpha: 0.14)),
           ),
           // ── Foreground content ───────────────────────────────────────
           Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-          // ── Animated Header ───────────────────────────────────────────────
-          ValueListenableBuilder<double>(
-            valueListenable: _collapseProgress,
-            builder: (context, progress, _) =>
-                _buildAnimatedHeader(context, firstName, progress),
-          ),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Animated Header ───────────────────────────────────────────────
+              ValueListenableBuilder<double>(
+                valueListenable: _collapseProgress,
+                builder: (context, progress, _) =>
+                    _buildAnimatedHeader(context, firstName, progress),
+              ),
 
-          // ── Scrollable Content ────────────────────────────────────────
-          Expanded(
-            child: SafeArea(
-              top: false,
-              child: RefreshIndicator(
-                color: Colors.white,
-                backgroundColor: const Color(0xFF2A9D8F),
-                onRefresh: () async {
-                  await sub.loadSubscription();
-                  await cart.loadTomorrowStatus();
-                  await _loadDue();
-                  await _loadCalendarOrders();
-                },
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: ScrollConfiguration(
-                    behavior: _SmoothScrollBehavior(),
-                    child: ListView(
-                    controller: _scrollCtrl,
-                    physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
-                    padding: const EdgeInsets.fromLTRB(18, 14, 18, 110),
-                    children: [
-                      // Profile incomplete banner
-                      if (!isProfileComplete) ...[
-                        Tappable(
-                          onTap: () => Navigator.push(
-                            context,
-                            SlideUpRoute(page: const CompleteProfileScreen()),
+              // ── Scrollable Content ────────────────────────────────────────
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: RefreshIndicator(
+                    color: Colors.white,
+                    backgroundColor: const Color(0xFF2A9D8F),
+                    onRefresh: () async {
+                      await sub.loadSubscription();
+                      await cart.loadTomorrowStatus();
+                      await _loadDue();
+                      await _loadCalendarOrders();
+                    },
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: ScrollConfiguration(
+                        behavior: _SmoothScrollBehavior(),
+                        child: ListView(
+                          controller: _scrollCtrl,
+                          physics: const BouncingScrollPhysics(
+                            parent: AlwaysScrollableScrollPhysics(),
                           ),
-                          scaleFactor: 0.97,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.warning,
-                                  AppColors.warning.withValues(alpha: 0.8),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
+                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 110),
+                          children: [
+                            // Scheduled ⇄ Instant toggle
+                            ScheduleInstantToggle(
+                              isInstant: false,
+                              onChanged: (instant) => context
+                                  .read<InstantModeProvider>()
+                                  .setInstant(instant),
                             ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
+                            const SizedBox(height: 16),
+
+                            // Profile incomplete banner
+                            if (!isProfileComplete) ...[
+                              Tappable(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  SlideUpRoute(
+                                    page: const CompleteProfileScreen(),
+                                  ),
+                                ),
+                                scaleFactor: 0.97,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(Icons.person_add_rounded,
-                                      color: Colors.white, size: 18),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Complete your address to start receiving milk',
-                                    style: AppType.small.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                                const Icon(Icons.arrow_forward_ios_rounded,
-                                    color: Colors.white70, size: 14),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-
-                      _buildHeroSnapshot(context, cart, sub),
-                      const SizedBox(height: 24),
-
-                      // ── Quick Actions ─────────────────────────────────
-                      _SectionHeader(title: 'Quick Actions', icon: Icons.flash_on_rounded),
-                      const SizedBox(height: 10),
-                      _QuickActionsGrid(
-                        cart: cart,
-                        onSkipToggle: () async {
-                          if (cart.isSkipped) {
-                            await cart.revertOverride();
-                          } else {
-                            await cart.skipTomorrow();
-                          }
-                        },
-                        onAddExtras: () {
-                          final homeState =
-                              context.findAncestorStateOfType<HomeScreenState>();
-                          homeState?.setState(() => homeState._currentIndex = 2);
-                        },
-                        onReports: () {
-                          final homeState =
-                              context.findAncestorStateOfType<HomeScreenState>();
-                          homeState?.setState(() => homeState._currentIndex = 1);
-                        },
-                        onLive: () => Navigator.push(
-                            context, SlideUpRoute(page: const LivestreamScreen())),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // ── Quick Calendar ────────────────────────────────
-                      _SectionHeader(
-                        title: 'Quick Calendar',
-                        icon: Icons.calendar_month_rounded,
-                      ),
-                      const SizedBox(height: 10),
-                      RepaintBoundary(child: _QuickCalendar(orders: _calendarOrders)),
-
-                      const SizedBox(height: 24),
-
-                      // ── Shop Banner ───────────────────────────────────
-                      _SectionHeader(title: 'Shop', icon: Icons.storefront_rounded),
-                      const SizedBox(height: 10),
-                      Tappable(
-                        onTap: () => Navigator.push(context,
-                            SlideRightRoute(page: const ProductsScreen())),
-                        scaleFactor: 0.97,
-                        child: Container(
-                          height: 110,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0C4A6E), Color(0xFF1E40AF)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                right: -16,
-                                bottom: -16,
-                                child: Icon(
-                                  Icons.storefront_rounded,
-                                  size: 110,
-                                  color: Colors.white.withValues(alpha: 0.07),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(20),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: const Icon(Icons.storefront_rounded,
-                                          color: Colors.white, size: 24),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.warning,
+                                        AppColors.warning.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            'Browse Products',
-                                            style: AppType.h3.copyWith(color: Colors.white),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
                                           ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            'Paneer, curd, ghee & more',
-                                            style: AppType.small.copyWith(
-                                              color: Colors.white.withValues(alpha: 0.7),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.person_add_rounded,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Complete your address to start receiving milk',
+                                          style: AppType.small.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        color: Colors.white70,
+                                        size: 14,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+
+                            _buildHeroSnapshot(context, cart, sub),
+                            const SizedBox(height: 24),
+
+                            // ── Quick Actions ─────────────────────────────────
+                            _SectionHeader(
+                              title: 'Quick Actions',
+                              icon: Icons.flash_on_rounded,
+                            ),
+                            const SizedBox(height: 10),
+                            _QuickActionsGrid(
+                              cart: cart,
+                              isProfileComplete: isProfileComplete,
+                              onSkipToggle: () async {
+                                if (cart.isSkipped) {
+                                  await cart.revertOverride();
+                                } else {
+                                  await cart.skipTomorrow();
+                                }
+                              },
+                              onAddExtras: () {
+                                final homeState = context
+                                    .findAncestorStateOfType<HomeScreenState>();
+                                homeState?.setState(
+                                  () => homeState._currentIndex = 2,
+                                );
+                              },
+                              onReports: () {
+                                final homeState = context
+                                    .findAncestorStateOfType<HomeScreenState>();
+                                homeState?.setState(
+                                  () => homeState._currentIndex = 1,
+                                );
+                              },
+                              onLive: () => Navigator.push(
+                                context,
+                                SlideUpRoute(page: const LivestreamScreen()),
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // ── Quick Calendar ────────────────────────────────
+                            _SectionHeader(
+                              title: 'Quick Calendar',
+                              icon: Icons.calendar_month_rounded,
+                            ),
+                            const SizedBox(height: 10),
+                            RepaintBoundary(
+                              child: _QuickCalendar(orders: _calendarOrders),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // ── Shop Banner ───────────────────────────────────
+                            _SectionHeader(
+                              title: 'Shop',
+                              icon: Icons.storefront_rounded,
+                            ),
+                            const SizedBox(height: 10),
+                            Tappable(
+                              onTap: _openProducts,
+                              scaleFactor: 0.97,
+                              child: Container(
+                                height: 110,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF0C4A6E),
+                                      Color(0xFF1E40AF),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF1E40AF,
+                                      ).withValues(alpha: 0.3),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      right: -16,
+                                      bottom: -16,
+                                      child: Icon(
+                                        Icons.storefront_rounded,
+                                        size: 110,
+                                        color: Colors.white.withValues(
+                                          alpha: 0.07,
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.all(20),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 50,
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            child: const Icon(
+                                              Icons.storefront_rounded,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  'Browse Products',
+                                                  style: AppType.h3.copyWith(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  'Paneer, curd, ghee & more',
+                                                  style: AppType.small.copyWith(
+                                                    color: Colors.white
+                                                        .withValues(alpha: 0.7),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.arrow_forward_rounded,
+                                              color: Colors.white,
+                                              size: 16,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(Icons.arrow_forward_rounded,
-                                          color: Colors.white, size: 16),
-                                    ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-
-
-                    ],
-                  ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
+            ],
           ),
         ],
       ),
     );
   }
 
-
-  Widget _buildHeroSnapshot(BuildContext context, CartProvider cart, SubscriptionProvider sub) {
+  Widget _buildHeroSnapshot(
+    BuildContext context,
+    CartProvider cart,
+    SubscriptionProvider sub,
+  ) {
     final hasSub = sub.subscription != null;
     final isSkipped = cart.isSkipped;
-    final milkType = ((cart.effectiveMilk?['milk_type'] as String?) ??
-            (sub.subscription?['milk_type'] as String?) ??
-            'fresh')
-        .toLowerCase();
-    final qty = cart.effectiveMilk?['quantity_litres'] ??
+    final milkType =
+        ((cart.effectiveMilk?['milk_type'] as String?) ??
+                (sub.subscription?['milk_type'] as String?) ??
+                'fresh')
+            .toLowerCase();
+    final qty =
+        cart.effectiveMilk?['quantity_litres'] ??
         sub.subscription?['quantity_litres'] ??
         '-';
 
@@ -478,8 +582,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.local_shipping_rounded,
-                        color: Colors.white, size: 27),
+                    child: const Icon(
+                      Icons.local_shipping_rounded,
+                      color: Colors.white,
+                      size: 27,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -490,8 +597,8 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                           isSkipped
                               ? 'Delivery paused for tomorrow'
                               : hasSub
-                                  ? 'Tomorrow delivery is ready'
-                                  : 'Start your fresh milk plan',
+                              ? 'Tomorrow delivery is ready'
+                              : 'Start your fresh milk plan',
                           style: AppType.h3.copyWith(
                             color: const Color(0xFF082F49),
                             fontWeight: FontWeight.w900,
@@ -502,8 +609,8 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                           isSkipped
                               ? 'Tap undo skip anytime before cutoff.'
                               : hasSub
-                                  ? 'Fresh ${_milkTypeLabel(milkType)} milk scheduled at your doorstep.'
-                                  : 'Subscribe and manage daily milk, extras and dues here.',
+                              ? 'Fresh ${_milkTypeLabel(milkType)} milk scheduled at your doorstep.'
+                              : 'Subscribe and manage daily milk, extras and dues here.',
                           style: AppType.small.copyWith(
                             color: const Color(0xFF57758A),
                             height: 1.35,
@@ -520,7 +627,9 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                   width: double.infinity,
                   child: Tappable(
                     onTap: () => Navigator.push(
-                        context, SlideUpRoute(page: const SubscriptionScreen())),
+                      context,
+                      SlideUpRoute(page: const SubscriptionScreen()),
+                    ),
                     scaleFactor: 0.96,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -542,8 +651,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.water_drop_rounded,
-                              color: Colors.white, size: 18),
+                          const Icon(
+                            Icons.water_drop_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Start Subscription',
@@ -553,8 +665,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Icon(Icons.arrow_forward_rounded,
-                              color: Colors.white70, size: 16),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Colors.white70,
+                            size: 16,
+                          ),
                         ],
                       ),
                     ),
@@ -579,8 +694,7 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                             : Icons.verified_rounded,
                         title: isSkipped ? 'Skipped' : 'Active',
                         subtitle: 'Status',
-                        color:
-                            isSkipped ? AppColors.error : AppColors.success,
+                        color: isSkipped ? AppColors.error : AppColors.success,
                       ),
                     ),
                   ],
@@ -590,15 +704,23 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 if (sub.subscription != null) ...[
                   Tappable(
                     onTap: () => Navigator.push(
-                        context, SlideUpRoute(page: const SubscriptionScreen())),
+                      context,
+                      SlideUpRoute(page: const SubscriptionScreen()),
+                    ),
                     scaleFactor: 0.97,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: _milkTypeColor(milkType).withValues(alpha: 0.07),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                            color: _milkTypeColor(milkType).withValues(alpha: 0.18)),
+                          color: _milkTypeColor(
+                            milkType,
+                          ).withValues(alpha: 0.18),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -636,8 +758,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                                 : AppColors.warning,
                           ),
                           const SizedBox(width: 6),
-                          const Icon(Icons.chevron_right_rounded,
-                              size: 18, color: Color(0xFF57758A)),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 18,
+                            color: Color(0xFF57758A),
+                          ),
                         ],
                       ),
                     ),
@@ -650,8 +775,11 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.add_shopping_cart_rounded,
-                        size: 13, color: Color(0xFF57758A)),
+                    const Icon(
+                      Icons.add_shopping_cart_rounded,
+                      size: 13,
+                      color: Color(0xFF57758A),
+                    ),
                     const SizedBox(width: 5),
                     Text(
                       '${cart.extraItems.length} extra ${cart.extraItems.length == 1 ? 'item' : 'items'} in cart',
@@ -677,21 +805,21 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         (p) => p['id'] == productId || p['_id'] == productId,
                         orElse: () => item,
                       );
-                      final name = (fullProduct['name'] ?? item['product_name'] ?? '') as String;
-                      final cover = (fullProduct['cover_image_small'] ?? fullProduct['cover_image_large']) as String?;
+                      final name =
+                          (fullProduct['name'] ?? item['product_name'] ?? '')
+                              as String;
+                      final cover =
+                          (fullProduct['cover_image_small'] ??
+                                  fullProduct['cover_image_large'])
+                              as String?;
                       final images = fullProduct['images'] ?? item['images'];
                       final imageUrl = (cover != null && cover.isNotEmpty)
                           ? cover
                           : (images is List && images.isNotEmpty)
-                              ? images[0] as String?
-                              : null;
+                          ? images[0] as String?
+                          : null;
                       return Tappable(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ProductDetailScreen(product: fullProduct),
-                          ),
-                        ),
+                        onTap: _openProducts,
                         scaleFactor: 0.93,
                         child: SizedBox(
                           width: 66,
@@ -705,28 +833,45 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                                     decoration: BoxDecoration(
                                       color: AppColors.primaryLight,
                                       borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: AppColors.border),
+                                      border: Border.all(
+                                        color: AppColors.border,
+                                      ),
                                     ),
-                                    child: imageUrl != null && imageUrl.isNotEmpty
+                                    child:
+                                        imageUrl != null && imageUrl.isNotEmpty
                                         ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(13),
+                                            borderRadius: BorderRadius.circular(
+                                              13,
+                                            ),
                                             child: CachedNetworkImage(
                                               imageUrl: imageUrl,
                                               fit: BoxFit.cover,
                                               memCacheWidth: 112,
                                               memCacheHeight: 112,
-                                              errorWidget: (_, __, ___) => Center(
-                                                child: Text(
-                                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                                  style: AppType.h3.copyWith(color: AppColors.primary),
-                                                ),
-                                              ),
+                                              errorWidget: (_, __, ___) =>
+                                                  Center(
+                                                    child: Text(
+                                                      name.isNotEmpty
+                                                          ? name[0]
+                                                                .toUpperCase()
+                                                          : '?',
+                                                      style: AppType.h3
+                                                          .copyWith(
+                                                            color: AppColors
+                                                                .primary,
+                                                          ),
+                                                    ),
+                                                  ),
                                             ),
                                           )
                                         : Center(
                                             child: Text(
-                                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                              style: AppType.h3.copyWith(color: AppColors.primary),
+                                              name.isNotEmpty
+                                                  ? name[0].toUpperCase()
+                                                  : '?',
+                                              style: AppType.h3.copyWith(
+                                                color: AppColors.primary,
+                                              ),
                                             ),
                                           ),
                                   ),
@@ -735,10 +880,15 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                                       right: 0,
                                       bottom: 0,
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: AppColors.primary,
-                                          borderRadius: BorderRadius.circular(7),
+                                          borderRadius: BorderRadius.circular(
+                                            7,
+                                          ),
                                         ),
                                         child: Text(
                                           'x$qty',
@@ -775,16 +925,20 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
               ],
               // Add more / Explore products button — shown for all users
               Tappable(
-                onTap: () => Navigator.push(
-                    context, SlideRightRoute(page: const ProductsScreen())),
+                onTap: _openProducts,
                 scaleFactor: 0.97,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -807,17 +961,36 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Icon(Icons.arrow_forward_rounded,
-                          size: 14, color: AppColors.primary.withValues(alpha: 0.6)),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 14,
+                        color: AppColors.primary.withValues(alpha: 0.6),
+                      ),
                     ],
                   ),
                 ),
               ),
+              if (cart.products.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _BrowseProductsSection(
+                  products: cart.products,
+                  onTap: _openProducts,
+                ),
+              ],
               const SizedBox(height: 16),
               RepaintBoundary(
-                child: _HeroCarousel(
-                  currentIndex: _carouselIndex,
-                  onIndexChanged: (i) => setState(() => _carouselIndex = i),
+                child: RemoteCarousel(
+                  location: 'home_scheduled',
+                  fallbackAssets: [
+                    'assets/images/1.png',
+                    'assets/images/2.png',
+                    'assets/images/3.png',
+                    'assets/images/4.png',
+                    'assets/images/5.png',
+                  ],
+                  heightDivisor: 2.0,
+                  borderRadius: 14,
+                  dotColor: AppColors.primary,
                 ),
               ),
             ],
@@ -866,114 +1039,124 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Good ${_greeting()} ${_greetingEmoji()}',
+                            style: AppType.micro.copyWith(
+                              color: const Color(0xFF31556C),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            firstName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.h1.copyWith(
+                              color: const Color(0xFF082F49),
+                              fontSize: 24,
+                              letterSpacing: -0.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
                             children: [
+                              const Icon(
+                                Icons.calendar_today_rounded,
+                                size: 11,
+                                color: Color(0xFF5F7F95),
+                              ),
+                              const SizedBox(width: 4),
                               Text(
-                                'Good ${_greeting()} ${_greetingEmoji()}',
+                                DateFormat('EEE, d MMM').format(DateTime.now()),
                                 style: AppType.micro.copyWith(
-                                  color: const Color(0xFF31556C),
-                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF5F7F95),
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                firstName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppType.h1.copyWith(
-                                  color: const Color(0xFF082F49),
-                                  fontSize: 24,
-                                  letterSpacing: -0.5,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  const Icon(Icons.calendar_today_rounded,
-                                      size: 11, color: Color(0xFF5F7F95)),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    DateFormat('EEE, d MMM').format(DateTime.now()),
-                                    style: AppType.micro.copyWith(
-                                      color: const Color(0xFF5F7F95),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
                               ),
                             ],
                           ),
-                        ),
-                        if (_dueAmount != null) ...[
-                          _HeaderWalletPill(
-                            amount: _dueAmount!,
-                            onTap: () => Navigator.push(
-                                context, SlideUpRoute(page: const DueScreen())),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        _headerIconBtn(
-                          Icons.notifications_none_rounded,
-                          () => Navigator.push(
-                              context, SlideUpRoute(page: const NotificationsScreen())),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ── Collapsed minimal bar ────────────────────────────────
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: stickyFade,
-                    child: IgnorePointer(
-                      ignoring: p < 0.5,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.6),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.5)),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.asset(
-                              'assets/images/image.png',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                          const SizedBox(width: 9),
-                          Text(
-                            'YaduOne',
-                            style: TextStyle(
-                              color: const Color(0xFF082F49),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (_dueAmount != null)
-                            _HeaderWalletPill(
-                              amount: _dueAmount!,
-                              onTap: () => Navigator.push(
-                                  context, SlideUpRoute(page: const DueScreen())),
-                            ),
                         ],
                       ),
                     ),
+                    if (_dueAmount != null) ...[
+                      _HeaderWalletPill(
+                        amount: _dueAmount!,
+                        onTap: () => Navigator.push(
+                          context,
+                          SlideUpRoute(page: const DueScreen()),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    _headerIconBtn(
+                      Icons.notifications_none_rounded,
+                      () => Navigator.push(
+                        context,
+                        SlideUpRoute(page: const NotificationsScreen()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Collapsed minimal bar ────────────────────────────────
+            Positioned.fill(
+              child: Opacity(
+                opacity: stickyFade,
+                child: IgnorePointer(
+                  ignoring: p < 0.5,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Image.asset(
+                          'assets/images/image.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Text(
+                        'YaduOne',
+                        style: TextStyle(
+                          color: const Color(0xFF082F49),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (_dueAmount != null)
+                        _HeaderWalletPill(
+                          amount: _dueAmount!,
+                          onTap: () => Navigator.push(
+                            context,
+                            SlideUpRoute(page: const DueScreen()),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
+          ],
+        ),
       ),
     );
   }
@@ -994,7 +1177,6 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
       ),
     );
   }
-
 
   String _greeting() {
     final hour = DateTime.now().hour;
@@ -1049,14 +1231,122 @@ class _HomeTabState extends State<_HomeTab> with SingleTickerProviderStateMixin 
       default:
         return milkType
             .split('_')
-            .map((w) => w.isEmpty
-                ? ''
-                : w[0].toUpperCase() + w.substring(1))
+            .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
             .join(' ');
     }
   }
 }
 
+class _BrowseProductsSection extends StatelessWidget {
+  final List<dynamic> products;
+  final VoidCallback onTap;
+
+  const _BrowseProductsSection({required this.products, required this.onTap});
+
+  static String _coverImage(Map<String, dynamic> product) {
+    final cover = product['cover_image_small'] ?? product['cover_image_large'];
+    if (cover is String && cover.isNotEmpty) return cover;
+    final images = product['images'];
+    if (images is List) {
+      return images.whereType<String>().firstWhere(
+        (image) => image.isNotEmpty,
+        orElse: () => '',
+      );
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = products.cast<Map<String, dynamic>>().take(10).toList();
+    return Tappable(
+      onTap: onTap,
+      scaleFactor: 0.98,
+      child: _GlassCard(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_grocery_store_outlined,
+                  size: 15,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Browse our products',
+                    style: AppType.captionBold.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 14,
+                  color: AppColors.primary.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Tap to explore and add items to your scheduled delivery',
+              style: AppType.small.copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 64,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, index) {
+                  final imageUrl = _coverImage(items[index]);
+                  final name = items[index]['name'] as String? ?? '';
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: imageUrl.isEmpty
+                          ? Container(
+                              color: AppColors.primaryLight,
+                              child: Center(
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  style: AppType.h3.copyWith(
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 128,
+                              memCacheHeight: 128,
+                              errorWidget: (_, __, ___) => Container(
+                                color: AppColors.primaryLight,
+                                child: const Icon(
+                                  Icons.shopping_bag_rounded,
+                                  color: AppColors.primary,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _GlassCard extends StatelessWidget {
   final Widget child;
@@ -1169,10 +1459,7 @@ class _SoftBlob extends StatelessWidget {
       child: Container(
         width: 220,
         height: 220,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
       ),
     );
   }
@@ -1207,7 +1494,11 @@ class _HeaderWalletPill extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.account_balance_wallet_rounded, size: 15, color: color),
+                Icon(
+                  Icons.account_balance_wallet_rounded,
+                  size: 15,
+                  color: color,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   hasDue ? '₹${amount.toStringAsFixed(0)} due' : 'Clear',
@@ -1231,10 +1522,7 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final IconData icon;
 
-  const _SectionHeader({
-    required this.title,
-    required this.icon,
-  });
+  const _SectionHeader({required this.title, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -1340,14 +1628,15 @@ class _MilkTypeChip extends StatelessWidget {
             child: Text(
               '$_label · ${quantity}L',
               overflow: TextOverflow.ellipsis,
-              style: AppType.small
-                  .copyWith(color: color, fontWeight: FontWeight.w700),
+              style: AppType.small.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
@@ -1355,7 +1644,9 @@ class _MilkTypeChip extends StatelessWidget {
             child: Text(
               'Subscription',
               style: AppType.micro.copyWith(
-                  color: color, fontWeight: FontWeight.w600),
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -1366,15 +1657,17 @@ class _MilkTypeChip extends StatelessWidget {
 
 // ── Quick Actions Grid ────────────────────────────────────────────────────────
 
-class _QuickActionsGrid extends StatelessWidget {
+class _QuickActionsGrid extends StatefulWidget {
   final CartProvider cart;
-  final VoidCallback onSkipToggle;
+  final bool isProfileComplete;
+  final Future<void> Function() onSkipToggle;
   final VoidCallback onAddExtras;
   final VoidCallback onReports;
   final VoidCallback onLive;
 
   const _QuickActionsGrid({
     required this.cart,
+    required this.isProfileComplete,
     required this.onSkipToggle,
     required this.onAddExtras,
     required this.onReports,
@@ -1382,8 +1675,15 @@ class _QuickActionsGrid extends StatelessWidget {
   });
 
   @override
+  State<_QuickActionsGrid> createState() => _QuickActionsGridState();
+}
+
+class _QuickActionsGridState extends State<_QuickActionsGrid> {
+  bool _skipping = false;
+
+  @override
   Widget build(BuildContext context) {
-    final isSkipped = cart.isSkipped;
+    final isSkipped = widget.cart.isSkipped;
 
     return Row(
       children: [
@@ -1391,28 +1691,47 @@ class _QuickActionsGrid extends StatelessWidget {
           icon: isSkipped ? Icons.replay_rounded : Icons.event_busy_rounded,
           label: isSkipped ? 'Undo\nSkip' : 'Skip\nTomorrow',
           color: isSkipped ? AppColors.success : AppColors.error,
-          onTap: onSkipToggle,
+          isLoading: _skipping,
+          onTap: () async {
+            if (!widget.isProfileComplete) {
+              AppSnackbar.error(
+                context,
+                'Complete your profile to manage deliveries.',
+              );
+              return;
+            }
+            setState(() => _skipping = true);
+            await widget.onSkipToggle();
+            if (!mounted) return;
+            setState(() => _skipping = false);
+            final err = widget.cart.error;
+            if (err != null)
+              AppSnackbar.error(
+                context,
+                err,
+              ); // ignore: use_build_context_synchronously
+          },
         ),
         const SizedBox(width: 10),
         _QuickActionTile(
           icon: Icons.add_shopping_cart_rounded,
           label: 'Add\nExtras',
           color: AppColors.primary,
-          onTap: onAddExtras,
+          onTap: widget.onAddExtras,
         ),
         const SizedBox(width: 10),
         _QuickActionTile(
           icon: Icons.bar_chart_rounded,
           label: 'My\nReports',
           color: const Color(0xFF7C3AED),
-          onTap: onReports,
+          onTap: widget.onReports,
         ),
         const SizedBox(width: 10),
         _QuickActionTile(
           icon: Icons.live_tv_rounded,
           label: 'Farm\nLive',
           color: const Color(0xFFDC2626),
-          onTap: onLive,
+          onTap: widget.onLive,
         ),
       ],
     );
@@ -1424,12 +1743,14 @@ class _QuickActionTile extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool isLoading;
 
   const _QuickActionTile({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.isLoading = false,
   });
 
   @override
@@ -1465,13 +1786,24 @@ class _QuickActionTile extends StatelessWidget {
                     height: 44,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [color.withValues(alpha: 0.95), color.withValues(alpha: 0.70)],
+                        colors: [
+                          color.withValues(alpha: 0.95),
+                          color.withValues(alpha: 0.70),
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(15),
                     ),
-                    child: Icon(icon, size: 21, color: Colors.white),
+                    child: isLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(11),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Icon(icon, size: 21, color: Colors.white),
                   ),
                   const SizedBox(height: 9),
                   Text(
@@ -1585,38 +1917,34 @@ class _QuickCalendarState extends State<_QuickCalendar> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-        child: ListView.builder(
-          controller: _ctrl,
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          itemCount: _days.length,
-          itemBuilder: (context, i) {
-            final day = _days[i];
-            final dateStr = _dateFmt.format(day);
-            final isToday = day == _todayNorm;
-            final isFuture = day.isAfter(_todayNorm);
-            final isPast = day.isBefore(_todayNorm);
-            final status = _statusMap[dateStr];
+            child: ListView.builder(
+              controller: _ctrl,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              itemCount: _days.length,
+              itemBuilder: (context, i) {
+                final day = _days[i];
+                final dateStr = _dateFmt.format(day);
+                final isToday = day == _todayNorm;
+                final isFuture = day.isAfter(_todayNorm);
+                final isPast = day.isBefore(_todayNorm);
+                final status = _statusMap[dateStr];
 
-            Color? dotColor;
-            if (status == 'delivered') {
-              dotColor = AppColors.success;
-            } else if (status != null) {
-              dotColor = AppColors.error;
-            }
+                Color? dotColor;
+                if (status != null) dotColor = DeliveryStatus.color(status);
 
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: _CalendarDayCard(
-                day: day,
-                isToday: isToday,
-                isPast: isPast,
-                isFuture: isFuture,
-                dotColor: dotColor,
-              ),
-            );
-          },
-        ),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: _CalendarDayCard(
+                    day: day,
+                    isToday: isToday,
+                    isPast: isPast,
+                    isFuture: isFuture,
+                    dotColor: dotColor,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -1645,8 +1973,8 @@ class _CalendarDayCard extends StatelessWidget {
     final textColor = isToday
         ? AppColors.primary
         : dimmed
-            ? AppColors.textHint
-            : AppColors.textPrimary;
+        ? AppColors.textHint
+        : AppColors.textPrimary;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -1692,86 +2020,15 @@ class _CalendarDayCard extends StatelessWidget {
   }
 }
 
-// ── Hero Carousel ─────────────────────────────────────────────────────────────
-
-class _HeroCarousel extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onIndexChanged;
-
-  static const _images = [
-    'assets/images/1.png',
-    'assets/images/2.png',
-    'assets/images/3.png',
-    'assets/images/4.png',
-  ];
-
-  const _HeroCarousel({
-    required this.currentIndex,
-    required this.onIndexChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final carouselHeight = constraints.maxWidth / 2.0;
-    return Column(
-      children: [
-        CarouselSlider(
-          options: CarouselOptions(
-            height: carouselHeight,
-            viewportFraction: 1.0,
-            autoPlay: true,
-            autoPlayInterval: const Duration(seconds: 3),
-            autoPlayCurve: Curves.easeInOut,
-            autoPlayAnimationDuration: const Duration(milliseconds: 350),
-            enableInfiniteScroll: true,
-            onPageChanged: (i, _) => onIndexChanged(i),
-          ),
-          items: _images.map((path) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: Image.asset(
-                path,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                cacheWidth: 600,
-              ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_images.length, (i) {
-            final active = i == currentIndex;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: active ? 18 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: active
-                    ? AppColors.primary
-                    : AppColors.primary.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            );
-          }),
-        ),
-      ],
-    );
-      },
-    );
-  }
-}
-
 // ── Smooth scroll behaviour (removes Android overscroll glow) ─────────────────
 
 class _SmoothScrollBehavior extends ScrollBehavior {
   @override
   Widget buildOverscrollIndicator(
-      BuildContext context, Widget child, ScrollableDetails details) {
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
     return child;
   }
 
@@ -1779,4 +2036,3 @@ class _SmoothScrollBehavior extends ScrollBehavior {
   ScrollPhysics getScrollPhysics(BuildContext context) =>
       const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
 }
-

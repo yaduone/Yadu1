@@ -403,19 +403,21 @@ class StatefulAvatar extends StatelessWidget {
   final String name;
   final bool isSubscriptionActive;
   final double size;
+  final String? emoji;
 
   const StatefulAvatar({
     super.key,
     required this.name,
     this.isSubscriptionActive = false,
     this.size = 72,
+    this.emoji,
   });
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-    final ringColor = isSubscriptionActive 
-        ? AppColors.success 
+    final label = emoji ?? (name.isNotEmpty ? name[0].toUpperCase() : 'U');
+    final ringColor = isSubscriptionActive
+        ? AppColors.success
         : Colors.transparent;
 
     return Container(
@@ -442,7 +444,7 @@ class StatefulAvatar extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              initial,
+              label,
               style: TextStyle(
                 fontSize: size * 0.42,
                 fontWeight: FontWeight.w800,

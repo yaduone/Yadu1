@@ -18,6 +18,10 @@ class CalendarProvider extends ChangeNotifier {
   Map<String, dynamic> dayMap(String month) =>
       (_cache[month]?['calendar'] as Map<String, dynamic>?) ?? {};
 
+  /// Returns per-day map of instant orders (rendered in purple).
+  Map<String, dynamic> instantMap(String month) =>
+      (_cache[month]?['instant'] as Map<String, dynamic>?) ?? {};
+
   Map<String, dynamic>? summary(String month) =>
       _cache[month]?['summary'] as Map<String, dynamic>?;
 

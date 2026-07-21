@@ -366,7 +366,7 @@ Get single order detail.
 List orders for admin's area.
 
 **Auth**: Admin
-**Query**: `?date=2025-01-15&status=pending&page=1&limit=50`
+**Query**: `?date=2025-01-15&status=pending|delivered|not_delivered&page=1&limit=50`
 
 ---
 
@@ -416,6 +416,7 @@ User's personal report/insights.
 {
   "total_milk_delivered_litres": 45.0,
   "total_milk_pending_litres": 5.0,
+  "total_not_delivered_days": 4,
   "total_spent": 3500.00,
   "total_skipped_days": 3,
   "extra_items_count": 12,
@@ -424,6 +425,11 @@ User's personal report/insights.
   ]
 }
 ```
+
+Past orders still marked `pending` are persisted as `not_delivered` with
+`non_delivery_reason: "not_marked_delivered"` before history/report responses.
+Skipped-only delivery dates are persisted as `not_delivered` with
+`non_delivery_reason: "skipped"`.
 
 ---
 
