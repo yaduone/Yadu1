@@ -31,7 +31,7 @@ class OnboardingService {
   /// so nothing is persisted about whether it has been seen before.
   Future<List<OnboardingPage>> fetchPages() async {
     final res = await ApiService().get('/onboarding/app');
-    final pages = (res['pages'] as List<dynamic>? ?? [])
+    final pages = (res['data']?['pages'] as List<dynamic>? ?? [])
         .map((page) => OnboardingPage.fromJson(page as Map<String, dynamic>))
         .toList();
     return pages;

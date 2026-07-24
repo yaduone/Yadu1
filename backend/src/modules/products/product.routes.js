@@ -57,7 +57,10 @@ router.get('/', cache.publicStatic, async (req, res, next) => {
 
     // Filter by delivery availability (instant store). Legacy docs (no field) are scheduled-only.
     if (req.query.availability === 'instant') {
-      products = products.filter((p) => isInstantAvailable(p.availability));
+      products = products
+        .filter((p) => isInstantAvailable(p.availability))
+        // Instant store shows the instant price when one is configured; otherwise the base price.
+        .map((p) => (p.instant_price != null ? { ...p, price: p.instant_price } : p));
     } else if (req.query.availability === 'scheduled') {
       products = products.filter((p) => (p.availability || 'scheduled') !== 'instant');
     }
@@ -83,7 +86,7 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
       bodyKeys: Object.keys(req.body),
     });
 
-    const { name, category, unit, price, description, availability } = req.body;
+    const { name, category, unit, price, description, availability, instant_price } = req.body;
 
     if (!name || !category || !unit || price === undefined) {
       console.log('[PRODUCT CREATE] Missing required fields', { name, category, unit, price });
@@ -103,6 +106,15 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
       return badRequest(res, 'Price must be a positive number');
     }
 
+    // Optional separate price for the instant store. Blank/omitted → falls back to base price.
+    let parsedInstantPrice = null;
+    if (instant_price !== undefined && instant_price !== null && String(instant_price).trim() !== '') {
+      parsedInstantPrice = parseFloat(instant_price);
+      if (isNaN(parsedInstantPrice) || parsedInstantPrice <= 0) {
+        return badRequest(res, 'Instant price must be a positive number');
+      }
+    }
+
     console.log('[PRODUCT CREATE] Uploading images', { fileCount: req.files?.length || 0 });
     const imageUrls = req.files?.length ? await uploadImages(req.files) : [];
     console.log('[PRODUCT CREATE] Images uploaded', { imageCount: imageUrls.length, urls: imageUrls });
@@ -116,6 +128,7 @@ router.post('/', authenticateAdmin, upload.array('images', 10), handleMulterErro
       category,
       unit,
       price             : parsedPrice,
+      instant_price     : parsedInstantPrice,
       description       : description || '',
       availability      : availability || 'scheduled',
       images            : imageUrls,
@@ -151,7 +164,7 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
     if (!productDoc.exists) return notFound(res, 'Product not found');
 
     const existing = productDoc.data();
-    const { name, category, unit, price, description, is_active, availability, replace_images, remove_images, cover_image_small, cover_image_large } = req.body;
+    const { name, category, unit, price, description, is_active, availability, instant_price, replace_images, remove_images, cover_image_small, cover_image_large } = req.body;
     const updateData = { updated_at: admin.firestore.FieldValue.serverTimestamp() };
 
     if (name        !== undefined) updateData.name        = name;
@@ -170,6 +183,16 @@ router.put('/:id', authenticateAdmin, upload.array('images', 10), handleMulterEr
       const p = parseFloat(price);
       if (isNaN(p) || p <= 0) return badRequest(res, 'Price must be positive');
       updateData.price = p;
+    }
+    if (instant_price !== undefined) {
+      // Blank string clears the override → fall back to base price.
+      if (instant_price === null || String(instant_price).trim() === '') {
+        updateData.instant_price = null;
+      } else {
+        const ip = parseFloat(instant_price);
+        if (isNaN(ip) || ip <= 0) return badRequest(res, 'Instant price must be positive');
+        updateData.instant_price = ip;
+      }
     }
 
     let currentImages = Array.isArray(existing.images) ? [...existing.images] : [];

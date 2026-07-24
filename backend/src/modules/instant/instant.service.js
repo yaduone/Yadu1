@@ -1,6 +1,7 @@
 const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const notificationService = require('../notifications/notification.service');
+const emailService = require('../notifications/email.service');
 const cartCharges = require('../settings/cartCharges.service');
 const instantHours = require('../settings/instantHours.service');
 const { isInstantAvailable, isValidInstantDeliveryCharge } = require('../../utils/validators');
@@ -189,13 +190,16 @@ async function addItem(userId, areaId, { product_id, quantity }) {
   const data = snap.exists ? snap.data() : null;
   const items = data?.items ? [...data.items] : [];
 
+  // Use the instant-specific price when configured; otherwise the base price.
+  const unitPrice = product.instant_price != null ? product.instant_price : product.price;
+
   const newItem = {
     product_id,
     product_name: product.name,
     quantity,
     unit: product.unit,
-    price: product.price,
-    total: quantity * product.price,
+    price: unitPrice,
+    total: quantity * unitPrice,
   };
 
   const idx = items.findIndex((i) => i.product_id === product_id);
@@ -397,6 +401,27 @@ async function confirmOrder(userId, areaId) {
     userId,
     totalAmount: cart.total_amount,
   });
+
+  // Gmail alert to admin-configured recipients (fire-and-forget; opt-in via the
+  // Email Alerts settings page). Enrich with the customer's contact details so
+  // the email is actionable on its own.
+  (async () => {
+    try {
+      const userDoc = await db.collection('users').doc(userId).get();
+      const customer = userDoc.exists ? userDoc.data() : {};
+      await emailService.sendInstantOrderCreatedEmail({
+        orderId: orderRef.id,
+        order: orderData,
+        customer: {
+          name: customer.name || null,
+          phone: customer.phone || null,
+          address: customer.address || null,
+        },
+      });
+    } catch (err) {
+      console.error('[instant.confirmOrder] email alert failed:', err.message);
+    }
+  })();
 
   // Serialize through the same view the poll uses. Without this the caller
   // would receive uncommitted write sentinels as `{}` for every timestamp.

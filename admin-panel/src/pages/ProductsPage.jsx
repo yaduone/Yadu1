@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 const EMPTY_FORM = {
-  name: '', category: '', unit: '', price: '', description: '',
+  name: '', category: '', unit: '', price: '', instant_price: '', description: '',
   availability: 'both', cover_image_small: '', cover_image_large: '',
 };
 
@@ -84,7 +84,7 @@ export default function ProductsPage() {
 
   function startEdit(p) {
     const imgs = Array.isArray(p.images) ? p.images : [];
-    setForm({ name: p.name, category: p.category || categories[0]?.slug || '', unit: p.unit, price: String(p.price), description: p.description || '',
+    setForm({ name: p.name, category: p.category || categories[0]?.slug || '', unit: p.unit, price: String(p.price), instant_price: p.instant_price != null ? String(p.instant_price) : '', description: p.description || '',
       availability: p.availability || 'scheduled',
       cover_image_small: p.cover_image_small || imgs[0] || '',
       cover_image_large: p.cover_image_large || imgs[0] || '',
@@ -141,6 +141,10 @@ export default function ProductsPage() {
       fd.append('category', form.category);
       fd.append('unit', form.unit.trim());
       fd.append('price', form.price);
+      // Instant price only applies when the product is sold in the instant store.
+      // Send it (possibly empty, to clear) so the base price is used as fallback otherwise.
+      const instantPriceApplies = form.availability === 'instant' || form.availability === 'both';
+      fd.append('instant_price', instantPriceApplies ? form.instant_price.trim() : '');
       fd.append('description', form.description.trim());
       fd.append('availability', form.availability);
       if (form.cover_image_small) fd.append('cover_image_small', form.cover_image_small);
@@ -292,6 +296,24 @@ export default function ProductsPage() {
                 </select>
                 <p className="text-[11px] text-slate-400 mt-1">Controls whether this product shows in the Scheduled cart, the Instant store, or both.</p>
               </div>
+              {(form.availability === 'instant' || form.availability === 'both') && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                    <Zap size={12} className="text-violet-500" />
+                    Instant Price (₹)
+                  </label>
+                  <input
+                    placeholder="Same as base price"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={form.instant_price}
+                    onChange={(e) => setForm({ ...form, instant_price: e.target.value })}
+                    className="input"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Price shown in the Instant store. Leave blank to use the base price above.</p>
+                </div>
+              )}
               <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
                 <input

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, Megaphone, LogOut,
   ChevronRight, Menu, X, Settings, StickyNote,
-  FlaskConical, Zap, Receipt, Images, Sparkles,
+  FlaskConical, Zap, Receipt, Images, Sparkles, Mail,
 } from 'lucide-react';
 
 const navItems = [
@@ -30,6 +30,7 @@ const navItems = [
   { to: '/inventory',   icon: Package,         label: 'Stock Ledger', group: 'fin'  },
   { to: '/activity',    icon: Bell,            label: 'Activity',    group: 'fin'  },
   { to: '/notify',      icon: Megaphone,       label: 'Notify',      group: 'ops'  },
+  { to: '/email-alerts', icon: Mail,           label: 'Email Alerts', group: 'ops'  },
 ];
 
 const groups = [

@@ -22,6 +22,7 @@ import InventoryPage from './pages/InventoryPage';
 import NotesPage from './pages/NotesPage';
 import NotifyPage from './pages/NotifyPage';
 import ChargesPage from './pages/ChargesPage';
+import EmailAlertsPage from './pages/EmailAlertsPage';
 import CarouselsPage from './pages/CarouselsPage';
 import OnboardingPage from './pages/OnboardingPage';
 
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="livestreams" element={<LivestreamsPage />} />
             <Route path="prices" element={<PricesPage />} />
             <Route path="charges" element={<ChargesPage />} />
+            <Route path="email-alerts" element={<EmailAlertsPage />} />
             <Route path="dues" element={<DuesPage />} />
             <Route path="activity" element={<ActivityPage />} />
             <Route path="flow-tests" element={<FlowTestingPage />} />

@@ -285,9 +285,6 @@ class InstantProvider extends ChangeNotifier {
 
   // ── Mutations ───────────────────────────────────────────────────────────────
 
-  /// How long the cart sits idle before unflushed taps are pushed. Long enough
-  /// that holding "+" produces one request instead of one per tap.
-  static const Duration _flushDelay = Duration(milliseconds: 500);
   Timer? _flushTimer;
   Future<void>? _flushInFlight;
 
@@ -300,7 +297,9 @@ class InstantProvider extends ChangeNotifier {
     _localQty[productId] = quantity < 0 ? 0 : quantity;
     _error = null;
     notifyListeners();
-    _scheduleFlush();
+    // Intentionally not flushed here: cart edits stay local (no per-tap network
+    // call, so the button never shows a spinner). They're pushed to the server
+    // in one batch by [confirm] via [flushNow].
   }
 
   void addItem(String productId, {int quantity = 1}) =>
@@ -318,12 +317,7 @@ class InstantProvider extends ChangeNotifier {
     _localDeliveryCharge = charge;
     _error = null;
     notifyListeners();
-    _scheduleFlush();
-  }
-
-  void _scheduleFlush() {
-    _flushTimer?.cancel();
-    _flushTimer = Timer(_flushDelay, () => flushNow());
+    // Kept local; flushed with the rest of the cart on [confirm].
   }
 
   /// Pushes every pending local edit to the server now, cancelling any timer.

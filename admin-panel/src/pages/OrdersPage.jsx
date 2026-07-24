@@ -5,7 +5,7 @@ import LiveIndicator from '../components/LiveIndicator';
 import SearchField from '../components/SearchField';
 import LocationLink from '../components/LocationLink';
 import { matchesSearch } from '../utils/search';
-import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package, Copy, Share2 } from 'lucide-react';
 
 const STATUS_BADGE = {
   delivered: 'badge badge-green',
@@ -72,6 +72,51 @@ function statusLabel(status) {
   }[displayStatus(status)] || status;
 }
 
+function mapsLink(location) {
+  if (!location?.latitude || !location?.longitude) return null;
+  const lat = parseFloat(location.latitude);
+  const lon = parseFloat(location.longitude);
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return `https://www.google.com/maps?q=${lat},${lon}`;
+}
+
+// Compose a plain-text block for the selected orders that reads well when
+// pasted into WhatsApp: one section per order with customer, items, amount,
+// status and (when available) a tappable Google Maps link.
+function buildShareText(selected, activeTab, date) {
+  const heading = activeTab === 'milk' ? 'Milk Deliveries' : 'Product Orders';
+  const lines = [`*${heading} - ${date}*`, ''];
+
+  selected.forEach((order, idx) => {
+    const name = order.user_name || order.user_phone || 'Unknown';
+    lines.push(`${idx + 1}. *${name}*`);
+    if (order.user_name && order.user_phone) lines.push(`   Phone: ${order.user_phone}`);
+    if (order.user_address?.line1) lines.push(`   Address: ${order.user_address.line1}`);
+
+    if (activeTab === 'milk') {
+      if (order.milk) {
+        lines.push(`   Milk: ${order.milk.milk_type} ${order.milk.quantity_litres}L`);
+      } else {
+        lines.push(`   Milk: ${order.non_delivery_reason === 'skipped' ? 'Skipped by user' : 'Not delivered'}`);
+      }
+    } else {
+      getExtras(order).forEach((item) => {
+        const label = item.name || item.product_name || item.product_id;
+        lines.push(`   Item: ${label}${item.quantity ? ` x ${item.quantity}` : ''}`);
+      });
+    }
+
+    lines.push(`   Amount: ${money(getDisplayAmount(order, activeTab))}`);
+    lines.push(`   Status: ${statusLabel(order.status)}`);
+
+    const link = mapsLink(order.user_location);
+    if (link) lines.push(`   Map: ${link}`);
+    lines.push('');
+  });
+
+  return lines.join('\n').trim();
+}
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -135,9 +180,14 @@ export default function OrdersPage() {
   }
 
   async function markSelectedDelivered() {
-    if (!selectedOrders.length) return;
-    if (!window.confirm(`Mark ${selectedOrders.length} orders as delivered?`)) return;
-    const ids = selectedOrders;
+    // Selection may include non-pending orders (they can still be shared), so
+    // only push a status change for the ones that are actually pending.
+    const pendingIds = orders
+      .filter((o) => selectedOrders.includes(o.id) && o.status === 'pending')
+      .map((o) => o.id);
+    if (!pendingIds.length) return;
+    if (!window.confirm(`Mark ${pendingIds.length} orders as delivered?`)) return;
+    const ids = pendingIds;
     setSelectedOrders([]);
     patchOrders(ids, { status: 'delivered' });
     try {
@@ -148,6 +198,29 @@ export default function OrdersPage() {
       alert(err.response?.data?.error || 'Failed to update some orders');
       loadOrders({ silent: true });
     }
+  }
+
+  function selectedOrderObjects() {
+    const idSet = new Set(selectedOrders);
+    // Preserve the on-screen order so the shared list matches the board.
+    return visibleOrders.filter((o) => idSet.has(o.id));
+  }
+
+  async function copySelected() {
+    const text = buildShareText(selectedOrderObjects(), activeTab, date);
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Order details copied to clipboard');
+    } catch {
+      // Clipboard API can be blocked (insecure context / permissions); fall
+      // back to a prompt the operator can copy from manually.
+      window.prompt('Copy the order details below:', text);
+    }
+  }
+
+  function shareSelectedWhatsApp() {
+    const text = buildShareText(selectedOrderObjects(), activeTab, date);
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   }
 
   function switchTab(tab) {
@@ -171,7 +244,6 @@ export default function OrdersPage() {
   const productUnits = productOrders.reduce((sum, o) => sum + getExtrasQuantity(o), 0);
   const today = relativeDate(0);
   const canMarkDelivered = date <= today;
-  const pendingOrders = visibleOrders.filter((o) => o.status === 'pending' && canMarkDelivered);
   const counts = visibleOrders.reduce((acc, o) => {
     const status = displayStatus(o.status);
     acc[status] = (acc[status] || 0) + 1;
@@ -188,11 +260,23 @@ export default function OrdersPage() {
             {visibleOrders.length} {activeLabel} - {date}
           </p>
         </div>
-        {selectedOrders.length > 0 && canMarkDelivered && (
-          <button onClick={markSelectedDelivered} className="btn-primary btn-sm animate-fade-in shrink-0">
-            <CheckSquare size={14} />
-            Mark {selectedOrders.length} Delivered
-          </button>
+        {selectedOrders.length > 0 && (
+          <div className="flex gap-2 animate-fade-in shrink-0 flex-wrap justify-end">
+            <button onClick={copySelected} className="btn-ghost btn-sm">
+              <Copy size={14} />
+              Copy {selectedOrders.length}
+            </button>
+            <button onClick={shareSelectedWhatsApp} className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700">
+              <Share2 size={14} />
+              WhatsApp
+            </button>
+            {canMarkDelivered && (
+              <button onClick={markSelectedDelivered} className="btn-primary btn-sm">
+                <CheckSquare size={14} />
+                Mark {selectedOrders.length} Delivered
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -324,9 +408,9 @@ export default function OrdersPage() {
                   <th className="w-10 text-center">
                     <input
                       type="checkbox"
-                      checked={pendingOrders.length > 0 && selectedOrders.length === pendingOrders.length}
-                      onChange={(e) => setSelectedOrders(e.target.checked ? pendingOrders.map((o) => o.id) : [])}
-                      disabled={pendingOrders.length === 0}
+                      checked={visibleOrders.length > 0 && selectedOrders.length === visibleOrders.length}
+                      onChange={(e) => setSelectedOrders(e.target.checked ? visibleOrders.map((o) => o.id) : [])}
+                      disabled={visibleOrders.length === 0}
                       className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                     />
                   </th>
@@ -457,14 +541,12 @@ function OrderCard({ order, activeTab, selected, canMarkDelivered, onSelect, onD
     <div className={`card p-4 ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
-          {order.status === 'pending' && canMarkDelivered && (
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={(e) => onSelect(e.target.checked)}
-              className="mt-0.5 rounded border-slate-300 text-blue-600"
-            />
-          )}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onSelect(e.target.checked)}
+            className="mt-0.5 rounded border-slate-300 text-blue-600"
+          />
           <div className="min-w-0">
             <CustomerBlock order={order} />
             <div className="mt-1.5">
@@ -496,14 +578,12 @@ function OrderRow({ order, activeTab, selected, canMarkDelivered, onSelect, onDe
   return (
     <tr className={selected ? 'bg-blue-50/60' : ''}>
       <td className="text-center">
-        {order.status === 'pending' && canMarkDelivered && (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={(e) => onSelect(e.target.checked)}
-            className="rounded border-slate-300 w-4 h-4 text-blue-600 focus:ring-blue-500"
-          />
-        )}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+          className="rounded border-slate-300 w-4 h-4 text-blue-600 focus:ring-blue-500"
+        />
       </td>
       <td>
         <CustomerBlock order={order} />

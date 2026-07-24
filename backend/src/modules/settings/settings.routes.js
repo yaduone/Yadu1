@@ -7,6 +7,7 @@ const manifestSettings = require('./manifestSettings.service');
 const cartCharges = require('./cartCharges.service');
 const instantHours = require('./instantHours.service');
 const appVersion = require('./appVersion.service');
+const emailNotifications = require('./emailNotifications.service');
 
 // GET /api/settings/manifest — Admin: read manifest schedule for admin area
 router.get('/manifest', authenticateAdmin, async (req, res, next) => {
@@ -132,6 +133,28 @@ router.get('/app-version/app', async (req, res, next) => {
   try {
     const result = await appVersion.checkForUpdate(req.query.build);
     return success(res, result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Email (Gmail) alerts ────────────────────────────────────────────────────
+
+// GET /api/settings/email-notifications — Admin: read the email alert config
+router.get('/email-notifications', authenticateAdmin, async (req, res, next) => {
+  try {
+    const config = await emailNotifications.getConfig();
+    return success(res, { config });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/settings/email-notifications — Admin: update the email alert config
+router.put('/email-notifications', authenticateAdmin, async (req, res, next) => {
+  try {
+    const config = await emailNotifications.updateConfig(req.body, req.admin.adminId);
+    return success(res, { config }, 'Email alert settings updated');
   } catch (err) {
     next(err);
   }
