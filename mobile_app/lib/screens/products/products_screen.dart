@@ -597,9 +597,13 @@ class _CatalogueHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Compact icon buttons so the title keeps the maximum share of the row on
+    // narrow screens — the default IconButton reserves a 48px hit target each,
+    // which is what squeezed longer category names into an ellipsis.
+    const compactConstraints = BoxConstraints(minWidth: 40, minHeight: 40);
     return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.border)),
@@ -609,6 +613,9 @@ class _CatalogueHeader extends StatelessWidget {
           IconButton(
             tooltip: isSearching ? 'Back to products' : 'Back',
             onPressed: onBack,
+            visualDensity: VisualDensity.compact,
+            constraints: compactConstraints,
+            padding: const EdgeInsets.all(8),
             icon: AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
               child: Icon(
@@ -668,11 +675,10 @@ class _CatalogueHeader extends StatelessWidget {
                         SkeletonLoader(height: 9, width: 92, borderRadius: 5),
                       ],
                     )
-                  : Text(
-                      title,
+                  : Padding(
                       key: const ValueKey('category-title'),
-                      overflow: TextOverflow.ellipsis,
-                      style: AppType.h2,
+                      padding: const EdgeInsets.only(left: 2, right: 4),
+                      child: _AutoFitTitle(title: title),
                     ),
             ),
           ),
@@ -689,7 +695,10 @@ class _CatalogueHeader extends StatelessWidget {
                 : IconButton(
                     tooltip: 'Search products',
                     onPressed: onSearch,
-                    icon: const Icon(Icons.search_rounded),
+                    visualDensity: VisualDensity.compact,
+                    constraints: compactConstraints,
+                    padding: const EdgeInsets.all(8),
+                    icon: const Icon(Icons.search_rounded, size: 22),
                   ),
             loading
                 ? const Padding(
@@ -703,11 +712,61 @@ class _CatalogueHeader extends StatelessWidget {
                 : IconButton(
                     tooltip: 'Go to cart',
                     onPressed: onCart,
-                    icon: const Icon(Icons.shopping_cart_outlined),
+                    visualDensity: VisualDensity.compact,
+                    constraints: compactConstraints,
+                    padding: const EdgeInsets.all(8),
+                    icon: const Icon(Icons.shopping_cart_outlined, size: 22),
                   ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Header category title that always renders the full text: it wraps to a
+/// second line when needed and, only if two lines still overflow, scales the
+/// font down to fit the available width. No ellipsis, no clipping.
+class _AutoFitTitle extends StatelessWidget {
+  final String title;
+
+  const _AutoFitTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = AppType.h2;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        // Measure the text at the base size across up to two lines. If it still
+        // doesn't fit, derive a scale factor that makes the widest line fit.
+        double fontSize = baseStyle.fontSize ?? 20;
+        final painter = TextPainter(
+          text: TextSpan(text: title, style: baseStyle),
+          textDirection: Directionality.of(context),
+          maxLines: 2,
+        )..layout(maxWidth: maxWidth);
+
+        if (painter.didExceedMaxLines || painter.width > maxWidth) {
+          final singleLine = TextPainter(
+            text: TextSpan(text: title, style: baseStyle),
+            textDirection: Directionality.of(context),
+            maxLines: 1,
+          )..layout();
+          // Scale so two lines of the widest word-wrapped content fit; clamp so
+          // the title never becomes unreadably small.
+          final scale = (maxWidth * 2) / singleLine.width;
+          fontSize = (fontSize * scale).clamp(13.0, fontSize);
+        }
+
+        return Text(
+          title,
+          maxLines: 2,
+          softWrap: true,
+          overflow: TextOverflow.ellipsis,
+          style: baseStyle.copyWith(fontSize: fontSize),
+        );
+      },
     );
   }
 }
@@ -727,8 +786,13 @@ class _CategoryRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Scale the rail with the viewport so it never eats an outsized share of a
+    // small screen (which starved the header title) nor looks cramped on large
+    // ones. Clamped to a sensible, tap-friendly range.
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final railWidth = (screenWidth * 0.27).clamp(96.0, 116.0);
     return Container(
-      width: 108,
+      width: railWidth,
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(right: BorderSide(color: AppColors.border)),

@@ -401,12 +401,31 @@ class InstantProvider extends ChangeNotifier {
     super.dispose();
   }
 
+  /// Guards against a second confirm firing while one is in flight (double-tap,
+  /// or a rebuild re-invoking the handler) — that would place two orders.
+  bool _confirming = false;
+
   /// Confirm the cart → creates an instant order; returns it on success.
   Future<Map<String, dynamic>?> confirm() async {
+    if (_confirming) return null;
+    _confirming = true;
+
     // Any taps still sitting in the debounce window must reach the server
     // before it turns the cart into an order.
     await flushNow();
-    if (_error != null) return null;
+    if (_error != null) {
+      _confirming = false;
+      return null;
+    }
+
+    // Snapshot known order ids so that, if the confirm response is lost in
+    // transit, we can recognise an order the server *did* create and surface
+    // it rather than reporting a false failure (which invites a duplicate).
+    await loadOrders(forceRefresh: true);
+    final knownIds = _orders
+        .map((o) => o['id'] as String?)
+        .whereType<String>()
+        .toSet();
 
     _mutating = true;
     notifyListeners();
@@ -416,14 +435,37 @@ class InstantProvider extends ChangeNotifier {
       // Server empties the cart; reflect that locally.
       await _loadCart();
       await loadOrders(forceRefresh: true);
-      return order;
+      return order ?? _newestOrderNotIn(knownIds);
     } catch (e) {
+      // The POST may have reached the server even though its response did not
+      // reach us (timeout / dropped connection). Reconcile against history: if
+      // a brand-new order appeared, the confirm actually succeeded.
+      await loadOrders(forceRefresh: true);
+      final recovered = _newestOrderNotIn(knownIds);
+      if (recovered != null) {
+        await _loadCart();
+        _error = null;
+        return recovered;
+      }
       _error = ErrorHandler.message(e);
       return null;
     } finally {
       _mutating = false;
+      _confirming = false;
       notifyListeners();
     }
+  }
+
+  /// The most recently placed order whose id wasn't present before the confirm —
+  /// i.e. the one this confirm created. Null if none appeared.
+  Map<String, dynamic>? _newestOrderNotIn(Set<String> knownIds) {
+    for (final o in _orders) {
+      final id = o['id'] as String?;
+      if (id != null && !knownIds.contains(id)) {
+        return Map<String, dynamic>.from(o as Map);
+      }
+    }
+    return null;
   }
 
   /// How late the customer may cancel: 'until_delivery' (default),

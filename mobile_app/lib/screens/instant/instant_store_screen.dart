@@ -45,6 +45,26 @@ class _InstantStoreScreenState extends State<InstantStoreScreen> {
     Navigator.push(context, SlideUpRoute(page: const InstantOrderLogsScreen()));
   }
 
+  /// Tapping the "Your Orders" badge should land the customer on live order
+  /// tracking. With a single active order there is nothing to choose between,
+  /// so we go straight to its status screen; with several, the picker sheet
+  /// lets them choose which one to open.
+  void _openOrders(InstantProvider provider) {
+    final active = provider.activeOrders;
+    if (active.length == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InstantOrderStatusScreen(
+            order: Map<String, dynamic>.from(active.first as Map),
+          ),
+        ),
+      );
+    } else {
+      _openOrdersPopup(provider);
+    }
+  }
+
   void _openOrdersPopup(InstantProvider provider) {
     showModalBottomSheet(
       context: context,
@@ -176,7 +196,7 @@ class _InstantStoreScreenState extends State<InstantStoreScreen> {
                 bottom: 84,
                 child: _YourOrdersBadge(
                   orders: provider.activeOrders,
-                  onTap: () => _openOrdersPopup(provider),
+                  onTap: () => _openOrders(provider),
                 ),
               ),
           ],

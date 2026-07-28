@@ -9,7 +9,6 @@ import '../../theme/instant_theme.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/tappable.dart';
 import '../../widgets/app_snackbar.dart';
-import 'instant_order_status_screen.dart';
 
 class InstantCartScreen extends StatefulWidget {
   const InstantCartScreen({super.key});
@@ -35,20 +34,31 @@ class _InstantCartScreenState extends State<InstantCartScreen> {
     HapticFeedback.mediumImpact();
     final order = await provider.confirm();
     if (!mounted) return;
-    setState(() => _confirming = false);
 
     if (order != null) {
-      // Replace the cart with the live status screen: the order is only
-      // *requested* at this point, and the customer waits there until an admin
-      // accepts it. Using pushReplacement means Back returns to the store, not
-      // to a now-empty cart.
-      await Navigator.pushReplacement(
+      // Order placed: return to the instant store instead of pushing the
+      // status screen. `confirm()` has already force-refreshed the order list,
+      // so the store's floating "Your Orders" badge is showing the moment we
+      // land — the customer taps it to open live tracking. Popping keeps the
+      // back-stack a single screen (Store), so there is no intermediate route
+      // to flash or mis-route through.
+      //
+      // Deliberately leave `_confirming` true through the pop: the spinner must
+      // stay up until order creation is fully done and we've navigated away, so
+      // the button never flickers back to "Confirm Order" mid-redirect. The
+      // cart is torn down by the pop, so there's no lingering loading state.
+      //
+      // The success snackbar is fired *before* the pop so it is enqueued on the
+      // app-level ScaffoldMessenger (an ancestor of both routes) and survives
+      // the cart being torn down.
+      AppSnackbar.success(
         context,
-        MaterialPageRoute(
-          builder: (_) => InstantOrderStatusScreen(order: order),
-        ),
+        'Order placed! Track it under "Your Orders".',
       );
+      Navigator.pop(context);
     } else {
+      // Failed — re-enable the button so the customer can retry.
+      setState(() => _confirming = false);
       AppSnackbar.error(context, provider.error ?? 'Could not place the order.');
     }
   }

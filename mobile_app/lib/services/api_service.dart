@@ -44,6 +44,13 @@ class ApiService {
           headers: await _headers(),
           body: jsonEncode(body),
         ).timeout(_timeout),
+        // POST is not idempotent: a request that times out (or 5xxs) may still
+        // have been applied on the server. Re-sending it to the *other*
+        // production backend would duplicate the write — e.g. place a second
+        // instant order — or scatter an order and its later status polls across
+        // two divergent backends. Never auto-fall-back for POST; let the caller
+        // reconcile instead.
+        allowFallback: false,
       );
 
   Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) =>
@@ -63,23 +70,26 @@ class ApiService {
       );
 
   Future<Map<String, dynamic>> _executeWithFallback(
-      Future<http.Response> Function(String baseUrl) call) async {
+      Future<http.Response> Function(String baseUrl) call,
+      {bool allowFallback = true}) async {
     Object lastError = const NetworkException();
 
     for (int i = 0; i < _baseUrls.length; i++) {
+      // A non-idempotent request only ever hits the primary backend.
+      final canRetry = allowFallback && i < _baseUrls.length - 1;
       try {
         final res = await call(_baseUrls[i]);
         return _handleResponse(res);
       } on SocketException {
         lastError = const NetworkException();
         // Only try fallback on network-level failures
-        if (i < _baseUrls.length - 1) continue;
+        if (canRetry) continue;
       } on TimeoutException {
         lastError = const TimeoutApiException();
-        if (i < _baseUrls.length - 1) continue;
+        if (canRetry) continue;
       } on ApiException catch (e) {
         // Fall through to next URL on 5xx server errors; rethrow 4xx immediately
-        if (e.statusCode >= 500 && i < _baseUrls.length - 1) {
+        if (e.statusCode >= 500 && canRetry) {
           lastError = e;
           continue;
         }
@@ -87,6 +97,7 @@ class ApiService {
       } catch (e) {
         throw ApiException(e.toString(), 0);
       }
+      break;
     }
 
     throw lastError;
