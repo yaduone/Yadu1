@@ -1,6 +1,59 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, MapPin, Loader2, Navigation, Trash2, ExternalLink, AlertCircle } from 'lucide-react';
+import { X, MapPin, Loader2, Navigation, Trash2, ExternalLink, AlertCircle, Link2 } from 'lucide-react';
 import api from '../services/api';
+
+const MODE_GPS = 'gps';
+const MODE_LINK = 'maps_link';
+
+/**
+ * Parse coordinates out of a full Google Maps URL locally, so the common case
+ * needs no round-trip. Short links (maps.app.goo.gl) have no coordinates in
+ * them and are resolved by the backend instead.
+ */
+function parseMapsLink(raw) {
+  if (!raw) return null;
+
+  let text = raw.trim();
+  try {
+    text = decodeURIComponent(text);
+  } catch {
+    // Keep the raw text if it is not valid percent-encoding.
+  }
+
+  const toCoords = (latStr, lonStr) => {
+    const latitude = parseFloat(latStr);
+    const longitude = parseFloat(lonStr);
+    const valid =
+      Number.isFinite(latitude) && Number.isFinite(longitude) &&
+      latitude >= -90 && latitude <= 90 &&
+      longitude >= -180 && longitude <= 180 &&
+      !(latitude === 0 && longitude === 0);
+    return valid ? { latitude, longitude } : null;
+  };
+
+  const patterns = [
+    // !3d<lat>!4d<lng> — the exact place pin, most accurate.
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    // ?q= / &query= / &ll= etc, optionally prefixed with `loc:`
+    /[?&](?:q|query|ll|sll|daddr|destination|center)=(?:loc:)?(-?\d+(?:\.\d+)?)[,+\s]+(-?\d+(?:\.\d+)?)/i,
+    // geo: URI shared from Android
+    /^geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+    // /@<lat>,<lng>,<zoom>z — the viewport centre
+    /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,
+    // A bare "lat, lng" pair with no URL around it
+    /^\(?\s*(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?$/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const coords = toCoords(match[1], match[2]);
+      if (coords) return coords;
+    }
+  }
+
+  return null;
+}
 
 export default function LocationModal({ user, onClose, onLocationUpdated }) {
   const [state, setState] = useState({
@@ -8,8 +61,12 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
     error: '',
     success: '',
     fetchingLocation: false,
+    resolvingLink: false,
     loadingExisting: true,
   });
+  const [mode, setMode] = useState(MODE_GPS);
+  const [linkInput, setLinkInput] = useState('');
+  const [pendingSource, setPendingSource] = useState(MODE_GPS);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [existingLocation, setExistingLocation] = useState(null);
 
@@ -23,7 +80,7 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
         if (!cancelled && res.data.data.location) {
           setExistingLocation(res.data.data.location);
         }
-      } catch (err) {
+      } catch {
         // Silently fail - user might not have location yet
         if (!cancelled) {
           console.log('No existing location found');
@@ -61,8 +118,9 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
           longitude: position.coords.longitude,
         };
         setCurrentLocation(newLocation);
-        setState(prev => ({ 
-          ...prev, 
+        setPendingSource(MODE_GPS);
+        setState(prev => ({
+          ...prev,
           fetchingLocation: false,
           success: 'Location captured! Review coordinates and click "Save Location" to record.'
         }));
@@ -94,6 +152,48 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
     );
   }, []);
 
+  const resolveLink = useCallback(async () => {
+    const raw = linkInput.trim();
+    if (!raw) {
+      setState(prev => ({ ...prev, error: 'Paste a Google Maps link first' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, error: '', success: '' }));
+
+    // Full links carry their coordinates — no need to ask the server.
+    const local = parseMapsLink(raw);
+    if (local) {
+      setCurrentLocation(local);
+      setPendingSource(MODE_LINK);
+      setState(prev => ({
+        ...prev,
+        success: 'Coordinates read from link. Preview the pin, then click "Save Location".',
+      }));
+      return;
+    }
+
+    // Short links (maps.app.goo.gl) must be expanded server-side.
+    setState(prev => ({ ...prev, resolvingLink: true }));
+    try {
+      const res = await api.post('/users/admin/location/resolve-link', { url: raw });
+      const { latitude, longitude } = res.data.data;
+      setCurrentLocation({ latitude, longitude });
+      setPendingSource(MODE_LINK);
+      setState(prev => ({
+        ...prev,
+        resolvingLink: false,
+        success: 'Link resolved. Preview the pin, then click "Save Location".',
+      }));
+    } catch (err) {
+      setState(prev => ({
+        ...prev,
+        resolvingLink: false,
+        error: err.response?.data?.error || 'Could not read a location from that link.',
+      }));
+    }
+  }, [linkInput]);
+
   const saveLocation = useCallback(async () => {
     if (!currentLocation) {
       setState(prev => ({ ...prev, error: 'Please capture location first' }));
@@ -112,17 +212,22 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
     setState(prev => ({ ...prev, loading: true, error: '', success: '' }));
 
     try {
-      await api.post(`/users/admin/${user.id}/location`, currentLocation);
-      
+      await api.post(`/users/admin/${user.id}/location`, {
+        ...currentLocation,
+        source: pendingSource,
+      });
+
       const newExistingLocation = {
         ...currentLocation,
+        source: pendingSource,
         recorded_at: new Date().toISOString(),
       };
-      
+
       setExistingLocation(newExistingLocation);
       setCurrentLocation(null);
-      setState(prev => ({ 
-        ...prev, 
+      setLinkInput('');
+      setState(prev => ({
+        ...prev,
         loading: false,
         success: 'Location saved successfully!'
       }));
@@ -133,12 +238,12 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
       }
     } catch (err) {
       setState(prev => ({ 
-        ...prev, 
+        ...prev,
         loading: false,
-        error: err.response?.data?.error || 'Failed to save location. Please try again.' 
+        error: err.response?.data?.error || 'Failed to save location. Please try again.'
       }));
     }
-  }, [currentLocation, user.id, onLocationUpdated]);
+  }, [currentLocation, pendingSource, user.id, onLocationUpdated]);
 
   const deleteLocation = useCallback(async () => {
     if (!window.confirm('Are you sure you want to remove this location? This action cannot be undone.')) {
@@ -152,8 +257,9 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
       
       setExistingLocation(null);
       setCurrentLocation(null);
-      setState(prev => ({ 
-        ...prev, 
+      setLinkInput('');
+      setState(prev => ({
+        ...prev,
         loading: false,
         success: 'Location removed successfully!'
       }));
@@ -176,15 +282,21 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
     window.open(url, '_blank', 'noopener,noreferrer');
   }, []);
 
-  const displayLocation = currentLocation || existingLocation;
   const hasExistingLocation = existingLocation && !currentLocation;
   const hasPendingLocation = !!currentLocation;
+  const busy = state.loading || state.fetchingLocation || state.resolvingLink;
+
+  const switchMode = useCallback((nextMode) => {
+    setMode(nextMode);
+    setCurrentLocation(null);
+    clearMessages();
+  }, [clearMessages]);
 
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !state.loading && !state.fetchingLocation) {
+        if (e.target === e.currentTarget && !busy) {
           onClose();
         }
       }}
@@ -201,9 +313,9 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
               <p className="text-[10px] text-slate-400">{user.name || user.phone || 'Unknown user'}</p>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
-            disabled={state.loading || state.fetchingLocation}
+          <button
+            onClick={onClose}
+            disabled={busy}
             className="btn-icon text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-50"
           >
             <X size={16} />
@@ -212,13 +324,79 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
 
         {/* Content */}
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Mode selector */}
+          <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => switchMode(MODE_GPS)}
+              disabled={busy}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50 ${
+                mode === MODE_GPS
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Navigation size={13} />
+              Use GPS
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode(MODE_LINK)}
+              disabled={busy}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50 ${
+                mode === MODE_LINK
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Link2 size={13} />
+              Paste Maps Link
+            </button>
+          </div>
+
           {/* Instructions */}
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <p className="text-xs text-blue-700">
-              <strong>Instructions:</strong> Click "Use Current Location" to capture GPS coordinates. 
-              You must be physically at the user's location for accurate recording.
-            </p>
+            {mode === MODE_GPS ? (
+              <p className="text-xs text-blue-700">
+                <strong>Instructions:</strong> Click "Use Current Location" to capture GPS coordinates.
+                You must be physically at the user's location for accurate recording.
+              </p>
+            ) : (
+              <p className="text-xs text-blue-700">
+                <strong>Instructions:</strong> Ask the user to share their location from Google Maps
+                (<em>Share &rsaquo; Copy link</em>) and paste it below. Short links like
+                {' '}<code className="font-mono">maps.app.goo.gl/…</code> work too, as do plain
+                {' '}<code className="font-mono">latitude, longitude</code> pairs.
+              </p>
+            )}
           </div>
+
+          {/* Google Maps link input */}
+          {mode === MODE_LINK && !hasPendingLocation && (
+            <div className="space-y-2">
+              <label htmlFor="maps-link" className="block text-xs font-medium text-slate-600">
+                Google Maps link
+              </label>
+              <textarea
+                id="maps-link"
+                rows={3}
+                value={linkInput}
+                onChange={(e) => {
+                  setLinkInput(e.target.value);
+                  if (state.error || state.success) clearMessages();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    resolveLink();
+                  }
+                }}
+                disabled={busy}
+                placeholder="https://maps.app.goo.gl/…"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 disabled:opacity-60"
+              />
+            </div>
+          )}
 
           {/* Loading State */}
           {state.loadingExisting ? (
@@ -237,6 +415,12 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
                       <div className="space-y-1 text-xs text-emerald-700">
                         <p><strong>Lat:</strong> {existingLocation.latitude.toFixed(6)}</p>
                         <p><strong>Lng:</strong> {existingLocation.longitude.toFixed(6)}</p>
+                        {existingLocation.source && (
+                          <p>
+                            <strong>Source:</strong>{' '}
+                            {existingLocation.source === MODE_LINK ? 'Google Maps link' : 'Device GPS'}
+                          </p>
+                        )}
                         {existingLocation.recorded_at && (
                           <p className="text-emerald-600 mt-2">
                             {new Date(existingLocation.recorded_at).toLocaleString('en-IN', {
@@ -276,6 +460,9 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
                       <div className="space-y-1 text-xs text-amber-700">
                         <p><strong>Lat:</strong> {currentLocation.latitude.toFixed(6)}</p>
                         <p><strong>Lng:</strong> {currentLocation.longitude.toFixed(6)}</p>
+                        <p className="text-amber-600">
+                          From {pendingSource === MODE_LINK ? 'pasted Google Maps link' : 'device GPS'}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -310,8 +497,10 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
           {hasPendingLocation && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
               <p className="text-xs text-slate-700">
-                <strong>⚠️ Important:</strong> This location will be permanently saved and visible to all admins. 
-                Verify the coordinates are correct before saving.
+                <strong>⚠️ Important:</strong> This location will be permanently saved and visible to all admins.
+                {pendingSource === MODE_LINK
+                  ? ' Open the preview in Google Maps and confirm the pin is on the right building before saving.'
+                  : ' Verify the coordinates are correct before saving.'}
               </p>
             </div>
           )}
@@ -319,18 +508,18 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
 
         {/* Footer Actions */}
         <div className="px-5 py-3 border-t border-slate-100 flex gap-2 justify-end">
-          <button 
-            onClick={onClose} 
-            className="btn-secondary" 
-            disabled={state.loading || state.fetchingLocation}
+          <button
+            onClick={onClose}
+            className="btn-secondary"
+            disabled={busy}
           >
-            {state.loading || state.fetchingLocation ? 'Please wait...' : 'Close'}
+            {busy ? 'Please wait...' : 'Close'}
           </button>
-          
-          {!hasPendingLocation && !state.loadingExisting && (
+
+          {!hasPendingLocation && !state.loadingExisting && mode === MODE_GPS && (
             <button
               onClick={getCurrentLocation}
-              disabled={state.fetchingLocation || state.loading}
+              disabled={busy}
               className="btn-primary disabled:opacity-60"
             >
               {state.fetchingLocation ? (
@@ -342,6 +531,26 @@ export default function LocationModal({ user, onClose, onLocationUpdated }) {
                 <>
                   <Navigation size={14} />
                   {hasExistingLocation ? 'Update Location' : 'Use Current Location'}
+                </>
+              )}
+            </button>
+          )}
+
+          {!hasPendingLocation && !state.loadingExisting && mode === MODE_LINK && (
+            <button
+              onClick={resolveLink}
+              disabled={busy || !linkInput.trim()}
+              className="btn-primary disabled:opacity-60"
+            >
+              {state.resolvingLink ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Reading Link...
+                </>
+              ) : (
+                <>
+                  <Link2 size={14} />
+                  Read Location
                 </>
               )}
             </button>

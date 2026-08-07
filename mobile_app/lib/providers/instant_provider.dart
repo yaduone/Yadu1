@@ -421,7 +421,13 @@ class InstantProvider extends ChangeNotifier {
     // Snapshot known order ids so that, if the confirm response is lost in
     // transit, we can recognise an order the server *did* create and surface
     // it rather than reporting a false failure (which invites a duplicate).
-    await loadOrders(forceRefresh: true);
+    //
+    // Deliberately *not* force-refreshed: this snapshot sits on the critical
+    // path between the tap and the order existing, and the list is already
+    // refreshed on every entry to the store and after every confirm. Paying a
+    // full history round-trip here delayed every single order by that latency
+    // to guard a branch only the lost-response path can take.
+    await loadOrders();
     final knownIds = _orders
         .map((o) => o['id'] as String?)
         .whereType<String>()
@@ -432,10 +438,24 @@ class InstantProvider extends ChangeNotifier {
     try {
       final res = await _api.post('/instant/cart/confirm', {});
       final order = res['data']?['order'] as Map<String, dynamic>?;
-      // Server empties the cart; reflect that locally.
+
+      if (order != null) {
+        // The response already carries the created order, so nothing else is
+        // needed before the caller can render it. The server emptied the cart
+        // as part of the confirm — mirror that locally instead of spending a
+        // round-trip to be told the same thing, and let the history refresh
+        // (which only feeds the store's "Your Orders" badge) settle in the
+        // background.
+        _clearCartLocally();
+        unawaited(loadOrders(forceRefresh: true));
+        return order;
+      }
+
+      // No order in the payload (older backend) — fall back to reconciling
+      // against history, which does need the extra fetches.
       await _loadCart();
       await loadOrders(forceRefresh: true);
-      return order ?? _newestOrderNotIn(knownIds);
+      return _newestOrderNotIn(knownIds);
     } catch (e) {
       // The POST may have reached the server even though its response did not
       // reach us (timeout / dropped connection). Reconcile against history: if
@@ -453,6 +473,18 @@ class InstantProvider extends ChangeNotifier {
       _mutating = false;
       _confirming = false;
       notifyListeners();
+    }
+  }
+
+  /// Mirrors the emptying the server performs when it turns the cart into an
+  /// order, without a round-trip to observe it. Keeps the cart map's other
+  /// fields (extra charges, delivery charge) so the shape stays what the UI
+  /// expects; the next [loadCart] replaces it with the server's copy anyway.
+  void _clearCartLocally() {
+    _localQty.clear();
+    _localDeliveryCharge = null;
+    if (_cart != null) {
+      _cart = {..._cart!, 'items': const []};
     }
   }
 

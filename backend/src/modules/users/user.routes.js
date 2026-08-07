@@ -5,6 +5,7 @@ const { admin: firebaseAdmin } = require('../../config/firebase');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, forbidden, notFound } = require('../../utils/response');
 const { logActivity } = require('../../utils/activityLog');
+const { resolveMapsLink } = require('../../utils/googleMaps');
 const reportService = require('../reports/report.service');
 
 const MAX_BATCH_WRITES = 450;
@@ -314,11 +315,44 @@ router.post('/request-deletion', authenticateUser, async (req, res, next) => {
   }
 });
 
-// POST /api/users/admin/:userId/location — Admin: record/update a user's physical location
+// POST /api/users/admin/location/resolve-link — Admin: turn a pasted Google Maps
+// link into coordinates without saving it, so the admin can review the pin first.
+router.post('/admin/location/resolve-link', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { url } = req.body;
+    const result = await resolveMapsLink(url);
+
+    if (result.error) {
+      return badRequest(res, result.error);
+    }
+
+    return success(res, {
+      latitude: result.latitude,
+      longitude: result.longitude,
+    }, 'Location resolved from link');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/users/admin/:userId/location — Admin: record/update a user's physical
+// location, either from captured GPS coordinates or from a pasted Google Maps link.
 router.post('/admin/:userId/location', authenticateAdmin, async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { latitude, longitude } = req.body;
+    let { latitude, longitude } = req.body;
+    const { maps_url: mapsUrl, source } = req.body;
+
+    // A link may be sent instead of coordinates; resolve it server-side so the
+    // saved point never depends on the browser having parsed the URL correctly.
+    if ((latitude === undefined || longitude === undefined) && mapsUrl) {
+      const resolved = await resolveMapsLink(mapsUrl);
+      if (resolved.error) {
+        return badRequest(res, resolved.error);
+      }
+      latitude = resolved.latitude;
+      longitude = resolved.longitude;
+    }
 
     if (!latitude || !longitude) {
       return badRequest(res, 'Latitude and longitude are required');
@@ -326,7 +360,7 @@ router.post('/admin/:userId/location', authenticateAdmin, async (req, res, next)
 
     const lat = parseFloat(latitude);
     const lon = parseFloat(longitude);
-    
+
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return badRequest(res, 'Invalid coordinates');
     }
@@ -344,6 +378,7 @@ router.post('/admin/:userId/location', authenticateAdmin, async (req, res, next)
     const locationData = {
       latitude: lat,
       longitude: lon,
+      source: source === 'maps_link' || mapsUrl ? 'maps_link' : 'gps',
       recorded_by: req.admin.adminId,
       recorded_at: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
     };
@@ -358,17 +393,18 @@ router.post('/admin/:userId/location', authenticateAdmin, async (req, res, next)
       title: 'User Location Recorded',
       message: `Location recorded for user by ${req.admin.username}`,
       areaId: userData.area_id || req.admin.areaId,
-      meta: { 
+      meta: {
         user_id: userId,
         recorded_by_admin_id: req.admin.adminId,
         latitude: lat,
         longitude: lon,
+        source: locationData.source,
       },
     });
 
-    return success(res, { 
+    return success(res, {
       message: 'Location recorded successfully',
-      location: { latitude: lat, longitude: lon },
+      location: { latitude: lat, longitude: lon, source: locationData.source },
     });
   } catch (err) {
     next(err);

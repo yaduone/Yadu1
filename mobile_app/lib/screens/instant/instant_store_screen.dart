@@ -121,11 +121,7 @@ class _InstantStoreScreenState extends State<InstantStoreScreen> {
                                 child: RemoteCarousel(
                                   location: 'home_instant',
                                   fallbackAssets: [
-                                    'assets/images/1.png',
-                                    'assets/images/2.png',
-                                    'assets/images/3.png',
-                                    'assets/images/4.png',
-                                    'assets/images/5.png',
+                                    
                                   ],
                                   heightDivisor: 2.1,
                                   borderRadius: 18,
@@ -271,7 +267,7 @@ class ScheduleInstantToggle extends StatelessWidget {
             onTap: () => onChanged(false),
           ),
           _segment(
-            label: 'Instant',
+            label: 'Instant Delivery',
             icon: Icons.bolt_rounded,
             selected: isInstant,
             color: InstantColors.primary,
@@ -313,11 +309,16 @@ class ScheduleInstantToggle extends StatelessWidget {
                 color: selected ? Colors.white : color.withValues(alpha: 0.8),
               ),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppType.small.copyWith(
-                  color: selected ? Colors.white : color.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w800,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.small.copyWith(
+                    color:
+                        selected ? Colors.white : color.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],

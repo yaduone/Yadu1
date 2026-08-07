@@ -982,11 +982,7 @@ class _HomeTabState extends State<_HomeTab>
                 child: RemoteCarousel(
                   location: 'home_scheduled',
                   fallbackAssets: [
-                    'assets/images/1.png',
-                    'assets/images/2.png',
-                    'assets/images/3.png',
-                    'assets/images/4.png',
-                    'assets/images/5.png',
+                    
                   ],
                   heightDivisor: 2.0,
                   borderRadius: 14,
