@@ -8,6 +8,7 @@ const cartCharges = require('./cartCharges.service');
 const instantHours = require('./instantHours.service');
 const appVersion = require('./appVersion.service');
 const emailNotifications = require('./emailNotifications.service');
+const emailService = require('../notifications/email.service');
 
 // GET /api/settings/manifest — Admin: read manifest schedule for admin area
 router.get('/manifest', authenticateAdmin, async (req, res, next) => {
@@ -140,11 +141,14 @@ router.get('/app-version/app', async (req, res, next) => {
 
 // ── Email (Gmail) alerts ────────────────────────────────────────────────────
 
-// GET /api/settings/email-notifications — Admin: read the email alert config
+// GET /api/settings/email-notifications — Admin: read the email alert config.
+// `configured` reports whether the backend actually has Gmail credentials, which
+// the config document alone cannot tell you — recipients can be saved and alerts
+// switched on while the env vars are still missing.
 router.get('/email-notifications', authenticateAdmin, async (req, res, next) => {
   try {
     const config = await emailNotifications.getConfig();
-    return success(res, { config });
+    return success(res, { config, configured: emailService.isConfigured() });
   } catch (err) {
     next(err);
   }
@@ -154,7 +158,30 @@ router.get('/email-notifications', authenticateAdmin, async (req, res, next) => 
 router.put('/email-notifications', authenticateAdmin, async (req, res, next) => {
   try {
     const config = await emailNotifications.updateConfig(req.body, req.admin.adminId);
-    return success(res, { config }, 'Email alert settings updated');
+    return success(res, { config, configured: emailService.isConfigured() }, 'Email alert settings updated');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/settings/email-notifications/test — Admin: prove the Gmail setup
+// works without waiting for a real order. Sends to `to` when given, otherwise to
+// the saved recipients. Ignores the master switch on purpose: you test first,
+// then turn alerts on.
+router.post('/email-notifications/test', authenticateAdmin, async (req, res, next) => {
+  try {
+    const to = req.body?.to;
+    const result = await emailService.sendTestEmail({
+      to,
+      triggeredBy: req.admin.username || req.admin.adminId,
+    });
+
+    if (!result.sent) return badRequest(res, result.message);
+    return success(
+      res,
+      { recipients: result.recipients, messageId: result.messageId },
+      `Test email sent to ${result.recipients.join(', ')}`
+    );
   } catch (err) {
     next(err);
   }

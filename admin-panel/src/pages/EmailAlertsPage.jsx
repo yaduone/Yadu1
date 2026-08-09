@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Mail, Save, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { Mail, Save, RefreshCw, Plus, Trash2, Send, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -20,6 +20,10 @@ export default function EmailAlertsPage() {
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  // Whether the backend has GMAIL_USER / GMAIL_APP_PASSWORD. Nothing on this
+  // page can send mail without them, however it is configured.
+  const [configured, setConfigured] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   function snapshot(cfg, rows) {
@@ -44,6 +48,7 @@ export default function EmailAlertsPage() {
       };
       setConfig(next);
       setSaved(snapshot(next, rows));
+      setConfigured(res.data.data.configured !== false);
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to load settings' });
     } finally {
@@ -103,11 +108,39 @@ export default function EmailAlertsPage() {
       };
       setConfig(next);
       setSaved(snapshot(next, rows));
+      setConfigured(res.data.data.configured !== false);
       setMessage({ type: 'success', text: 'Email alert settings saved.' });
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to save settings' });
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Sends to whatever is typed in the recipient boxes right now, so the setup can
+  // be proven before committing it with Save.
+  async function sendTest() {
+    const emails = config.recipients.map((r) => r.email.trim().toLowerCase()).filter(Boolean);
+    const invalid = emails.filter((e) => !EMAIL_RE.test(e));
+    if (invalid.length) {
+      setMessage({ type: 'error', text: `Invalid email: ${invalid[0]}` });
+      return;
+    }
+    if (!emails.length) {
+      setMessage({ type: 'error', text: 'Add a recipient to send a test to.' });
+      return;
+    }
+
+    setTesting(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const res = await api.post('/settings/email-notifications/test', { to: emails });
+      setMessage({ type: 'success', text: res.data.message || 'Test email sent.' });
+      setConfigured(true);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to send test email' });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -133,6 +166,16 @@ export default function EmailAlertsPage() {
           }`}
         >
           {message.text}
+        </div>
+      )}
+
+      {!loading && !configured && (
+        <div className="flex items-start gap-2 text-xs px-3 py-2.5 rounded-lg bg-amber-50 text-amber-700 max-w-xl">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <span>
+            The backend has no Gmail credentials (<code>GMAIL_USER</code> / <code>GMAIL_APP_PASSWORD</code>).
+            Nothing will be sent until they are set and the backend is redeployed.
+          </span>
         </div>
       )}
 
@@ -208,9 +251,13 @@ export default function EmailAlertsPage() {
           </div>
 
           <div className="flex items-center gap-3 mt-5 pt-4 border-t border-slate-100">
-            <button onClick={save} disabled={saving || !isChanged} className="btn-primary disabled:opacity-50">
+            <button onClick={save} disabled={saving || testing || !isChanged} className="btn-primary disabled:opacity-50">
               {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? 'Saving...' : 'Save'}
+            </button>
+            <button onClick={sendTest} disabled={saving || testing} className="btn-ghost btn-sm disabled:opacity-50">
+              {testing ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+              {testing ? 'Sending...' : 'Send test email'}
             </button>
             {isChanged && <span className="text-xs text-amber-600">Unsaved changes</span>}
           </div>
