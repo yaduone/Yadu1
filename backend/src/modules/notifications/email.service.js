@@ -20,7 +20,53 @@ const SKIP_REASONS = {
   no_recipients: 'No recipients are configured in Settings → Email Alerts',
   config_error: 'Could not load the email alert settings',
   smtp_error: 'Gmail rejected the message',
+  smtp_timeout:
+    'Timed out connecting to Gmail. The host is most likely blocking outbound SMTP — '
+    + 'try setting SMTP_PORT=587, and check whether your hosting plan permits outbound mail.',
 };
+
+// Gmail listens on 465 (implicit TLS) and 587 (STARTTLS). Several PaaS providers
+// block one or both on lower plans, so the port is overridable rather than baked
+// in via nodemailer's `service: 'gmail'` shorthand. Read per call, like the
+// credentials — nothing here is captured at module load.
+function smtpSettings() {
+  const port = Number(process.env.SMTP_PORT) || 465;
+  return {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure: port === 465,
+  };
+}
+
+// Without these nodemailer waits ~2 minutes to connect and up to 10 minutes on a
+// silent socket. On a host that blackholes SMTP that read as an request that
+// never returns — which is exactly what a blocked port looks like from the UI.
+const CONNECTION_TIMEOUT_MS = 10000;
+const GREETING_TIMEOUT_MS = 10000;
+const SOCKET_TIMEOUT_MS = 20000;
+
+// Belt-and-braces ceiling in case a socket wedges in a state the timeouts above
+// do not cover. Every exported call resolves within this.
+const VERIFY_DEADLINE_MS = 15000;
+const SEND_DEADLINE_MS = 25000;
+
+class DeadlineError extends Error {}
+
+/** Reject with a DeadlineError if `promise` has not settled within `ms`. */
+function withDeadline(promise, ms, label) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new DeadlineError(`${label} exceeded ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+/** A connection that never opened is a different problem from a rejected login. */
+function isTimeout(err) {
+  return err instanceof DeadlineError
+    || ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'EDNS'].includes(err?.code)
+    || /timed?\s?out/i.test(err?.message || '');
+}
 
 function skip(reason, detail) {
   const message = detail || SKIP_REASONS[reason] || reason;
@@ -51,12 +97,16 @@ function getTransporter() {
   const { user, pass } = credentials();
   if (!user || !pass) return null;
 
-  // Rebuild if the credentials changed under us; otherwise reuse the pooled one.
-  const key = `${user}:${pass.length}`;
+  // Rebuild if the credentials or the endpoint changed under us; otherwise reuse.
+  const smtp = smtpSettings();
+  const key = `${user}:${pass.length}:${smtp.host}:${smtp.port}`;
   if (!_transporter || _transporterKey !== key) {
     _transporter = nodemailer.createTransport({
-      service: 'gmail',
+      ...smtp,
       auth: { user, pass },
+      connectionTimeout: CONNECTION_TIMEOUT_MS,
+      greetingTimeout: GREETING_TIMEOUT_MS,
+      socketTimeout: SOCKET_TIMEOUT_MS,
     });
     _transporterKey = key;
   }
@@ -77,9 +127,15 @@ async function verifyTransport() {
   const transporter = getTransporter();
   if (!transporter) return skip('not_configured');
   try {
-    await transporter.verify();
+    await withDeadline(transporter.verify(), VERIFY_DEADLINE_MS, 'SMTP verify');
     return { sent: true, reason: 'ok', message: 'Gmail credentials accepted' };
   } catch (err) {
+    if (isTimeout(err)) {
+      const { host, port } = smtpSettings();
+      console.error(`[email] SMTP connect timed out (${host}:${port}):`, err.message);
+      return skip('smtp_timeout');
+    }
+    console.error('[email] SMTP verify failed:', err.message);
     return skip('smtp_error', `Gmail rejected the credentials: ${err.message}`);
   }
 }
@@ -107,16 +163,25 @@ async function sendMail({ to, subject, text, html }) {
 
   const { user } = credentials();
   try {
-    const info = await transporter.sendMail({
-      from: `"${templates.BRAND}" <${user}>`,
-      to: recipients.join(', '),
-      subject,
-      text,
-      html,
-    });
+    const info = await withDeadline(
+      transporter.sendMail({
+        from: `"${templates.BRAND}" <${user}>`,
+        to: recipients.join(', '),
+        subject,
+        text,
+        html,
+      }),
+      SEND_DEADLINE_MS,
+      'SMTP send'
+    );
     console.log(`[email] sent "${subject}" to ${recipients.length} recipient(s) [${info?.messageId || 'no-id'}]`);
     return { sent: true, reason: 'ok', message: 'Sent', recipients, messageId: info?.messageId || null };
   } catch (err) {
+    if (isTimeout(err)) {
+      const { host, port } = smtpSettings();
+      console.error(`[email] send timed out (${host}:${port}):`, err.message);
+      return skip('smtp_timeout');
+    }
     console.error('[email] send failed:', err.message);
     return skip('smtp_error', `Gmail rejected the message: ${err.message}`);
   }

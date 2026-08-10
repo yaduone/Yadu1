@@ -234,6 +234,68 @@ describe('email.service gating', () => {
     );
   });
 
+  it('builds the transport with timeouts so a blocked port cannot hang a request', async () => {
+    await send();
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        connectionTimeout: expect.any(Number),
+        greetingTimeout: expect.any(Number),
+        socketTimeout: expect.any(Number),
+      })
+    );
+    const opts = nodemailer.createTransport.mock.calls[0][0];
+    expect(opts.connectionTimeout).toBeLessThanOrEqual(15000);
+    expect(opts.socketTimeout).toBeLessThanOrEqual(30000);
+  });
+
+  it('gives up rather than hanging when the SMTP socket never answers', async () => {
+    // A host that blackholes outbound SMTP looks exactly like this: the promise
+    // simply never settles. The request must still come back to the caller.
+    nodemailer.createTransport.mockReturnValue({
+      sendMail: jest.fn(() => new Promise(() => {})),
+      verify: jest.fn(() => new Promise(() => {})),
+    });
+    emailService.resetTransport();
+
+    const result = await send();
+    expect(result).toMatchObject({ sent: false, reason: 'smtp_timeout' });
+    expect(result.message).toContain('SMTP_PORT=587');
+  }, 40000);
+
+  it('maps a connection-level error to the timeout hint, not a login failure', async () => {
+    sendMailMock.mockRejectedValue(Object.assign(new Error('Connection timeout'), { code: 'ETIMEDOUT' }));
+    const result = await send();
+    expect(result).toMatchObject({ sent: false, reason: 'smtp_timeout' });
+  });
+
+  it('honours an SMTP_PORT override for hosts that only allow 587', async () => {
+    process.env.SMTP_PORT = '587';
+    emailService.resetTransport();
+    try {
+      await send();
+      expect(nodemailer.createTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ host: 'smtp.gmail.com', port: 587, secure: false })
+      );
+    } finally {
+      delete process.env.SMTP_PORT;
+    }
+  });
+
+  it('rebuilds the transport when the port changes instead of reusing the old one', async () => {
+    await send();
+    process.env.SMTP_PORT = '587';
+    try {
+      await send();
+      const ports = nodemailer.createTransport.mock.calls.map(([o]) => o.port);
+      expect(ports).toEqual([465, 587]);
+    } finally {
+      delete process.env.SMTP_PORT;
+    }
+  });
+
   it('never throws when Gmail rejects the message', async () => {
     sendMailMock.mockRejectedValue(new Error('Invalid login: 535-5.7.8'));
     const result = await send();

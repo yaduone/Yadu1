@@ -2,6 +2,7 @@ const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const notificationService = require('../notifications/notification.service');
 const emailService = require('../notifications/email.service');
+const telegramService = require('../notifications/telegram.service');
 const cartCharges = require('../settings/cartCharges.service');
 const instantHours = require('../settings/instantHours.service');
 const { isInstantAvailable, isValidInstantDeliveryCharge } = require('../../utils/validators');
@@ -402,24 +403,46 @@ async function confirmOrder(userId, areaId) {
     totalAmount: cart.total_amount,
   });
 
-  // Gmail alert to admin-configured recipients (fire-and-forget; opt-in via the
-  // Email Alerts settings page). Enrich with the customer's contact details so
-  // the email is actionable on its own.
+  // Out-of-app alerts to the admins (fire-and-forget). Both read the customer
+  // doc once between them, and each is caught separately so a Gmail outage —
+  // the SMTP timeouts are a real failure mode on this host — cannot suppress the
+  // Telegram alert, or vice versa.
   (async () => {
+    let customer = {};
     try {
       const userDoc = await db.collection('users').doc(userId).get();
-      const customer = userDoc.exists ? userDoc.data() : {};
+      customer = userDoc.exists ? userDoc.data() : {};
+    } catch (err) {
+      console.error('[instant.confirmOrder] customer lookup for alerts failed:', err.message);
+    }
+
+    // Enrich with contact details so each alert is actionable on its own.
+    const contact = {
+      name: customer.name || null,
+      phone: customer.phone || null,
+      address: customer.address || null,
+    };
+
+    // Opt-in via the Email Alerts settings page.
+    try {
       await emailService.sendInstantOrderCreatedEmail({
         orderId: orderRef.id,
         order: orderData,
-        customer: {
-          name: customer.name || null,
-          phone: customer.phone || null,
-          address: customer.address || null,
-        },
+        customer: contact,
       });
     } catch (err) {
       console.error('[instant.confirmOrder] email alert failed:', err.message);
+    }
+
+    // No-op unless TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are set.
+    try {
+      await telegramService.sendInstantOrderCreatedAlert({
+        orderId: orderRef.id,
+        order: orderData,
+        customer: contact,
+      });
+    } catch (err) {
+      console.error('[instant.confirmOrder] telegram alert failed:', err.message);
     }
   })();
 
@@ -731,6 +754,20 @@ async function cancelOwnOrder(orderId, userId) {
       totalAmount: cancelledOrder.total_amount,
       wasAccepted: cancelledOrder.status === 'acknowledged',
     });
+
+    (async () => {
+      try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        await telegramService.sendInstantOrderCancelledAlert({
+          orderId,
+          customerName: userDoc.exists ? userDoc.data().name : null,
+          totalAmount: cancelledOrder.total_amount,
+          wasAccepted: cancelledOrder.status === 'acknowledged',
+        });
+      } catch (err) {
+        console.error('[instant.cancelOrder] telegram alert failed:', err.message);
+      }
+    })();
   }
 
   return { id: orderId, status: 'cancelled' };

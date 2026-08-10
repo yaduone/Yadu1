@@ -27,16 +27,27 @@ const fallbackApi = axios.create({ baseURL: fallback, headers: { 'Content-Type':
 api.interceptors.request.use(requestInterceptor);
 fallbackApi.interceptors.request.use(requestInterceptor);
 
+// Retrying a write against the *other* backend is not safe: the first attempt
+// may have already reached the server and completed, so a retry can duplicate
+// the effect (two emails, two orders). Only replay requests that carry no side
+// effect. A 404 is exempt below — it proves no handler ran.
+const IDEMPOTENT_METHODS = ['get', 'head', 'options'];
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const requestUrl = err.config?.url || '';
+    const method = (err.config?.method || 'get').toLowerCase();
     const shouldRetryRouteOnFallback =
       err.response?.status === 404 &&
       !err.config?._retried &&
       requestUrl.startsWith('/settings/');
-    // Network-level failure (no response) — retry once with fallback
-    if ((!err.response && !err.config?._retried) || shouldRetryRouteOnFallback) {
+    // Network-level failure (no response) — retry once with fallback, but only
+    // when replaying the request cannot cause the work to happen twice.
+    const shouldRetryNetworkFailure =
+      !err.response && !err.config?._retried && IDEMPOTENT_METHODS.includes(method);
+
+    if (shouldRetryNetworkFailure || shouldRetryRouteOnFallback) {
       const retryConfig = { ...err.config, _retried: true };
       delete retryConfig.baseURL;
       return fallbackApi.request(retryConfig);

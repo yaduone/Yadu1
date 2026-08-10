@@ -134,11 +134,16 @@ export default function EmailAlertsPage() {
     setTesting(true);
     setMessage({ type: '', text: '' });
     try {
-      const res = await api.post('/settings/email-notifications/test', { to: emails });
+      // The backend caps its own SMTP work well under this; the timeout is here
+      // so a wedged connection can never leave the button spinning forever.
+      const res = await api.post('/settings/email-notifications/test', { to: emails }, { timeout: 60000 });
       setMessage({ type: 'success', text: res.data.message || 'Test email sent.' });
       setConfigured(true);
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to send test email' });
+      const text = err.code === 'ECONNABORTED' || !err.response
+        ? 'The backend did not respond. Check the Railway logs for an [email] line.'
+        : err.response?.data?.error || 'Failed to send test email';
+      setMessage({ type: 'error', text });
     } finally {
       setTesting(false);
     }
