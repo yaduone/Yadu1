@@ -38,7 +38,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   String _selectedMilk = 'cow';
   double _quantity = 1.0;
   String _selectedSlot = 'morning';
-  DateTime _startDate = DateTime.now().add(const Duration(days: 1));
+  // Null until the user manually picks a date; falls back to the backend's
+  // cutoff-aware earliest date (or same-day+1 while that's still loading).
+  DateTime? _userPickedStartDate;
 
   // Pending quantity for manage view (null = not dirty)
   double? _pendingQty;
@@ -48,7 +50,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<SubscriptionProvider>().loadPrices(forceRefresh: true);
+      final sub = context.read<SubscriptionProvider>();
+      sub.loadPrices(forceRefresh: true);
+      sub.loadEarliestStartDate();
     });
   }
 
@@ -497,6 +501,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   // ── Create new subscription ──────────────────────────────────
   Widget _buildCreateView(BuildContext context, SubscriptionProvider sub) {
+    final earliestDate =
+        sub.earliestStartDate ?? DateTime.now().add(const Duration(days: 1));
+    // Discard a stale manual pick made before earliestStartDate finished
+    // loading, if it now falls before the real cutoff-aware minimum.
+    if (_userPickedStartDate != null &&
+        _userPickedStartDate!.isBefore(earliestDate)) {
+      _userPickedStartDate = null;
+    }
+    final startDate = _userPickedStartDate ?? earliestDate;
     final pricePerLitre = sub.priceForMilkType(_selectedMilk);
     final dailyPrice = _quantity * pricePerLitre;
     final confirmLabel = sub.isPricesLoading && !sub.pricesLoaded
@@ -754,12 +767,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 onTap: () async {
                   final picked = await showDatePicker(
                     context: context,
-                    initialDate: _startDate,
-                    firstDate: DateTime.now().add(const Duration(days: 1)),
-                    lastDate: DateTime.now().add(const Duration(days: 30)),
+                    initialDate: startDate,
+                    firstDate: earliestDate,
+                    lastDate: earliestDate.add(const Duration(days: 30)),
                   );
                   if (picked != null) {
-                    setState(() => _startDate = picked);
+                    setState(() => _userPickedStartDate = picked);
                   }
                 },
                 child: PremiumCard(
@@ -784,7 +797,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       ),
                       const SizedBox(width: 14),
                       Text(
-                        DateFormat('dd MMMM yyyy').format(_startDate),
+                        DateFormat('dd MMMM yyyy').format(startDate),
                         style: AppType.bodyBold,
                       ),
                       const Spacer(),
@@ -834,10 +847,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _handleCreate() async {
     HapticFeedback.mediumImpact();
     final sub = context.read<SubscriptionProvider>();
+    final startDate = _userPickedStartDate ??
+        sub.earliestStartDate ??
+        DateTime.now().add(const Duration(days: 1));
     final ok = await sub.createSubscription(
       milkType: _selectedMilk,
       quantity: _quantity,
-      startDate: DateFormat('yyyy-MM-dd').format(_startDate),
+      startDate: DateFormat('yyyy-MM-dd').format(startDate),
       deliverySlot: _selectedSlot,
     );
     if (ok && mounted) {

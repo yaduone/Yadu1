@@ -40,6 +40,35 @@ class SubscriptionProvider extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  // Earliest allowed subscription start date — mirrors the backend's cutoff-aware
+  // cart target date, so the create-subscription date picker never offers a date
+  // the server will reject.
+  DateTime? _earliestStartDate;
+  DateTime? get earliestStartDate => _earliestStartDate;
+  Future<void>? _earliestStartDateLoadFuture;
+
+  Future<void> loadEarliestStartDate({bool forceRefresh = false}) {
+    if (!forceRefresh && _earliestStartDate != null) return Future.value();
+    if (_earliestStartDateLoadFuture != null) return _earliestStartDateLoadFuture!;
+    _earliestStartDateLoadFuture = _loadEarliestStartDate();
+    return _earliestStartDateLoadFuture!;
+  }
+
+  Future<void> _loadEarliestStartDate() async {
+    try {
+      final res = await _api.get('/tomorrow/status');
+      final dateStr = res['data']?['date'] as String?;
+      if (dateStr != null) {
+        _earliestStartDate = DateTime.parse(dateStr);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Fall back silently — caller uses a same-day+1 default if this never loads.
+    } finally {
+      _earliestStartDateLoadFuture = null;
+    }
+  }
+
   double priceForMilkType(String milkType) {
     return _milkPrices[milkType] ?? _fallbackPrices[milkType] ?? 0;
   }
