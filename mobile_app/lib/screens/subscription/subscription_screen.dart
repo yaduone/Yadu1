@@ -395,7 +395,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     if (ok) {
                       AppSnackbar.success(
                         context,
-                        'Subscription paused successfully.',
+                        sub.effectiveFrom != null
+                            ? 'Subscription paused from ${_friendlyDate(sub.effectiveFrom!)}.'
+                            : 'Subscription paused successfully.',
                       );
                     } else {
                       AppSnackbar.error(
@@ -424,7 +426,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     if (ok) {
                       AppSnackbar.success(
                         context,
-                        'Subscription resumed. Deliveries will restart.',
+                        sub.effectiveFrom != null
+                            ? 'Subscription resumed. Deliveries restart ${_friendlyDate(sub.effectiveFrom!)}.'
+                            : 'Subscription resumed. Deliveries will restart.',
                       );
                     } else {
                       AppSnackbar.error(
@@ -455,7 +459,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   final confirm = await _confirmDialog(
                     context,
                     'Cancel Subscription?',
-                    'This action cannot be undone. You\'ll need to create a new subscription.',
+                    "This action cannot be undone. You'll need to create a new subscription. A delivery already scheduled for tomorrow may still arrive if today's cutoff has passed.",
                   );
                   if (!confirm || !context.mounted) return;
                   final ok = await sub.cancelSubscription();
@@ -884,6 +888,19 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       ),
     );
+  }
+
+  /// Renders a backend `YYYY-MM-DD` effective date as a short, human date so
+  /// the customer sees the real day a change applies from rather than a vague
+  /// "tomorrow" that is wrong once the area cutoff has passed.
+  String _friendlyDate(String isoDate) {
+    final parsed = DateTime.tryParse(isoDate);
+    if (parsed == null) return isoDate;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${parsed.day} ${months[parsed.month - 1]}';
   }
 
   Future<bool> _confirmDialog(

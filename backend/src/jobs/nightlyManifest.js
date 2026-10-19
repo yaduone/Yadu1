@@ -4,6 +4,7 @@ const config = require('../config');
 const dateUtil = require('../utils/date');
 const orderService = require('../modules/orders/order.service');
 const manifestService = require('../modules/manifests/manifest.service');
+const subscriptionLifecycle = require('../modules/subscriptions/subscription.lifecycle');
 const manifestSettings = require('../modules/settings/manifestSettings.service');
 let lastPastDeliverySweepDate = null;
 
@@ -98,8 +99,9 @@ async function processArea(areaId, deliveryDate) {
   for (const subDoc of subSnap.docs) {
     const sub = subDoc.data();
 
-    // Skip if subscription hasn't started yet
-    if (sub.start_date > deliveryDate) continue;
+    // Skip unless this subscription is actually deliverable on the date:
+    // active, already started, and not inside a pause that takes effect first.
+    if (!subscriptionLifecycle.isDeliverableOn(sub, deliveryDate)) continue;
 
     const userId = sub.user_id;
 
@@ -193,7 +195,7 @@ async function processArea(areaId, deliveryDate) {
 
     // If skipped but has extras, milk is null but we still create the order for extras
     const milkTotal = milk ? milk.total : 0;
-    const extrasTotal = extraItems.reduce((sum, item) => sum + item.total, 0);
+    const extrasTotal = orderService.extrasTotal(extraItems);
     const totalAmount = milkTotal + extrasTotal;
 
     // 5. Create order
@@ -236,7 +238,7 @@ async function processArea(areaId, deliveryDate) {
       continue;
     }
 
-    const extrasTotal = extraItems.reduce((sum, item) => sum + item.total, 0);
+    const extrasTotal = orderService.extrasTotal(extraItems);
     const generatedOrder = await orderService.createOrder({
       userId,
       areaId,

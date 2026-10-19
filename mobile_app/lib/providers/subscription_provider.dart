@@ -161,14 +161,44 @@ class SubscriptionProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> pauseSubscription() async {
+  // The first delivery date a lifecycle change takes effect from, as reported
+  // by the backend. Past an area's cutoff this is the day after tomorrow,
+  // because tomorrow's manifest is already committed — so the UI must tell the
+  // customer the real date instead of implying "from tomorrow".
+  String? _effectiveFrom;
+  String? get effectiveFrom => _effectiveFrom;
+
+  /// Runs a pause/resume/cancel transition.
+  ///
+  /// Only one action may be in flight at a time, and the new local state is
+  /// adopted from the server response rather than guessed, so the screen can
+  /// never disagree with the backend about the resulting status.
+  Future<bool> _runLifecycleAction(
+    String action,
+    Future<Map<String, dynamic>> Function() request,
+  ) async {
     if (_subscription == null || _loadingAction != null) return false;
-    _loadingAction = 'pause';
+    _loadingAction = action;
     _error = null;
+    _effectiveFrom = null;
     notifyListeners();
     try {
-      await _api.put('/subscriptions/${_subscription!['id']}/pause', {});
-      _subscription!['status'] = 'paused';
+      final res = await request();
+      final data = res['data'];
+      if (data is Map) {
+        final effectiveFrom = data['effective_from'];
+        if (effectiveFrom is String) _effectiveFrom = effectiveFrom;
+
+        final status = data['status'];
+        if (status == 'cancelled') {
+          _subscription = null;
+        } else if (status is String) {
+          _subscription!['status'] = status;
+          if (effectiveFrom is String) {
+            _subscription!['effective_from'] = effectiveFrom;
+          }
+        }
+      }
       return true;
     } catch (e) {
       _error = ErrorHandler.message(e);
@@ -179,23 +209,20 @@ class SubscriptionProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> resumeSubscription() async {
-    if (_subscription == null || _loadingAction != null) return false;
-    _loadingAction = 'resume';
-    _error = null;
-    notifyListeners();
-    try {
-      await _api.put('/subscriptions/${_subscription!['id']}/resume', {});
-      _subscription!['status'] = 'active';
-      return true;
-    } catch (e) {
-      _error = ErrorHandler.message(e);
-      return false;
-    } finally {
-      _loadingAction = null;
-      notifyListeners();
-    }
-  }
+  Future<bool> pauseSubscription() => _runLifecycleAction(
+        'pause',
+        () => _api.put('/subscriptions/${_subscription!['id']}/pause', {}),
+      );
+
+  Future<bool> resumeSubscription() => _runLifecycleAction(
+        'resume',
+        () => _api.put('/subscriptions/${_subscription!['id']}/resume', {}),
+      );
+
+  Future<bool> cancelSubscription() => _runLifecycleAction(
+        'cancel',
+        () => _api.put('/subscriptions/${_subscription!['id']}/cancel', {}),
+      );
 
   Future<bool> updateQuantity(double newQuantity) async {
     if (_subscription == null || _loadingAction != null) return false;
@@ -224,24 +251,6 @@ class SubscriptionProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _api.post('/tomorrow/skip', {});
-      return true;
-    } catch (e) {
-      _error = ErrorHandler.message(e);
-      return false;
-    } finally {
-      _loadingAction = null;
-      notifyListeners();
-    }
-  }
-
-  Future<bool> cancelSubscription() async {
-    if (_subscription == null || _loadingAction != null) return false;
-    _loadingAction = 'cancel';
-    _error = null;
-    notifyListeners();
-    try {
-      await _api.put('/subscriptions/${_subscription!['id']}/cancel', {});
-      _subscription = null;
       return true;
     } catch (e) {
       _error = ErrorHandler.message(e);

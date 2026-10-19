@@ -1,6 +1,7 @@
 const { db } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const manifestSettings = require('../settings/manifestSettings.service');
+const subscriptionLifecycle = require('../subscriptions/subscription.lifecycle');
 const orderService = require('../orders/order.service');
 const instantService = require('../instant/instant.service');
 
@@ -104,7 +105,7 @@ async function getAdminDashboard(areaId) {
 
   for (const subDoc of activeSnap.docs) {
     const sub = subDoc.data();
-    if (sub.start_date > targetDate) continue;
+    if (!subscriptionLifecycle.isDeliverableOn(sub, targetDate)) continue;
 
     // Check override
     const overrideSnap = await db

@@ -7,6 +7,8 @@ import '../../services/api_service.dart';
 import '../../utils/transitions.dart';
 import '../dues/due_screen.dart';
 import '../livestream/livestream_screen.dart';
+import '../home/home_screen.dart';
+import '../subscription/subscription_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -132,6 +134,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     await _markRead(notification['id'] as String);
     if (!mounted) return;
     Navigator.push(context, SlideUpRoute(page: const LivestreamScreen()));
+  }
+
+  /// Opens the screen a delivery-change notification is about: the cart tab
+  /// for product / one-day changes, the subscription screen otherwise.
+  Future<void> _openDeliveryChange(dynamic notification) async {
+    await _markRead(notification['id'] as String);
+    if (!mounted) return;
+    final meta = notification['meta'] as Map? ?? {};
+    if (meta['destination'] == 'cart') {
+      final home = HomeScreen.globalKey.currentState;
+      if (home != null) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        home.changeTab(HomeScreen.cartTabIndex);
+      }
+      return;
+    }
+    Navigator.push(context, SlideUpRoute(page: const SubscriptionScreen()));
   }
 
   Future<void> _openDues(dynamic notification) async {
@@ -308,7 +327,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             case 'subscription_updated':
               return _SubscriptionUpdatedCard(
                 notification: n,
-                onTap: () => _markRead(n['id']),
+                onTap: () => _openDeliveryChange(n),
+              );
+            case 'cart_updated':
+              return _CartUpdatedCard(
+                notification: n,
+                onTap: () => _openDeliveryChange(n),
               );
             case 'livestream_started':
               return _LivestreamCard(
@@ -871,6 +895,85 @@ class _OrderCancelledCard extends StatelessWidget {
             if (unread)
               Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4),
                   decoration: BoxDecoration(color: AppColors.error, shape: BoxShape.circle)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Cart Updated Card (products booked / changed by the dairy) ────────────────
+
+class _CartUpdatedCard extends StatelessWidget {
+  final dynamic notification;
+  final VoidCallback onTap;
+  const _CartUpdatedCard({required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final n = notification;
+    final meta = n['meta'] as Map? ?? {};
+    final unread = _isUnread(n);
+    final lines = <String>[
+      for (final item in (meta['added'] as List? ?? const []))
+        '+ ${item['product_name']} × ${item['quantity']}',
+      for (final item in (meta['updated'] as List? ?? const []))
+        '${item['product_name']}: ${item['previous_quantity']} → ${item['quantity']}',
+      for (final item in (meta['removed'] as List? ?? const []))
+        '− ${item['product_name']}',
+    ];
+    final note = meta['note'] as String?;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: PremiumCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        color: unread ? AppColors.primaryLight : AppColors.cardBg,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.shopping_bag_rounded, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(n['title'] ?? 'Your Delivery Was Updated',
+                      style: (unread ? AppType.captionBold : AppType.caption).copyWith(color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  if (lines.isEmpty)
+                    Text(n['body'] ?? '',
+                        style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4))
+                  else ...[
+                    for (final line in lines)
+                      Text(line, style: AppType.small.copyWith(color: AppColors.textPrimary, height: 1.4)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Billed only once delivered. Tap to view your cart.',
+                      style: AppType.small.copyWith(color: AppColors.textSecondary, height: 1.4),
+                    ),
+                  ],
+                  if (note != null && note.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Note: $note',
+                        style: AppType.small.copyWith(color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(_relativeTime(n['created_at']),
+                      style: AppType.micro.copyWith(color: AppColors.textHint)),
+                ],
+              ),
+            ),
+            if (unread)
+              Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 4),
+                  decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
           ],
         ),
       ),

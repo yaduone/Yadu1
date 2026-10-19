@@ -1,11 +1,12 @@
 import { createElement, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import SearchField from '../components/SearchField';
 import LocationModal from '../components/LocationModal';
 import LocationLink from '../components/LocationLink';
 import {
   AlertTriangle, Trash2, Users, UserCheck, UserX, UserMinus,
-  HelpCircle, ShieldAlert, ShoppingCart, X, Package, Milk, Loader2,
+  HelpCircle, ShieldAlert, ShoppingCart, ShoppingBag, X, Package, Milk, Loader2,
   CalendarDays, ChevronLeft, ChevronRight, MapPin,
 } from 'lucide-react';
 
@@ -622,6 +623,16 @@ export default function UsersPage() {
                           >
                             <ShoppingCart size={14} />
                           </button>
+                          {user.is_profile_complete && !user.deletion_requested && (
+                            <Link
+                              to={`/place-order?user=${user.id}`}
+                              className="btn-icon text-violet-400 hover:text-violet-600 hover:bg-violet-50"
+                              title="Order for this customer"
+                              aria-label={`Place an order for ${user.name || user.phone || 'user'}`}
+                            >
+                              <ShoppingBag size={14} />
+                            </Link>
+                          )}
                           <button
                             type="button"
                             onClick={() => setCalendarUser(user)}
@@ -806,6 +817,16 @@ export default function UsersPage() {
                           >
                             <ShoppingCart size={14} />
                           </button>
+                          {user.is_profile_complete && !user.deletion_requested && (
+                            <Link
+                              to={`/place-order?user=${user.id}`}
+                              className="btn-icon text-violet-400 hover:text-violet-600 hover:bg-violet-50"
+                              title="Order for this customer"
+                              aria-label={`Place an order for ${user.name || user.phone || 'user'}`}
+                            >
+                              <ShoppingBag size={14} />
+                            </Link>
+                          )}
                           <button
                             type="button"
                             onClick={() => setCalendarUser(user)}

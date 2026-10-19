@@ -1260,6 +1260,20 @@ class _ExtraItemCardState extends State<_ExtraItemCard> {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (widget.item['added_by_admin'] == true) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Added by your dairy',
+                        style: AppType.micro.copyWith(color: AppColors.primary),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

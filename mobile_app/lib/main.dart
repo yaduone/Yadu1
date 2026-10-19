@@ -22,10 +22,12 @@ import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/complete_profile_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/instant/instant_cart_screen.dart';
 import 'screens/dues/due_screen.dart';
 import 'screens/livestream/livestream_screen.dart';
 import 'screens/notifications/notifications_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/subscription/subscription_screen.dart';
 import 'services/fcm_service.dart';
 import 'services/onboarding_service.dart';
 import 'utils/transitions.dart';
@@ -214,6 +216,9 @@ class _ProfileGateState extends State<_ProfileGate> {
   /// True once the profile form has been skipped or saved this session.
   bool _profileStepDismissed = false;
 
+  /// True once the instant cart has been auto-opened for this app launch.
+  bool _instantCartOpened = false;
+
   @override
   void initState() {
     super.initState();
@@ -247,7 +252,10 @@ class _ProfileGateState extends State<_ProfileGate> {
 
   Future<void> _initializeNotifications() async {
     try {
-      await FcmService.instance.init(onNotificationTap: _openNotification);
+      await FcmService.instance.init(
+        onNotificationTap: _openNotification,
+        onMessage: _refreshForNotification,
+      );
     } catch (error) {
       if (kDebugMode) {
         debugPrint('Notification setup deferred: $error');
@@ -255,14 +263,51 @@ class _ProfileGateState extends State<_ProfileGate> {
     }
   }
 
+  // Pushes that mean the customer's upcoming deliveries changed — possibly by
+  // the dairy from the admin panel — so the cart and subscription on screen
+  // would otherwise be stale until the next manual refresh.
+  static const _deliveryChangeTypes = {
+    'subscription_updated',
+    'cart_updated',
+    'order_cancelled',
+    'delivery_summary',
+  };
+
+  void _refreshForNotification(Map<String, dynamic> data) {
+    if (!mounted) return;
+    final type = data['type'] as String?;
+    final destination = data['destination'] as String?;
+    final affectsDeliveries = _deliveryChangeTypes.contains(type) ||
+        destination == 'cart' ||
+        destination == 'subscription';
+    if (!affectsDeliveries) return;
+    if (!context.read<AppAuthProvider>().isProfileComplete) return;
+    context.read<SubscriptionProvider>().loadSubscription();
+    context.read<CartProvider>().loadTomorrowStatus();
+  }
+
   void _openNotification(Map<String, dynamic> data) {
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) return;
 
+    _refreshForNotification(data);
+
     final destination = data['destination'] as String?;
     final type = data['type'] as String?;
+
+    if (destination == 'cart') {
+      final home = HomeScreen.globalKey.currentState;
+      if (home != null) {
+        navigator.popUntil((route) => route.isFirst);
+        home.changeTab(HomeScreen.cartTabIndex);
+        return;
+      }
+    }
+
     final Widget page;
-    if (destination == 'dues' || type == 'due_reminder' || type == 'payment_recorded') {
+    if (destination == 'subscription') {
+      page = const SubscriptionScreen();
+    } else if (destination == 'dues' || type == 'due_reminder' || type == 'payment_recorded') {
       page = const DueScreen();
     } else if (destination == 'livestream' ||
         type == 'livestream_reminder' ||
@@ -297,7 +342,21 @@ class _ProfileGateState extends State<_ProfileGate> {
       );
     }
 
-    return const HomeScreen();
+    _openInstantCartOnStartup();
+    return HomeScreen(key: HomeScreen.globalKey);
+  }
+
+  /// Lands the customer on the instant cart once per launch, with the instant
+  /// storefront underneath so backing out stays in Instant mode.
+  void _openInstantCartOnStartup() {
+    if (_instantCartOpened) return;
+    _instantCartOpened = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<InstantModeProvider>().setInstant(true);
+      appNavigatorKey.currentState
+          ?.push(SlideUpRoute(page: const InstantCartScreen()));
+    });
   }
 }
 

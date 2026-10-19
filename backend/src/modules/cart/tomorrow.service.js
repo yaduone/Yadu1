@@ -2,6 +2,8 @@ const { db, admin } = require('../../config/firebase');
 const dateUtil = require('../../utils/date');
 const { isValidQuantity } = require('../../utils/validators');
 const manifestSettings = require('../settings/manifestSettings.service');
+const orderService = require('../orders/order.service');
+const subscriptionLifecycle = require('../subscriptions/subscription.lifecycle');
 
 /**
  * Get the complete cart status for a user for the given target date.
@@ -31,8 +33,8 @@ async function getTomorrowStatus(userId, targetDate, areaId) {
     const subDoc = subSnap.docs[0];
     const subData = subDoc.data();
 
-    // Only include milk if subscription has started
-    if (subData.start_date <= date) {
+    // Only include milk when the subscription is deliverable on this date
+    if (subscriptionLifecycle.isDeliverableOn({ ...subData, status: 'active' }, date)) {
       subscription = { id: subDoc.id, ...subData };
       baseMilk = {
         milk_type: subData.milk_type,
@@ -93,7 +95,7 @@ async function getTomorrowStatus(userId, targetDate, areaId) {
 
   // 4. Calculate total
   const milkTotal = effectiveMilk ? effectiveMilk.total : 0;
-  const extrasTotal = extraItems.reduce((sum, item) => sum + item.total, 0);
+  const extrasTotal = orderService.extrasTotal(extraItems);
 
   return {
     date,
