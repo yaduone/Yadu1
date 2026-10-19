@@ -22,13 +22,23 @@ class FcmService {
   final _localNotifications = FlutterLocalNotificationsPlugin();
   Future<void>? _initialization;
   void Function(Map<String, dynamic> data)? _onNotificationTap;
+  void Function(Map<String, dynamic> data)? _onMessage;
 
   static const _channelId = 'yaduone_default';
   static const _channelName = 'YaduONE Notifications';
 
-  Future<void> init({void Function(Map<String, dynamic> data)? onNotificationTap}) async {
+  /// [onMessage] fires for every push received while the app is in the
+  /// foreground, so screens can refresh the data the push is about (e.g. the
+  /// dairy changed this customer's cart or subscription).
+  Future<void> init({
+    void Function(Map<String, dynamic> data)? onNotificationTap,
+    void Function(Map<String, dynamic> data)? onMessage,
+  }) async {
     if (onNotificationTap != null) {
       _onNotificationTap = onNotificationTap;
+    }
+    if (onMessage != null) {
+      _onMessage = onMessage;
     }
     final inProgress = _initialization;
     if (inProgress != null) return inProgress;
@@ -96,6 +106,7 @@ class FcmService {
   }
 
   Future<void> _onForegroundMessage(RemoteMessage message) async {
+    _onMessage?.call(message.data);
     final notification = message.notification;
     if (notification == null) return;
     _localNotifications.show(

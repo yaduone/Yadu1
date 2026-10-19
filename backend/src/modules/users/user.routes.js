@@ -17,6 +17,7 @@ const USER_OWNED_COLLECTIONS = [
   { collection: 'notifications', field: 'user_id' },
   { collection: 'payments', field: 'user_id' },
   { collection: 'due_tickets', field: 'user_id' },
+  { collection: 'admin_requests', field: 'user_id' },
   { collection: 'audit_logs', field: 'actor_id' },
   { collection: 'admin_logs', field: 'meta.user_id' },
 ];
@@ -158,8 +159,12 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
           daily_value: +(sub.quantity_litres * sub.price_per_litre).toFixed(2),
           status: sub.status,
           start_date: sub.start_date,
-          paused_at: sub.paused_at,
-          cancelled_at: sub.cancelled_at,
+          // The delivery date the current status takes effect from — a pause
+          // made after the cutoff does not apply until the day after tomorrow.
+          effective_from: sub.effective_from || sub.start_date || null,
+          paused_at: sub.paused_at || null,
+          resumed_at: sub.resumed_at || null,
+          cancelled_at: sub.cancelled_at || null,
         } : null,
       };
     });

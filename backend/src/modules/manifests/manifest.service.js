@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const manifestSettings = require('../settings/manifestSettings.service');
 const { logActivity } = require('../../utils/activityLog');
+const subscriptionLifecycle = require('../subscriptions/subscription.lifecycle');
 
 function serializeManifest(doc) {
   const d = doc.data ? doc.data() : doc;
@@ -136,7 +137,7 @@ async function buildLivePreviewRows(areaId, date) {
   const rows = [];
   subscriptionsSnap.docs.forEach((doc) => {
     const subscription = doc.data();
-    if (subscription.start_date > date) return;
+    if (!subscriptionLifecycle.isDeliverableOn(subscription, date)) return;
 
     const userId = subscription.user_id;
     const override = overridesByUser.get(userId);

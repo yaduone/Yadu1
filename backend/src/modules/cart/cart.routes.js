@@ -6,6 +6,7 @@ const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require(
 const { success, badRequest, notFound } = require('../../utils/response');
 const { db } = require('../../config/firebase');
 const manifestSettings = require('../settings/manifestSettings.service');
+const subscriptionLifecycle = require('../subscriptions/subscription.lifecycle');
 
 const { cache, invalidateOn } = require('../../middleware/cache');
 
@@ -81,7 +82,7 @@ router.get('/admin/summary', authenticateAdmin, async (req, res, next) => {
 
     for (const subDoc of activeSnap.docs) {
       const sub = subDoc.data();
-      if (sub.start_date > targetDate) continue;
+      if (!subscriptionLifecycle.isDeliverableOn(sub, targetDate)) continue;
 
       const overrideSnap = await db
         .collection('next_day_overrides')

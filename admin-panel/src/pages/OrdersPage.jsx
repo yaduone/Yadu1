@@ -519,6 +519,9 @@ function DeliveryDetails({ order, activeTab }) {
           <li key={idx} className="text-xs text-slate-600">
             {item.name || item.product_name || item.product_id}
             {item.quantity ? ` x ${item.quantity}` : ''}
+            {item.added_by_admin && (
+              <span className="ml-1.5 text-[10px] font-semibold text-violet-600">by dairy</span>
+            )}
           </li>
         ))}
       </ul>

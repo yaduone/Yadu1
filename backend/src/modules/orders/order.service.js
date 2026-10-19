@@ -326,8 +326,59 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
   return { id: orderId, status: newStatus };
 }
 
+/**
+ * Withdraw subscription milk from not-yet-delivered orders from `fromDate` onward.
+ *
+ * Used by the subscription lifecycle when a customer pauses or cancels after the
+ * nightly job has already materialised orders. Without this, a paused/cancelled
+ * customer keeps a pending milk order that gets billed the moment a delivery
+ * agent marks it delivered.
+ *
+ * Only `pending` orders are touched — delivered/cancelled/not_delivered records
+ * are history and stay immutable. An order left with no milk and no extras is
+ * closed as a non-delivery rather than deleted, so the day keeps an audit trail.
+ */
+async function withdrawSubscriptionMilk(userId, fromDate, reason = 'subscription_paused') {
+  const snap = await db
+    .collection('orders')
+    .where('user_id', '==', userId)
+    .where('date', '>=', fromDate)
+    .get();
+
+  let cleared = 0;
+  let closed = 0;
+
+  for (const doc of snap.docs) {
+    const order = doc.data();
+    if (order.status !== 'pending') continue;
+    if (!order.milk) continue;
+
+    const extras = order.extra_items || [];
+    if (extras.length === 0) {
+      await doc.ref.update({
+        milk: null,
+        total_amount: 0,
+        status: 'not_delivered',
+        non_delivery_reason: reason,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      closed++;
+    } else {
+      await doc.ref.update({
+        milk: null,
+        total_amount: extrasTotal(extras),
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      cleared++;
+    }
+  }
+
+  return { cleared, closed, affected: cleared + closed };
+}
+
 module.exports = {
   createOrder,
+  withdrawSubscriptionMilk,
   markPastPendingOrdersNotDelivered,
   extrasTotal,
   orderTotal,

@@ -67,7 +67,7 @@ async function _sendFcmPush(userId, title, body, data = {}) {
 /**
  * Creates an in-app notification with a 3-day expiry, then pushes to the device.
  */
-async function createNotification(userId, areaId, { type, title, body, meta = {} }) {
+async function createNotification(userId, areaId, { type, title, body, meta = {}, pushData = null }) {
   await db.collection('notifications').add(notificationRecord(userId, areaId, {
     type,
     title,
@@ -75,7 +75,9 @@ async function createNotification(userId, areaId, { type, title, body, meta = {}
     meta,
   }));
 
-  _sendFcmPush(userId, title, body, { type, ...meta });
+  // pushData lets a caller keep the FCM payload small (4 KB limit) while the
+  // in-app record carries the full detail.
+  _sendFcmPush(userId, title, body, pushData || { type, ...meta });
 }
 
 /**
@@ -92,7 +94,10 @@ async function sendDeliveryNotification(userId, areaId, order, newDueAmount) {
     const milkType = milk.milk_type.charAt(0).toUpperCase() + milk.milk_type.slice(1);
     parts.push(`${milkType} milk (${milk.quantity_litres}L)`);
   }
-  extras.forEach((item) => parts.push(item.name || 'Extra item'));
+  extras.forEach((item) => {
+    const name = item.product_name || item.name || 'Extra item';
+    parts.push(item.quantity > 1 ? `${name} x${item.quantity}` : name);
+  });
 
   const itemsText = parts.length ? parts.join(', ') : 'Your order';
   const body = `${itemsText} has been delivered. Rs. ${amount.toFixed(2)} added to your account. Your total due is now Rs. ${newDueAmount.toFixed(2)}.`;
@@ -243,6 +248,106 @@ async function sendSubscriptionUpdatedNotification(
       action,
       change_description: changeDescription,
       ...details,
+    },
+  });
+}
+
+function itemLabel(item) {
+  const name = item.product_name || item.name || 'Item';
+  return `${name}${item.unit ? ` (${item.unit})` : ''} x${item.quantity}`;
+}
+
+function displayDate(isoDate) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+/**
+ * Sent when an admin places, changes or removes products in a customer's
+ * scheduled delivery from the admin panel.
+ *
+ * `changes` = { added: [item], updated: [{ item, previousQuantity }], removed: [item] }
+ * Items follow the cart line-item shape (product_name, unit, quantity, total).
+ */
+async function sendCartUpdatedNotification(userId, areaId, { date, changes, cartTotal, note = null }) {
+  const added = changes.added || [];
+  const updated = changes.updated || [];
+  const removed = changes.removed || [];
+  const when = displayDate(date);
+
+  const sentences = [];
+  if (added.length) {
+    sentences.push(`Your dairy has added ${added.map(itemLabel).join(', ')} to your delivery on ${when}.`);
+  }
+  if (updated.length) {
+    const text = updated
+      .map(({ item, previousQuantity }) => `${item.product_name} from ${previousQuantity} to ${item.quantity}`)
+      .join(', ');
+    sentences.push(`Quantity changed: ${text}.`);
+  }
+  if (removed.length) {
+    sentences.push(`Removed from your delivery on ${when}: ${removed.map((i) => i.product_name).join(', ')}.`);
+  }
+  if (cartTotal > 0) {
+    sentences.push(`Extras total Rs. ${Number(cartTotal).toFixed(2)}, added to your bill only once delivered.`);
+  }
+  if (note) sentences.push(`Note from your dairy: ${note}`);
+
+  let title = 'Your Delivery Was Updated';
+  if (added.length && !updated.length && !removed.length) title = `Order Placed for ${when}`;
+  else if (removed.length && !added.length && !updated.length) title = `Items Removed - ${when}`;
+
+  await createNotification(userId, areaId, {
+    type: 'cart_updated',
+    title,
+    body: sentences.join(' '),
+    meta: {
+      destination: 'cart',
+      date,
+      added,
+      updated: updated.map(({ item, previousQuantity }) => ({ ...item, previous_quantity: previousQuantity })),
+      removed,
+      cart_total: cartTotal,
+      note,
+      source: 'admin',
+    },
+    pushData: { type: 'cart_updated', destination: 'cart', date, source: 'admin' },
+  });
+}
+
+/**
+ * Sent when an admin skips, changes or restores a single upcoming milk
+ * delivery (a next-day override) on the customer's behalf.
+ */
+async function sendNextDeliveryChangedNotification(userId, areaId, { date, action, quantity = null, baseQuantity = null }) {
+  const when = displayDate(date);
+  const copy = {
+    skip: {
+      title: `Delivery Skipped - ${when}`,
+      body: `Your dairy has skipped your milk delivery on ${when}. Regular deliveries continue after that.`,
+    },
+    modify: {
+      title: `Milk Quantity Changed - ${when}`,
+      body: `Your dairy has changed your milk for ${when} to ${quantity}L (usually ${baseQuantity}L). This applies to that day only.`,
+    },
+    revert: {
+      title: `Delivery Restored - ${when}`,
+      body: `Your milk delivery on ${when} is back to your regular ${baseQuantity}L.`,
+    },
+  }[action];
+
+  await createNotification(userId, areaId, {
+    type: 'subscription_updated',
+    title: copy.title,
+    body: copy.body,
+    meta: {
+      destination: 'cart',
+      action: `next_delivery_${action}`,
+      date,
+      quantity_litres: quantity,
+      base_quantity: baseQuantity,
+      source: 'admin',
     },
   });
 }
@@ -492,6 +597,8 @@ module.exports = {
   sendPaymentRecordedNotification,
   sendOrderCancelledNotification,
   sendSubscriptionUpdatedNotification,
+  sendCartUpdatedNotification,
+  sendNextDeliveryChangedNotification,
   sendAreaBroadcast,
   sendCustomNotification,
   sendAdminInstantOrderNotification,

@@ -33,12 +33,23 @@ import 'package:intl/intl.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  /// Lets a notification tap switch tabs (e.g. open the cart after the dairy
+  /// changed the customer's delivery).
+  static final GlobalKey<HomeScreenState> globalKey = GlobalKey<HomeScreenState>();
+  static const int cartTabIndex = 2;
+
   @override
   State<HomeScreen> createState() => HomeScreenState();
 }
 
-class HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  DateTime _lastSync = DateTime.now();
+
+  // Re-sync deliveries when the app comes back to the foreground: the dairy
+  // may have changed the cart or subscription from the admin panel while the
+  // app was in the background, and the push may have been dismissed unread.
+  static const _resumeSyncInterval = Duration(seconds: 30);
 
   // Public method to change tab from child screens
   void changeTab(int index) {
@@ -55,11 +66,28 @@ class HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SubscriptionProvider>().loadSubscription();
       context.read<CartProvider>().loadTomorrowStatus();
       context.read<CartProvider>().loadProducts();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final now = DateTime.now();
+    if (now.difference(_lastSync) < _resumeSyncInterval) return;
+    _lastSync = now;
+    context.read<SubscriptionProvider>().loadSubscription();
+    context.read<CartProvider>().loadTomorrowStatus();
   }
 
   @override
