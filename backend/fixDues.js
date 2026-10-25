@@ -11,6 +11,7 @@ try {
   console.log('Admin already initialized or error loading credentials:', e.message);
 }
 
+
 const db = admin.firestore();
 
 async function run() {
