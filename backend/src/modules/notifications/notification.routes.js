@@ -116,6 +116,12 @@ router.put('/device-token', authenticateUser, async (req, res, next) => {
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ success: false, error: 'token is required' });
     }
+    // A brand-new sign-in can register its token before /auth/user/verify has
+    // created the user record. doc(null) used to throw a 500 here; answer with
+    // a retryable 409 instead (the app re-sends once sign-in has synced).
+    if (!req.user.userId) {
+      return res.status(409).json({ success: false, error: 'Account setup is not finished yet; retry after sign-in completes' });
+    }
     await db.collection('users').doc(req.user.userId).update({ fcm_token: token });
     return success(res, null, 'Device token registered');
   } catch (err) {

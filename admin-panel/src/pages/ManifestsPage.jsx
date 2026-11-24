@@ -47,6 +47,24 @@ export default function ManifestsPage() {
 
   async function handleDownload(id, date) {
     try {
+      // Ask for the signed Storage URL and navigate to it. Fetching the PDF via
+      // XHR follows a cross-origin redirect that the Storage bucket blocks
+      // unless it has a CORS policy; a navigation is never blocked. Storage
+      // serves it as an attachment, so the admin stays on this page.
+      const linkRes = await api.get(`/manifests/${id}/download`, { params: { format: 'json' } });
+      const signedUrl = linkRes.data?.data?.url;
+      if (signedUrl) {
+        const link = document.createElement('a');
+        link.href = signedUrl;
+        link.rel = 'noopener';
+        link.download = `manifest_${date}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        return;
+      }
+
+      // Older backend without ?format=json: fall back to fetching the file.
       const res = await api.get(`/manifests/${id}/download`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');

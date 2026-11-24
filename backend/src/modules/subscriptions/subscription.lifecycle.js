@@ -70,16 +70,68 @@ function assertTransition(transitionName, currentStatus) {
 /**
  * Is this subscription supposed to produce a delivery on `date`?
  *
- * Consolidates the three conditions that were previously checked
- * inconsistently across the nightly job, the manifest preview and the cart
- * view: the status must be active, the subscription must have started, and a
- * pause/resume must not take effect after the date in question.
+ * Consolidates the conditions that were previously checked inconsistently
+ * across the nightly job, the manifest preview and the cart view: the
+ * subscription must have started, and a pause/resume/cancel only counts from
+ * the date it takes effect.
+ *
+ * A pause or cancel made after an area's cutoff takes effect the day after
+ * tomorrow, so tomorrow's delivery is still owed even though the status has
+ * already flipped. Such rows carry `delivery_stops_from` (first date with no
+ * delivery) and `active_from` (first date of the run being stopped), and stay
+ * deliverable for the dates in between. Rows written before those fields
+ * existed keep the old behaviour: a paused/cancelled row is never deliverable.
  */
 function isDeliverableOn(subscription, date) {
-  if (!subscription || subscription.status !== STATUSES.ACTIVE) return false;
+  if (!subscription) return false;
   if (subscription.start_date && subscription.start_date > date) return false;
-  if (subscription.effective_from && subscription.effective_from > date) return false;
-  return true;
+
+  if (subscription.status === STATUSES.ACTIVE) {
+    return !(subscription.effective_from && subscription.effective_from > date);
+  }
+
+  if (subscription.status === STATUSES.PAUSED || subscription.status === STATUSES.CANCELLED) {
+    const stopsFrom = subscription.delivery_stops_from;
+    if (!stopsFrom || stopsFrom <= date) return false;
+    const activeFrom = subscription.active_from || null;
+    return !(activeFrom && activeFrom > date);
+  }
+
+  return false;
+}
+
+/**
+ * Fields to write when an active or paused subscription is paused/cancelled
+ * with the change taking effect on `effectiveFrom`. Keeps the window of
+ * deliveries still owed before the change applies (see isDeliverableOn).
+ */
+function stopWindowFields(current, effectiveFrom) {
+  if (current.status === STATUSES.PAUSED) {
+    // Deliveries already stopped when the pause took effect; a cancel cannot
+    // move that earlier or later.
+    return {
+      delivery_stops_from: current.delivery_stops_from || current.effective_from || effectiveFrom,
+      active_from: current.active_from || null,
+    };
+  }
+  return {
+    delivery_stops_from: effectiveFrom,
+    active_from: current.effective_from || current.start_date || null,
+  };
+}
+
+/**
+ * The date a resumed subscription delivers from. If the pause has not yet
+ * reached any committed delivery (it would only have started on the first
+ * still-open date), resuming simply undoes it, so deliveries the customer was
+ * already owed — e.g. tomorrow, after a post-cutoff pause — are not lost.
+ */
+function resumeEffectiveFrom(current, effectiveFrom) {
+  const stopsFrom = current.delivery_stops_from;
+  if (stopsFrom && stopsFrom >= effectiveFrom) {
+    return current.active_from || current.start_date || effectiveFrom;
+  }
+  return effectiveFrom;
 }
 
 module.exports = {
@@ -88,4 +140,6 @@ module.exports = {
   TRANSITIONS,
   assertTransition,
   isDeliverableOn,
+  stopWindowFields,
+  resumeEffectiveFrom,
 };

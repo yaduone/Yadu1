@@ -267,6 +267,9 @@ async function pauseSubscription(subscriptionId, userId, { actor = USER_ACTOR } 
   await subRef.update({
     status: STATUSES.PAUSED,
     effective_from: effectiveFrom,
+    // Past the cutoff the pause starts the day after tomorrow; these keep
+    // tomorrow's already-committed delivery on the manifest.
+    ...lifecycle.stopWindowFields(data, effectiveFrom),
     paused_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -304,35 +307,50 @@ async function resumeSubscription(subscriptionId, userId, { actor = USER_ACTOR }
   const { subRef, data } = await loadOwnedSubscription(subscriptionId, userId);
   lifecycle.assertTransition('resume', data.status);
 
-  const effectiveFrom = await getEffectiveDate(data.area_id);
+  const openDate = await getEffectiveDate(data.area_id);
+  // Deliveries restart on the next open date — or, when the pause never reached
+  // a committed delivery, the pause is simply undone.
+  const effectiveFrom = lifecycle.resumeEffectiveFrom(data, openDate);
 
   await subRef.update({
     status: STATUSES.ACTIVE,
     effective_from: effectiveFrom,
+    delivery_stops_from: null,
+    active_from: null,
     paused_at: null,
     resumed_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  const pauseUndone = effectiveFrom !== openDate;
+
   await auditSubscriptionChange('subscription.resumed', {
     userId,
     actor,
     subscriptionId,
-    details: { effective_from: effectiveFrom },
+    details: { effective_from: effectiveFrom, pause_undone: pauseUndone },
   });
 
   await notifySubscriptionChange(userId, data.area_id, {
     title: 'Subscription Resumed',
     action: 'resumed',
-    changeDescription: changeCopy(
-      actor,
-      `Your regular deliveries resume from ${effectiveFrom}.`,
-      `Your dairy has resumed your regular deliveries from ${effectiveFrom}.`
-    ),
-    details: { status: STATUSES.ACTIVE, effective_from: effectiveFrom },
+    changeDescription: pauseUndone
+      ? changeCopy(
+        actor,
+        'Your regular deliveries continue without a break.',
+        'Your dairy has resumed your regular deliveries; they continue without a break.'
+      )
+      : changeCopy(
+        actor,
+        `Your regular deliveries resume from ${openDate}.`,
+        `Your dairy has resumed your regular deliveries from ${openDate}.`
+      ),
+    details: { status: STATUSES.ACTIVE, effective_from: openDate },
   });
 
-  return { id: subscriptionId, status: STATUSES.ACTIVE, effective_from: effectiveFrom };
+  // The client shows "resumes from <date>": report the first open date, which
+  // is correct in both cases (an undone pause also delivers on it).
+  return { id: subscriptionId, status: STATUSES.ACTIVE, effective_from: openDate };
 }
 
 /**
@@ -352,6 +370,7 @@ async function cancelSubscription(subscriptionId, userId, { actor = USER_ACTOR }
   await subRef.update({
     status: STATUSES.CANCELLED,
     effective_from: effectiveFrom,
+    ...lifecycle.stopWindowFields(data, effectiveFrom),
     cancelled_at: admin.firestore.FieldValue.serverTimestamp(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
   });

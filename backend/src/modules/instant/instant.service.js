@@ -169,8 +169,9 @@ function availabilityError(availability) {
   });
 }
 
-async function addItem(userId, areaId, { product_id, quantity }) {
-  if (!product_id || !quantity || quantity < 1) {
+async function addItem(userId, areaId, { product_id, quantity: rawQuantity }) {
+  const quantity = Number(rawQuantity);
+  if (!product_id || rawQuantity === null || rawQuantity === '' || !Number.isInteger(quantity) || quantity < 1) {
     throw Object.assign(new Error('product_id and quantity (>= 1) are required'), { statusCode: 400 });
   }
 
@@ -227,9 +228,13 @@ async function addItem(userId, areaId, { product_id, quantity }) {
   return getCart(userId, areaId);
 }
 
-async function updateItem(userId, areaId, { product_id, quantity }) {
-  if (!product_id || quantity === undefined) {
+async function updateItem(userId, areaId, { product_id, quantity: rawQuantity }) {
+  if (!product_id || rawQuantity === undefined) {
     throw Object.assign(new Error('product_id and quantity are required'), { statusCode: 400 });
+  }
+  const quantity = Number(rawQuantity);
+  if (rawQuantity === null || rawQuantity === '' || !Number.isInteger(quantity)) {
+    throw Object.assign(new Error('quantity must be a whole number'), { statusCode: 400 });
   }
 
   const ref = db.collection(CART_COLLECTION).doc(userId);
@@ -321,33 +326,8 @@ async function confirmOrder(userId, areaId) {
   const availability = await instantHours.checkAvailability();
   if (!availability.available) throw availabilityError(availability);
 
-  const ref = db.collection(CART_COLLECTION).doc(userId);
-  const snap = await ref.get();
-  const cart = await cartView(userId, areaId, snap.exists ? snap.data() : null);
-
-  if (!cart.items.length) {
-    throw Object.assign(new Error('Your instant cart is empty'), { statusCode: 400 });
-  }
-
-  // Re-validate each product is still active & instant-available — catches items
-  // an admin disabled/removed while they sat in the customer's persistent cart.
-  const productDocs = await db.getAll(
-    ...cart.items.map((item) => db.collection('products').doc(item.product_id))
-  );
-  const unavailable = productDocs.filter((doc) => {
-    const p = doc.exists ? doc.data() : null;
-    return !p || !p.is_active || !isInstantAvailable(p.availability);
-  });
-  if (unavailable.length) {
-    const names = cart.items
-      .filter((item) => unavailable.some((d) => d.id === item.product_id))
-      .map((item) => item.product_name)
-      .join(', ');
-    throw Object.assign(
-      new Error(`Some items are no longer available for instant delivery: ${names}. Please remove them and try again.`),
-      { statusCode: 400 }
-    );
-  }
+  const charges = await getInstantCharges();
+  const extraTotal = Math.round(chargesTotal(charges) * 100) / 100;
 
   // Deadline for the admin to accept. Stored on the order (not derived from the
   // live setting) so changing the setting later can't retroactively expire
@@ -357,50 +337,93 @@ async function confirmOrder(userId, areaId) {
     ? dateUtil.now().add(autoExpireMinutes, 'minutes').toISOString()
     : null;
 
-  const orderData = {
-    user_id: userId,
-    area_id: areaId,
-    order_type: 'instant',
-    payment_mode: PAYMENT_MODE,
-    date: dateUtil.today(),
-    items: cart.items,
-    items_total: cart.items_total,
-    delivery_charge: cart.delivery_charge,
-    extra_charges: cart.extra_charges || [],
-    extra_charges_total: cart.extra_charges_total || 0,
-    total_amount: cart.total_amount,
-    status: 'pending',
-    eta_minutes: availability.hours.eta_minutes,
-    acknowledged_at: null,
-    expected_delivery_by: null,
-    // Acceptance-deadline / rejection bookkeeping.
-    expires_at: expiresAt,
-    auto_expire_minutes: autoExpireMinutes,
-    rejection_reason: null,
-    rejected_at: null,
-    rejected_by: null,
-    placed_at: admin.firestore.FieldValue.serverTimestamp(),
-    created_at: admin.firestore.FieldValue.serverTimestamp(),
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-  };
+  const ref = db.collection(CART_COLLECTION).doc(userId);
+  const orderRef = db.collection(ORDER_COLLECTION).doc();
+  let orderData = null;
 
-  const orderRef = await db.collection(ORDER_COLLECTION).add(orderData);
+  // Reading the cart, creating the order and emptying the cart happen in one
+  // transaction. Done as separate steps, two confirms racing (a retried
+  // request, a second device) both saw the full cart and placed two orders.
+  // Now the loser sees an empty cart; the app reconciles that against history.
+  await db.runTransaction(async (tx) => {
+    orderData = null;
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : null;
+    const items = data?.items || [];
 
-  // Empty the cart (keep the doc so it stays "saved" in admin).
-  await ref.set({
-    user_id: userId,
-    area_id: areaId,
-    items: [],
-    delivery_charge: 0,
-    items_total: 0,
-    total_amount: 0,
-    updated_at: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+    if (!items.length) {
+      throw Object.assign(new Error('Your instant cart is empty'), { statusCode: 400 });
+    }
+
+    // Re-validate each product is still active & instant-available — catches
+    // items an admin disabled/removed while they sat in the persistent cart.
+    const productDocs = await Promise.all(
+      items.map((item) => tx.get(db.collection('products').doc(item.product_id)))
+    );
+    const unavailableIds = new Set(
+      productDocs
+        .filter((doc) => {
+          const p = doc.exists ? doc.data() : null;
+          return !p || !p.is_active || !isInstantAvailable(p.availability);
+        })
+        .map((doc) => doc.id)
+    );
+    if (unavailableIds.size) {
+      const names = items
+        .filter((item) => unavailableIds.has(item.product_id))
+        .map((item) => item.product_name)
+        .join(', ');
+      throw Object.assign(
+        new Error(`Some items are no longer available for instant delivery: ${names}. Please remove them and try again.`),
+        { statusCode: 400 }
+      );
+    }
+
+    const deliveryCharge = Number(data.delivery_charge) || 0;
+    const totals = computeTotals(items, deliveryCharge, extraTotal);
+
+    orderData = {
+      user_id: userId,
+      area_id: areaId,
+      order_type: 'instant',
+      payment_mode: PAYMENT_MODE,
+      date: dateUtil.today(),
+      items,
+      items_total: totals.items_total,
+      delivery_charge: deliveryCharge,
+      extra_charges: charges || [],
+      extra_charges_total: extraTotal,
+      total_amount: totals.total_amount,
+      status: 'pending',
+      eta_minutes: availability.hours.eta_minutes,
+      acknowledged_at: null,
+      expected_delivery_by: null,
+      // Acceptance-deadline / rejection bookkeeping.
+      expires_at: expiresAt,
+      auto_expire_minutes: autoExpireMinutes,
+      rejection_reason: null,
+      rejected_at: null,
+      rejected_by: null,
+      placed_at: admin.firestore.FieldValue.serverTimestamp(),
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    tx.create(orderRef, orderData);
+    // Empty the cart (keep the doc so it stays "saved" in admin).
+    tx.update(ref, {
+      items: [],
+      delivery_charge: 0,
+      items_total: 0,
+      total_amount: 0,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
 
   notificationService.sendAdminInstantOrderNotification(areaId, {
     orderId: orderRef.id,
     userId,
-    totalAmount: cart.total_amount,
+    totalAmount: orderData.total_amount,
   });
 
   // Out-of-app alerts to the admins (fire-and-forget). Both read the customer

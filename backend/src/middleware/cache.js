@@ -47,7 +47,11 @@ function getScope(req) {
  */
 function buildCacheKey(req) {
   const scope = getScope(req);
-  const path = req.path.replace(/\//g, ':').replace(/^:/, '');
+  // req.path is relative to the router's mount point, so GET / on /api/areas,
+  // /api/products, /api/categories and /api/prices would all produce the same
+  // key and serve each other's cached bodies. Include the mount path.
+  const fullPath = `${req.baseUrl || ''}${req.path}`;
+  const path = fullPath.replace(/\//g, ':').replace(/^:/, '');
   const qHash = hashQuery(req.query);
   return `cache:${path}${qHash}:${scope}`;
 }
@@ -160,4 +164,4 @@ const cache = {
   reports:      cacheResponse(120, ['reports']),       // dashboard, daily stats
 };
 
-module.exports = { cacheResponse, invalidateCache, invalidateOn, cache };
+module.exports = { cacheResponse, invalidateCache, invalidateOn, cache, buildCacheKey };

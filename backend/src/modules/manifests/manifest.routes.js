@@ -42,6 +42,13 @@ router.get('/:id/download', authenticateAdmin, async (req, res, next) => {
     const result = await manifestService.getManifestSignedUrl(req.params.id, req.admin.areaId);
     if (!result) return notFound(res, 'Manifest PDF not found in storage. Try regenerating.');
 
+    // ?format=json returns the signed URL for the admin panel to open directly.
+    // Fetching the redirect through XHR only works if the Storage bucket has a
+    // CORS policy for the panel's origin; a plain navigation needs none.
+    if (req.query.format === 'json') {
+      return success(res, { url: result.url, filename: result.filename });
+    }
+
     // Redirect to the signed URL so the browser downloads directly from Storage
     return res.redirect(result.url);
   } catch (err) {

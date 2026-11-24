@@ -14,6 +14,10 @@ const USER_OWNED_COLLECTIONS = [
   { collection: 'carts', field: 'user_id' },
   { collection: 'next_day_overrides', field: 'user_id' },
   { collection: 'orders', field: 'user_id' },
+  // Instant store data. Left behind, a deleted customer's pending instant order
+  // stayed on the admin board and kept firing expiry notifications.
+  { collection: 'instant_orders', field: 'user_id' },
+  { collection: 'instant_carts', field: 'user_id' },
   { collection: 'notifications', field: 'user_id' },
   { collection: 'payments', field: 'user_id' },
   { collection: 'due_tickets', field: 'user_id' },

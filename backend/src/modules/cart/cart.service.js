@@ -159,10 +159,24 @@ function lineItem(product, quantity, extra = {}) {
 /**
  * Add an extra product to the target date cart (cartTargetDate — day-after-tomorrow if past cutoff).
  */
-async function addItem(userId, areaId, { product_id, quantity }) {
-  if (!product_id || !quantity || quantity < 1) {
+/**
+ * Quantities arrive as JSON and may be strings ("2"); `existing.quantity += "2"`
+ * would then concatenate into "12" and corrupt the order total.
+ */
+function parseUnits(quantity, { allowZero = false } = {}) {
+  const units = Number(quantity);
+  const min = allowZero ? 0 : 1;
+  if (quantity === null || quantity === '' || !Number.isInteger(units) || units < min) {
+    throw httpError(`quantity must be a whole number${allowZero ? '' : ' of at least 1'}`, 400);
+  }
+  return units;
+}
+
+async function addItem(userId, areaId, { product_id, quantity: rawQuantity }) {
+  if (!product_id || rawQuantity === undefined) {
     throw httpError('product_id and quantity (>= 1) are required', 400);
   }
+  const quantity = parseUnits(rawQuantity);
 
   const product = await loadOrderableProduct(product_id);
   const targetDate = await manifestSettings.getCartTargetDate(areaId);
@@ -183,10 +197,11 @@ async function addItem(userId, areaId, { product_id, quantity }) {
 /**
  * Update quantity of an extra product in the target date cart.
  */
-async function updateItem(userId, areaId, { product_id, quantity }) {
-  if (!product_id || quantity === undefined) {
+async function updateItem(userId, areaId, { product_id, quantity: rawQuantity }) {
+  if (!product_id || rawQuantity === undefined) {
     throw httpError('product_id and quantity are required', 400);
   }
+  const quantity = parseUnits(rawQuantity, { allowZero: true });
 
   const targetDate = await manifestSettings.getCartTargetDate(areaId);
 
@@ -221,4 +236,4 @@ async function removeItem(userId, areaId, productId) {
   return { message: 'Item removed from cart' };
 }
 
-module.exports = { addItem, updateItem, removeItem, mutateCart, loadOrderableProduct, lineItem };
+module.exports = { addItem, updateItem, removeItem, mutateCart, loadOrderableProduct, lineItem, parseUnits };

@@ -117,7 +117,9 @@ function milkFromLiveSubscription(subscription, override) {
 
 async function buildLivePreviewRows(areaId, date) {
   const [subscriptionsSnap, cartsSnap, overridesSnap] = await Promise.all([
-    db.collection('subscriptions').where('area_id', '==', areaId).where('status', '==', 'active').get(),
+    // All statuses: isDeliverableOn keeps a post-cutoff pause/cancel on the
+    // date it does not yet apply to.
+    db.collection('subscriptions').where('area_id', '==', areaId).get(),
     db.collection('carts').where('area_id', '==', areaId).where('date', '==', date).get(),
     db.collection('next_day_overrides').where('area_id', '==', areaId).where('date', '==', date).get(),
   ]);
@@ -491,6 +493,8 @@ async function getManifestSignedUrl(manifestId, areaId) {
   const [url] = await bucket.file(storagePath).getSignedUrl({
     action: 'read',
     expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+    // Opened as a link, so ask Storage to send it as a named download.
+    responseDisposition: `attachment; filename="${path.basename(storagePath)}"`,
   });
   return { url, filename: path.basename(storagePath) };
 }

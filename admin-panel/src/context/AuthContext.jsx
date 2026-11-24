@@ -11,7 +11,14 @@ export function AuthProvider({ children }) {
     const stored = localStorage.getItem('admin_data');
     const token = localStorage.getItem('admin_token');
     if (stored && token) {
-      setAdmin(JSON.parse(stored));
+      try {
+        setAdmin(JSON.parse(stored));
+      } catch {
+        // Corrupted session data used to throw here and blank the whole panel
+        // (no route renders, not even /login). Drop it and ask to sign in.
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_data');
+      }
     }
     setLoading(false);
   }, []);
