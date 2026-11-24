@@ -280,6 +280,8 @@ class AppAuthProvider extends ChangeNotifier {
       final res = await _api.post('/auth/user/verify', {'firebase_token': token});
       _userData = res['data']?['user'];
       _profileLoaded = true;
+      // The account record exists now; make sure push notifications reach it.
+      unawaited(FcmService.instance.syncToken());
     } catch (_) {
       // Silently ignore — Firebase sign-in already succeeded.
     }

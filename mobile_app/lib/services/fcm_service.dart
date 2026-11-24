@@ -41,7 +41,14 @@ class FcmService {
       _onMessage = onMessage;
     }
     final inProgress = _initialization;
-    if (inProgress != null) return inProgress;
+    if (inProgress != null) {
+      await inProgress;
+      // Set up earlier in this app session (e.g. before a logout + sign-in):
+      // the listeners exist, but the account now signed in still needs this
+      // device's token, or it never receives a push.
+      await _registerToken();
+      return;
+    }
 
     final initialization = _initialize();
     _initialization = initialization;
@@ -128,6 +135,14 @@ class FcmService {
 
   void _openNotification(Map<String, dynamic> data) {
     _onNotificationTap?.call(data);
+  }
+
+  /// Re-sends this device's token for the signed-in account. Call once sign-in
+  /// has created the user record on the server: a first sign-in can register
+  /// the token before that record exists, and the server then refuses it.
+  Future<void> syncToken() async {
+    if (_initialization == null) return; // init() registers when it runs.
+    await _registerToken();
   }
 
   Future<void> _registerToken() async {

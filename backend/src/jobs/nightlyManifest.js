@@ -45,8 +45,35 @@ async function runNightlyJob(areaId = null) {
   }
 }
 
+// Catch-up bookkeeping for runScheduledManifestCheck (per process).
+// areaId -> delivery date whose final manifest is known to exist.
+const finalizedManifestDates = new Map();
+// Areas whose generation is running right now (a run can outlast a minute).
+const generationInFlight = new Set();
+// areaId -> ms timestamp of the last catch-up attempt that failed.
+const lastFailedCatchUpAt = new Map();
+const CATCH_UP_RETRY_MS = 10 * 60 * 1000;
+
+async function hasFinalManifest(areaId, deliveryDate) {
+  const snap = await db
+    .collection('manifests')
+    .where('area_id', '==', areaId)
+    .where('date', '==', deliveryDate)
+    .limit(1)
+    .get();
+  if (snap.empty) return false;
+  const manifest = snap.docs[0].data();
+  return manifest.status !== 'preview' && manifest.is_final !== false;
+}
+
 /**
  * Every-minute scheduler: generate each area's manifest at its configured time.
+ *
+ * The exact-minute match alone is fragile: a restart, deploy or slow tick that
+ * spans the generation minute used to skip the day entirely — no orders, no
+ * manifest, nothing delivered. So for the rest of the evening after the
+ * generation time, an area whose final manifest for tomorrow does not exist yet
+ * is generated on the next tick (processArea is idempotent).
  */
 async function runScheduledManifestCheck() {
   const current = dateUtil.now();
@@ -65,16 +92,44 @@ async function runScheduledManifestCheck() {
 
     for (const areaDoc of areasSnap.docs) {
       const area = areaDoc.data();
-      const settings = manifestSettings.settingsFromAreaDoc(areaDoc.id, area);
-      if (!manifestSettings.isExactMinute(settings.generation_time, current)) continue;
+      const areaId = areaDoc.id;
+      const label = area.name || areaId;
+      const settings = manifestSettings.settingsFromAreaDoc(areaId, area);
+      const isScheduledMinute = manifestSettings.isExactMinute(settings.generation_time, current);
+      if (!isScheduledMinute && !manifestSettings.isAtOrPast(settings.generation_time, current)) continue;
+      if (generationInFlight.has(areaId)) continue;
 
-      console.log(`[CRON] ${area.name || areaDoc.id} reached manifest time ${currentTime}; delivery date ${deliveryDate}`);
+      if (isScheduledMinute) {
+        console.log(`[CRON] ${label} reached manifest time ${currentTime}; delivery date ${deliveryDate}`);
+      } else {
+        if (finalizedManifestDates.get(areaId) === deliveryDate) continue;
+        const lastFailure = lastFailedCatchUpAt.get(areaId);
+        if (lastFailure && Date.now() - lastFailure < CATCH_UP_RETRY_MS) continue;
+        try {
+          if (await hasFinalManifest(areaId, deliveryDate)) {
+            finalizedManifestDates.set(areaId, deliveryDate);
+            continue;
+          }
+        } catch (err) {
+          console.error(`[CRON] Could not check manifest state for ${label}:`, err.message);
+          continue;
+        }
+        console.warn(
+          `[CRON] ${label} missed its ${settings.generation_time} manifest time; generating for ${deliveryDate} now`
+        );
+      }
 
+      generationInFlight.add(areaId);
       try {
-        await processArea(areaDoc.id, deliveryDate);
-        console.log(`[CRON] Completed scheduled manifest for ${area.name || areaDoc.id}`);
+        await processArea(areaId, deliveryDate);
+        finalizedManifestDates.set(areaId, deliveryDate);
+        lastFailedCatchUpAt.delete(areaId);
+        console.log(`[CRON] Completed scheduled manifest for ${label}`);
       } catch (err) {
-        console.error(`[CRON] Error processing scheduled manifest for ${area.name || areaDoc.id}:`, err.message);
+        lastFailedCatchUpAt.set(areaId, Date.now());
+        console.error(`[CRON] Error processing scheduled manifest for ${label}:`, err.message);
+      } finally {
+        generationInFlight.delete(areaId);
       }
     }
   } catch (err) {
@@ -86,11 +141,12 @@ async function runScheduledManifestCheck() {
  * Process a single area: create orders from subscriptions + carts, then generate manifest.
  */
 async function processArea(areaId, deliveryDate) {
-  // 1. Get all active subscriptions in this area
+  // 1. Get this area's subscriptions. Not only `active` ones: a pause or cancel
+  // made after the cutoff takes effect the day after tomorrow, so that row is
+  // still owed tomorrow's delivery. isDeliverableOn below decides per row.
   const subSnap = await db
     .collection('subscriptions')
     .where('area_id', '==', areaId)
-    .where('status', '==', 'active')
     .get();
 
   let ordersCreated = 0;

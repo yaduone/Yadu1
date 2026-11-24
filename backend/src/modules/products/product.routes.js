@@ -42,7 +42,11 @@ function handleMulterError(err, req, res, next) {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-const { cache, invalidateOn } = require('../../middleware/cache');
+const { cache, cacheResponse, invalidateOn } = require('../../middleware/cache');
+
+// Admin product list is tagged 'products' so a create/edit/delete (which
+// invalidates that tag) shows up immediately instead of up to 60s later.
+const adminProductsCache = cacheResponse(60, ['products']);
 
 // GET /api/products — all products (public) — cached 300s
 router.get('/', cache.publicStatic, async (req, res, next) => {
@@ -70,7 +74,7 @@ router.get('/', cache.publicStatic, async (req, res, next) => {
 });
 
 // GET /api/products/all — admin: all products including inactive — cached 60s
-router.get('/all', authenticateAdmin, cache.adminData, async (req, res, next) => {
+router.get('/all', authenticateAdmin, adminProductsCache, async (req, res, next) => {
   try {
     const snap = await db.collection('products').get();
     return success(res, { products: snap.docs.map((d) => ({ id: d.id, ...d.data() })) });
