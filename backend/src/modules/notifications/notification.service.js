@@ -220,6 +220,40 @@ async function sendPaymentRecordedNotification(userId, areaId, { amount, method,
 }
 
 /**
+ * Sent when an admin adds to (charge) or reduces (credit) a customer's due by
+ * hand, so the balance never changes without the customer being told why.
+ */
+async function sendDueAdjustedNotification(userId, areaId, { type, amount, reason, newDue, voided = false }) {
+  const isCharge = type === 'charge';
+  let title;
+  let body;
+  if (voided) {
+    title = 'Balance Correction';
+    body = `Your dairy reversed an earlier ${isCharge ? 'charge' : 'credit'} of Rs. ${amount.toFixed(2)}${reason ? ` (${reason})` : ''}. Your balance is now Rs. ${newDue.toFixed(2)}.`;
+  } else if (isCharge) {
+    title = `Rs. ${amount.toFixed(2)} Added to Your Account`;
+    body = `Your dairy added Rs. ${amount.toFixed(2)} to your balance${reason ? ` for ${reason}` : ''}. Your total due is now Rs. ${newDue.toFixed(2)}.`;
+  } else {
+    title = `Rs. ${amount.toFixed(2)} Credited to Your Account`;
+    body = `Your dairy reduced your balance by Rs. ${amount.toFixed(2)}${reason ? ` (${reason})` : ''}. Your total due is now Rs. ${newDue.toFixed(2)}.`;
+  }
+
+  await createNotification(userId, areaId, {
+    type: 'due_adjusted',
+    title,
+    body,
+    meta: {
+      destination: 'dues',
+      adjustment_type: type,
+      amount,
+      reason: reason || null,
+      remaining_due: newDue,
+      voided,
+    },
+  });
+}
+
+/**
  * Sent when admin cancels an order before delivery.
  */
 async function sendOrderCancelledNotification(userId, areaId, { date, amount }) {
@@ -595,6 +629,7 @@ module.exports = {
   sendCodDeliveryNotification,
   sendDueReminderNotification,
   sendPaymentRecordedNotification,
+  sendDueAdjustedNotification,
   sendOrderCancelledNotification,
   sendSubscriptionUpdatedNotification,
   sendCartUpdatedNotification,

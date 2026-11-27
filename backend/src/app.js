@@ -31,6 +31,7 @@ const instantRoutes = require('./modules/instant/instant.routes');
 const carouselRoutes = require('./modules/carousels/carousel.routes');
 const onboardingRoutes = require('./modules/onboarding/onboarding.routes');
 const adminOrderRoutes = require('./modules/adminOrders/adminOrder.routes');
+const milkQualityRoutes = require('./modules/milkQuality/milkQuality.routes');
 
 // Initialize Redis connection early
 require('./config/redis').getRedisClient();
@@ -88,6 +89,7 @@ app.use('/api/instant', limit.medium, instantRoutes);
 app.use('/api/carousels', limit.medium, carouselRoutes);
 app.use('/api/onboarding', limit.medium, onboardingRoutes);
 app.use('/api/admin-orders', limit.medium, adminOrderRoutes);
+app.use('/api/milk-quality', limit.medium, milkQualityRoutes);
 
 // Heavy endpoints: aggressive (10 req/min) — PDF generation, file uploads, reports
 app.use('/api/manifests', limit.heavy, manifestRoutes);

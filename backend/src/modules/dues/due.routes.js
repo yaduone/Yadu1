@@ -1,15 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const dueService = require('./due.service');
+const dueReport = require('./dueReport.service');
+const reportExport = require('./dueReport.export');
 const { authenticateUser, requireCompleteProfile, authenticateAdmin } = require('../../middleware/auth');
 const { success, badRequest, notFound } = require('../../utils/response');
 const notificationService = require('../notifications/notification.service');
 const { db } = require('../../config/firebase');
 
 async function getAdminAreaUser(userId, areaId) {
+  if (typeof userId !== 'string' || !userId) return null;
   const userDoc = await db.collection('users').doc(userId).get();
   if (!userDoc.exists || userDoc.data().area_id !== areaId) return null;
-  return userDoc.data();
+  return { id: userDoc.id, ...userDoc.data() };
 }
 
 // ─── User routes ─────────────────────────────────────────────────────────────
@@ -70,6 +73,35 @@ router.get('/admin/user/:userId/payments', authenticateAdmin, async (req, res, n
   }
 });
 
+// GET /api/dues/admin/user/:userId/report?from=YYYY-MM-DD&to=YYYY-MM-DD&format=json|pdf|csv|xlsx
+// Admin: account statement for one customer over a date range — orders,
+// charges, payments, running balance, plus instant (COD) orders for reference.
+router.get('/admin/user/:userId/report', authenticateAdmin, async (req, res, next) => {
+  try {
+    const from = String(req.query.from || '');
+    const to = String(req.query.to || '');
+    const format = String(req.query.format || 'json').toLowerCase();
+    if (format !== 'json' && !reportExport.FORMATS[format]) {
+      return badRequest(res, 'format must be json, pdf, csv or xlsx');
+    }
+
+    const statement = await dueReport.getUserStatement(req.params.userId, req.admin.areaId, { from, to });
+    if (format === 'json') return success(res, { report: statement });
+
+    const { mime, ext, render } = reportExport.FORMATS[format];
+    const file = await render(statement);
+    res.set({
+      'Content-Type': mime,
+      'Content-Length': file.length,
+      'Content-Disposition': `attachment; filename="${reportExport.reportFilename(statement, ext)}"`,
+      'Cache-Control': 'private, no-store',
+    });
+    return res.send(file);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/dues/admin/payment — Admin: record a payment
 router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
   try {
@@ -103,6 +135,49 @@ router.post('/admin/payment', authenticateAdmin, async (req, res, next) => {
     }
 
     return success(res, result, 'Payment recorded');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/dues/admin/user/:userId/adjustments — Admin: manual adjustment history
+router.get('/admin/user/:userId/adjustments', authenticateAdmin, async (req, res, next) => {
+  try {
+    if (!await getAdminAreaUser(req.params.userId, req.admin.areaId)) {
+      return notFound(res, 'User not found');
+    }
+    const adjustments = await dueService.getUserAdjustments(req.params.userId);
+    return success(res, { adjustments });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/dues/admin/adjustment — Admin: add to (charge) or reduce (credit) a due
+// Body: { user_id, type: charge|credit, amount, category?, note?, date?,
+//         reference_type?: 'instant_order', reference_id?, notify?, request_id? }
+router.post('/admin/adjustment', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { user_id, notify } = req.body || {};
+    if (!user_id) return badRequest(res, 'user_id is required');
+    const user = await getAdminAreaUser(user_id, req.admin.areaId);
+    if (!user) return notFound(res, 'User not found');
+
+    const result = await dueService.recordAdjustment(req.admin, user, req.body, { notify: notify !== false });
+    const verb = result.adjustment.type === 'charge' ? 'added to' : 'reduced from';
+    return success(res, result, result.duplicate ? 'Adjustment already recorded' : `Amount ${verb} due`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/dues/admin/adjustment/:id/void — Admin: reverse a manual adjustment
+// Body: { reason?, notify? }
+router.post('/admin/adjustment/:id/void', authenticateAdmin, async (req, res, next) => {
+  try {
+    const { reason, notify } = req.body || {};
+    const result = await dueService.voidAdjustment(req.admin, req.params.id, { reason }, { notify: notify !== false });
+    return success(res, result, 'Adjustment reversed');
   } catch (err) {
     next(err);
   }

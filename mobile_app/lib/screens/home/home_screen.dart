@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_typography.dart';
+import '../../theme/instant_theme.dart';
 import '../../widgets/premium_components.dart';
 import '../../widgets/tappable.dart';
 import '../../utils/transitions.dart';
@@ -13,10 +14,10 @@ import '../../utils/delivery_status.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/cart_provider.dart';
-import '../../providers/instant_mode_provider.dart';
+import '../../providers/instant_provider.dart';
 import '../../services/api_service.dart';
 import '../../widgets/remote_carousel.dart';
-import '../instant/instant_store_screen.dart';
+import '../../utils/delivery_mode_status.dart';
 import '../../widgets/app_snackbar.dart';
 import '../subscription/subscription_screen.dart';
 import '../cart/cart_screen.dart';
@@ -28,6 +29,7 @@ import '../dues/due_screen.dart';
 import '../products/products_screen.dart';
 import '../auth/complete_profile_screen.dart';
 import 'widgets/curved_navbar.dart';
+import 'widgets/milk_quality_card.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -71,6 +73,9 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context.read<SubscriptionProvider>().loadSubscription();
       context.read<CartProvider>().loadTomorrowStatus();
       context.read<CartProvider>().loadProducts();
+      // Home's products card shows whether instant delivery is open, so the
+      // instant catalog and delivery window load with the rest of Home.
+      context.read<InstantProvider>().ensureLoaded();
     });
   }
 
@@ -88,6 +93,8 @@ class HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _lastSync = now;
     context.read<SubscriptionProvider>().loadSubscription();
     context.read<CartProvider>().loadTomorrowStatus();
+    // The instant window opens and closes through the day.
+    context.read<InstantProvider>().loadAvailability();
   }
 
   @override
@@ -120,6 +127,8 @@ class _HomeTabState extends State<_HomeTab>
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
   final ScrollController _scrollCtrl = ScrollController();
+  final GlobalKey<MilkQualityCardState> _milkQualityKey =
+      GlobalKey<MilkQualityCardState>();
   final ValueNotifier<double> _collapseProgress = ValueNotifier<double>(0.0);
 
   static const double _kCollapseStart = 0.0;
@@ -188,27 +197,11 @@ class _HomeTabState extends State<_HomeTab>
   }
 
   void _openProducts() {
-    Navigator.push(
-      context,
-      SlideRightRoute(
-        page: ProductsScreen(
-          onGoToCart: () {
-            if (mounted) {
-              context.findAncestorStateOfType<HomeScreenState>()?.changeTab(2);
-            }
-          },
-        ),
-      ),
-    );
+    Navigator.push(context, SlideRightRoute(page: const ProductsScreen()));
   }
 
   @override
   Widget build(BuildContext context) {
-    // Instant Delivery mode swaps the whole Home tab for the purple storefront.
-    if (context.watch<InstantModeProvider>().isInstant) {
-      return const InstantStoreScreen();
-    }
-
     final name = context.select<AppAuthProvider, String>(
       (a) => a.userData?['name'] ?? 'User',
     );
@@ -217,6 +210,7 @@ class _HomeTabState extends State<_HomeTab>
     );
     final sub = context.watch<SubscriptionProvider>();
     final cart = context.watch<CartProvider>();
+    final instant = context.watch<InstantProvider>();
     final firstName = name.split(' ').first;
 
     return Scaffold(
@@ -288,8 +282,10 @@ class _HomeTabState extends State<_HomeTab>
                     onRefresh: () async {
                       await sub.loadSubscription();
                       await cart.loadTomorrowStatus();
+                      await instant.loadAvailability();
                       await _loadDue();
                       await _loadCalendarOrders();
+                      await _milkQualityKey.currentState?.reload();
                     },
                     child: FadeTransition(
                       opacity: _fadeAnim,
@@ -302,15 +298,6 @@ class _HomeTabState extends State<_HomeTab>
                           ),
                           padding: const EdgeInsets.fromLTRB(18, 14, 18, 110),
                           children: [
-                            // Scheduled ⇄ Instant toggle
-                            ScheduleInstantToggle(
-                              isInstant: false,
-                              onChanged: (instant) => context
-                                  .read<InstantModeProvider>()
-                                  .setInstant(instant),
-                            ),
-                            const SizedBox(height: 16),
-
                             // Profile incomplete banner
                             if (!isProfileComplete) ...[
                               Tappable(
@@ -379,6 +366,15 @@ class _HomeTabState extends State<_HomeTab>
                             ],
 
                             _buildHeroSnapshot(context, cart, sub),
+                            const SizedBox(height: 16),
+
+                            // ── Products (scheduled + instant) ────────────────
+                            _ProductsCard(
+                              products: cart.products,
+                              scheduled: DeliveryModeStatus.scheduled(cart),
+                              instant: DeliveryModeStatus.instant(instant),
+                              onTap: _openProducts,
+                            ),
                             const SizedBox(height: 24),
 
                             // ── Quick Actions ─────────────────────────────────
@@ -419,6 +415,15 @@ class _HomeTabState extends State<_HomeTab>
 
                             const SizedBox(height: 24),
 
+                            // ── Milk Quality (hidden until a report is published) ──
+                            MilkQualityCard(
+                              key: _milkQualityKey,
+                              header: _SectionHeader(
+                                title: 'Milk Quality',
+                                icon: Icons.verified_rounded,
+                              ),
+                            ),
+
                             // ── Quick Calendar ────────────────────────────────
                             _SectionHeader(
                               title: 'Quick Calendar',
@@ -427,121 +432,6 @@ class _HomeTabState extends State<_HomeTab>
                             const SizedBox(height: 10),
                             RepaintBoundary(
                               child: _QuickCalendar(orders: _calendarOrders),
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // ── Shop Banner ───────────────────────────────────
-                            _SectionHeader(
-                              title: 'Shop',
-                              icon: Icons.storefront_rounded,
-                            ),
-                            const SizedBox(height: 10),
-                            Tappable(
-                              onTap: _openProducts,
-                              scaleFactor: 0.97,
-                              child: Container(
-                                height: 110,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF0C4A6E),
-                                      Color(0xFF1E40AF),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF1E40AF,
-                                      ).withValues(alpha: 0.3),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                child: Stack(
-                                  children: [
-                                    Positioned(
-                                      right: -16,
-                                      bottom: -16,
-                                      child: Icon(
-                                        Icons.storefront_rounded,
-                                        size: 110,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.07,
-                                        ),
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.all(20),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 50,
-                                            height: 50,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                            ),
-                                            child: const Icon(
-                                              Icons.storefront_rounded,
-                                              color: Colors.white,
-                                              size: 24,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 14),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Text(
-                                                  'Browse Products',
-                                                  style: AppType.h3.copyWith(
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 3),
-                                                Text(
-                                                  'Paneer, curd, ghee & more',
-                                                  style: AppType.small.copyWith(
-                                                    color: Colors.white
-                                                        .withValues(alpha: 0.7),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: const Icon(
-                                              Icons.arrow_forward_rounded,
-                                              color: Colors.white,
-                                              size: 16,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                             ),
                           ],
                         ),
@@ -951,61 +841,7 @@ class _HomeTabState extends State<_HomeTab>
                 ),
                 const SizedBox(height: 10),
               ],
-              // Add more / Explore products button — shown for all users
-              Tappable(
-                onTap: _openProducts,
-                scaleFactor: 0.97,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.25),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        cart.extraItems.isNotEmpty
-                            ? Icons.add_shopping_cart_rounded
-                            : Icons.storefront_rounded,
-                        size: 16,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        cart.extraItems.isNotEmpty
-                            ? 'Add more products'
-                            : 'Explore products',
-                        style: AppType.small.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 14,
-                        color: AppColors.primary.withValues(alpha: 0.6),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (cart.products.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _BrowseProductsSection(
-                  products: cart.products,
-                  onTap: _openProducts,
-                ),
-              ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 6),
               RepaintBoundary(
                 child: RemoteCarousel(
                   location: 'home_scheduled',
@@ -1261,112 +1097,288 @@ class _HomeTabState extends State<_HomeTab>
   }
 }
 
-class _BrowseProductsSection extends StatelessWidget {
+// ── Products card ─────────────────────────────────────────────────────────────
+
+/// Entry to the single products page, directly under the subscription card.
+/// Shows whether each delivery mode is taking orders right now, so the
+/// customer knows before opening it which carts they can add to.
+class _ProductsCard extends StatelessWidget {
   final List<dynamic> products;
+  final DeliveryModeStatus scheduled;
+  final DeliveryModeStatus instant;
   final VoidCallback onTap;
 
-  const _BrowseProductsSection({required this.products, required this.onTap});
-
-  static String _coverImage(Map<String, dynamic> product) {
-    final cover = product['cover_image_small'] ?? product['cover_image_large'];
-    if (cover is String && cover.isNotEmpty) return cover;
-    final images = product['images'];
-    if (images is List) {
-      return images.whereType<String>().firstWhere(
-        (image) => image.isNotEmpty,
-        orElse: () => '',
-      );
-    }
-    return '';
-  }
+  const _ProductsCard({
+    required this.products,
+    required this.scheduled,
+    required this.instant,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final items = products.cast<Map<String, dynamic>>().take(10).toList();
-    return Tappable(
-      onTap: onTap,
-      scaleFactor: 0.98,
-      child: _GlassCard(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.local_grocery_store_outlined,
-                  size: 15,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Browse our products',
-                    style: AppType.captionBold.copyWith(
-                      color: AppColors.textPrimary,
+    final items = products
+        .whereType<Map>()
+        .map((p) => Map<String, dynamic>.from(p))
+        .where((p) => p['is_active'] == true)
+        .take(10)
+        .toList();
+
+    return Semantics(
+      button: true,
+      label: 'Open products',
+      child: Tappable(
+        onTap: onTap,
+        scaleFactor: 0.98,
+        child: _GlassCard(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1B6FC2), Color(0xFF2E8EEA)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.storefront_rounded,
+                      color: Colors.white,
+                      size: 22,
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Products',
+                          style: AppType.h3.copyWith(
+                            color: const Color(0xFF082F49),
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Scheduled or instant delivery',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.small.copyWith(
+                            color: const Color(0xFF57758A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF57758A),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ModeStatusChip(
+                      icon: Icons.event_repeat_rounded,
+                      label: 'Scheduled',
+                      color: AppColors.primary,
+                      status: scheduled,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ModeStatusChip(
+                      icon: Icons.bolt_rounded,
+                      label: 'Instant',
+                      color: InstantColors.primary,
+                      status: instant,
+                    ),
+                  ),
+                ],
+              ),
+              if (items.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 60,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, index) =>
+                        _ProductThumb(product: items[index]),
+                  ),
                 ),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 14,
-                  color: AppColors.primary.withValues(alpha: 0.7),
+              ],
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Browse all products',
+                      style: AppType.small.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 15,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeStatusChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final DeliveryModeStatus status;
+
+  const _ModeStatusChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color dot;
+    switch (status.tone) {
+      case DeliveryModeTone.ok:
+        dot = AppColors.success;
+      case DeliveryModeTone.warn:
+        dot = const Color(0xFFF59E0B);
+      case DeliveryModeTone.off:
+        dot = AppColors.textHint;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.micro.copyWith(
+                          color: const Color(0xFF082F49),
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: dot,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  status.short,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.micro.copyWith(
+                    color: const Color(0xFF57758A),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Tap to explore and add items to your scheduled delivery',
-              style: AppType.small.copyWith(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 64,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, index) {
-                  final imageUrl = _coverImage(items[index]);
-                  final name = items[index]['name'] as String? ?? '';
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      width: 64,
-                      height: 64,
-                      child: imageUrl.isEmpty
-                          ? Container(
-                              color: AppColors.primaryLight,
-                              child: Center(
-                                child: Text(
-                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                  style: AppType.h3.copyWith(
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 128,
-                              memCacheHeight: 128,
-                              errorWidget: (_, __, ___) => Container(
-                                color: AppColors.primaryLight,
-                                child: const Icon(
-                                  Icons.shopping_bag_rounded,
-                                  color: AppColors.primary,
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                    ),
-                  );
-                },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductThumb extends StatelessWidget {
+  final Map<String, dynamic> product;
+
+  const _ProductThumb({required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = product['name'] as String? ?? '';
+    final cover = product['cover_image_small'] ?? product['cover_image_large'];
+    final images = product['images'];
+    final url = cover is String && cover.isNotEmpty
+        ? cover
+        : (images is List
+              ? images.whereType<String>().firstWhere(
+                  (i) => i.isNotEmpty,
+                  orElse: () => '',
+                )
+              : '');
+    final fallback = Container(
+      color: AppColors.primaryLight,
+      alignment: Alignment.center,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: AppType.h3.copyWith(color: AppColors.primary),
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 60,
+        height: 60,
+        child: url.isEmpty
+            ? fallback
+            : CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                memCacheWidth: 120,
+                memCacheHeight: 120,
+                errorWidget: (_, __, ___) => fallback,
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

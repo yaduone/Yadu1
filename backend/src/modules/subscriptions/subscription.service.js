@@ -501,6 +501,136 @@ async function updateDeliverySlot(subscriptionId, userId, delivery_slot, { actor
   return { id: subscriptionId, delivery_slot };
 }
 
+const MAX_PRICE_PER_LITRE = 10000;
+
+/**
+ * Give one customer a custom milk rate. The rate is the snapshot the nightly
+ * job bills from, so it applies to every delivery generated from the next open
+ * date; deliveries already generated keep the rate they were created with.
+ * Bound to the cutoff for the same reason as quantity: after it, tomorrow's
+ * order may already be on the manifest at the old rate.
+ */
+async function updatePrice(subscriptionId, userId, pricePerLitre, { actor = USER_ACTOR } = {}) {
+  const price = typeof pricePerLitre === 'string' ? Number(pricePerLitre) : pricePerLitre;
+  if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price > MAX_PRICE_PER_LITRE) {
+    throw httpError(`price_per_litre must be a number between 0 and ${MAX_PRICE_PER_LITRE}`, 400);
+  }
+  const rounded = Math.round(price * 100) / 100;
+
+  const { subRef, data } = await loadOwnedSubscription(subscriptionId, userId);
+  if (data.status === STATUSES.CANCELLED) {
+    throw httpError('Cannot modify a cancelled subscription', 400);
+  }
+  if (Number(data.price_per_litre) === rounded) {
+    throw httpError(`The rate is already Rs. ${rounded}/L`, 400);
+  }
+  await assertBeforeCutoff(data.area_id);
+  const effectiveFrom = await getEffectiveDate(data.area_id);
+
+  await subRef.update({
+    price_per_litre: rounded,
+    price_overridden: true,
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await auditSubscriptionChange('subscription.price_updated', {
+    userId,
+    actor,
+    subscriptionId,
+    details: { price_per_litre: rounded, previous_price: data.price_per_litre ?? null, effective_from: effectiveFrom },
+  });
+
+  await notifySubscriptionChange(userId, data.area_id, {
+    title: 'Milk Rate Updated',
+    action: 'price_updated',
+    changeDescription: changeCopy(
+      actor,
+      `Your milk rate is now Rs. ${rounded}/L from ${effectiveFrom}.`,
+      `Your dairy has changed your milk rate from Rs. ${data.price_per_litre}/L to Rs. ${rounded}/L for deliveries from ${effectiveFrom}.`
+    ),
+    details: { price_per_litre: rounded, effective_from: effectiveFrom, status: data.status },
+  });
+
+  return { id: subscriptionId, price_per_litre: rounded, effective_from: effectiveFrom };
+}
+
+/**
+ * Switch the milk type of a live subscription. The customer moves onto the
+ * current list price for the new type (any custom rate belonged to the old
+ * type); a custom rate can be set again afterwards.
+ */
+async function updateMilkType(subscriptionId, userId, milkType, { actor = USER_ACTOR } = {}) {
+  if (!isValidMilkType(milkType)) {
+    throw httpError('Invalid milk type', 400);
+  }
+
+  const { subRef, data } = await loadOwnedSubscription(subscriptionId, userId);
+  if (data.status === STATUSES.CANCELLED) {
+    throw httpError('Cannot modify a cancelled subscription', 400);
+  }
+  if (data.milk_type === milkType) {
+    throw httpError(`The subscription is already ${MILK_LABELS[milkType] || milkType} milk`, 400);
+  }
+  await assertBeforeCutoff(data.area_id);
+
+  const priceSnap = await db
+    .collection('price_config')
+    .where('milk_type', '==', milkType)
+    .where('is_active', '==', true)
+    .limit(1)
+    .get();
+  if (priceSnap.empty) {
+    throw httpError('Pricing not available for this milk type', 400);
+  }
+  const pricePerLitre = priceSnap.docs[0].data().price_per_litre;
+  const effectiveFrom = await getEffectiveDate(data.area_id);
+
+  await subRef.update({
+    milk_type: milkType,
+    price_per_litre: pricePerLitre,
+    price_overridden: false,
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await auditSubscriptionChange('subscription.milk_type_updated', {
+    userId,
+    actor,
+    subscriptionId,
+    details: {
+      milk_type: milkType,
+      previous_milk_type: data.milk_type,
+      price_per_litre: pricePerLitre,
+      previous_price: data.price_per_litre ?? null,
+      effective_from: effectiveFrom,
+    },
+  });
+
+  const label = MILK_LABELS[milkType] || milkType;
+  await notifySubscriptionChange(userId, data.area_id, {
+    title: 'Milk Type Updated',
+    action: 'milk_type_updated',
+    changeDescription: changeCopy(
+      actor,
+      `Your regular deliveries are now ${label} milk at Rs. ${pricePerLitre}/L from ${effectiveFrom}.`,
+      `Your dairy has switched your regular deliveries to ${label} milk at Rs. ${pricePerLitre}/L from ${effectiveFrom}.`
+    ),
+    details: { milk_type: milkType, price_per_litre: pricePerLitre, effective_from: effectiveFrom, status: data.status },
+  });
+
+  return { id: subscriptionId, milk_type: milkType, price_per_litre: pricePerLitre, effective_from: effectiveFrom };
+}
+
+/**
+ * Admin: every subscription a customer has had, newest first, so past
+ * cancellations are visible next to the live one.
+ */
+async function listUserSubscriptions(userId) {
+  const snap = await db.collection('subscriptions').where('user_id', '==', userId).get();
+  return snap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
+}
+
 /**
  * Hydrate subscription rows with the customer name/phone/address the admin
  * panel needs, batched to respect Firestore's 30-item `in` limit.
@@ -603,6 +733,9 @@ module.exports = {
   cancelSubscription,
   updateQuantity,
   updateDeliverySlot,
+  updatePrice,
+  updateMilkType,
+  listUserSubscriptions,
   listByArea,
   getEffectiveDate,
 };

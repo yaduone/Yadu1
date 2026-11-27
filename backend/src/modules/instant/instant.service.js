@@ -326,6 +326,17 @@ async function confirmOrder(userId, areaId) {
   const availability = await instantHours.checkAvailability();
   if (!availability.available) throw availabilityError(availability);
 
+  // An admin can turn instant (cash) orders off for one customer, e.g. while
+  // earlier cash orders are unpaid. Checked at confirm, the point an order is
+  // created; the admin's reason is not shown to the customer.
+  const customerDoc = await db.collection('users').doc(userId).get();
+  if (customerDoc.exists && customerDoc.data().instant_orders_blocked) {
+    throw Object.assign(
+      new Error('Instant delivery is not available on your account right now. Please contact your dairy.'),
+      { statusCode: 403, code: 'INSTANT_BLOCKED' }
+    );
+  }
+
   const charges = await getInstantCharges();
   const extraTotal = Math.round(chargesTotal(charges) * 100) / 100;
 

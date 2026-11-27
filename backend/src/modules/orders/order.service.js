@@ -255,8 +255,13 @@ async function getAreaOrders(areaId, { date, status, page = 1, limit = 50 }) {
 
 /**
  * Admin: update order status.
+ *
+ * `containerAssigned` records, at the moment of delivery, whether the delivery
+ * agent handed the customer one of our containers. It is stamped onto the
+ * order so each delivered day keeps a record of who held a container then.
+ * Ignored for cancellations.
  */
-async function updateOrderStatus(orderId, areaId, newStatus) {
+async function updateOrderStatus(orderId, areaId, newStatus, { containerAssigned = false } = {}) {
   const validStatuses = ['delivered', 'cancelled'];
   if (!validStatuses.includes(newStatus)) {
     throw Object.assign(new Error('Invalid status. Must be delivered or cancelled'), { statusCode: 400 });
@@ -290,10 +295,17 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
       cancelledOrder = order;
     }
 
-    tx.update(orderRef, {
+    const update = {
       status: newStatus,
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+    if (newStatus === 'delivered') {
+      update.container_assigned = containerAssigned === true;
+      update.container_assigned_at = containerAssigned === true
+        ? admin.firestore.FieldValue.serverTimestamp()
+        : null;
+    }
+    tx.update(orderRef, update);
   });
 
   if (deliveredOrder) {
@@ -323,7 +335,9 @@ async function updateOrderStatus(orderId, areaId, newStatus) {
     }
   }
 
-  return { id: orderId, status: newStatus };
+  const result = { id: orderId, status: newStatus };
+  if (deliveredOrder) result.container_assigned = containerAssigned === true;
+  return result;
 }
 
 /**

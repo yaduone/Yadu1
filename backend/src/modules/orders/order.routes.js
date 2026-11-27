@@ -49,9 +49,14 @@ router.get('/:id', authenticateUser, requireCompleteProfile, async (req, res, ne
 // PUT /api/orders/admin/:id/status — Admin: update order status
 router.put('/admin/:id/status', authenticateAdmin, async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, container_assigned: containerAssigned } = req.body;
     if (!status) return badRequest(res, 'status is required');
-    const result = await orderService.updateOrderStatus(req.params.id, req.admin.areaId, status);
+    if (containerAssigned !== undefined && typeof containerAssigned !== 'boolean') {
+      return badRequest(res, 'container_assigned must be a boolean');
+    }
+    const result = await orderService.updateOrderStatus(req.params.id, req.admin.areaId, status, {
+      containerAssigned,
+    });
     return success(res, result, 'Order status updated');
   } catch (err) {
     next(err);
