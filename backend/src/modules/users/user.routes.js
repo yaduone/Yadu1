@@ -7,6 +7,7 @@ const { success, badRequest, forbidden, notFound } = require('../../utils/respon
 const { logActivity } = require('../../utils/activityLog');
 const { resolveMapsLink } = require('../../utils/googleMaps');
 const reportService = require('../reports/report.service');
+const userAdminService = require('./userAdmin.service');
 
 const MAX_BATCH_WRITES = 450;
 const USER_OWNED_COLLECTIONS = [
@@ -28,6 +29,12 @@ const USER_OWNED_COLLECTIONS = [
 
 function callInEnabled(userData) {
   return userData.call_in_enabled !== false;
+}
+
+// The admin's reason for blocking instant orders is for admins only.
+function customerFacingUser(userData) {
+  const { instant_block_reason: _hidden, ...rest } = userData;
+  return rest;
 }
 
 async function deleteUserFirestoreData(userId, userRef) {
@@ -97,7 +104,7 @@ router.get('/profile', authenticateUser, async (req, res, next) => {
     return success(res, {
       user: {
         id: userDoc.id,
-        ...userData,
+        ...customerFacingUser(userData),
         call_in_enabled: callInEnabled(userData),
         area_name: areaName,
         is_profile_complete: !!(userData.name && userData.area_id && userData.address),
@@ -154,6 +161,7 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
         created_at: u.created_at,
         deletion_requested: u.deletion_requested || false,
         deletion_requested_at: u.deletion_requested_at || null,
+        instant_orders_blocked: !!u.instant_orders_blocked,
         location: u.location || null,
         subscription: sub ? {
           id: sub.id,
@@ -182,6 +190,30 @@ router.get('/admin/list', authenticateAdmin, async (req, res, next) => {
     });
 
     return success(res, { users, total: users.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/users/admin/:userId — Admin: full account view for the user page
+// (profile, balance + ledger, subscription history, recent orders).
+router.get('/admin/:userId', authenticateAdmin, async (req, res, next) => {
+  try {
+    const detail = await userAdminService.getUserDetail(req.admin, req.params.userId);
+    return success(res, detail);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/users/admin/:userId — Admin: edit profile and account settings.
+// Body (any subset): { name, phone, address: { line1, line2, landmark, pincode },
+//   call_in_enabled, instant_orders_blocked, instant_block_reason,
+//   deletion_requested: false, area_id (super admin only) }
+router.patch('/admin/:userId', authenticateAdmin, async (req, res, next) => {
+  try {
+    const result = await userAdminService.updateUserProfile(req.admin, req.params.userId, req.body);
+    return success(res, result, 'Customer details updated');
   } catch (err) {
     next(err);
   }
@@ -280,7 +312,7 @@ router.put('/profile', authenticateUser, requireCompleteProfile, async (req, res
     return success(res, {
       user: {
         id: updatedDoc.id,
-        ...updatedData,
+        ...customerFacingUser(updatedData),
         call_in_enabled: callInEnabled(updatedData),
         is_profile_complete: !!(updatedData.name && updatedData.area_id && updatedData.address),
       },

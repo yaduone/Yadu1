@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Package, Tag, MapPin, ClipboardList,
   FileText, BarChart3, Radio, IndianRupee, Wallet, Bell, Megaphone, LogOut,
   ChevronRight, Menu, X, Settings, StickyNote,
-  FlaskConical, Zap, Receipt, Images, Sparkles, Mail, Repeat, ShoppingBag,
+  FlaskConical, Zap, Receipt, Images, Sparkles, Mail, Repeat, ShoppingBag, Milk,
 } from 'lucide-react';
 
 const navItems = [
@@ -24,6 +24,7 @@ const navItems = [
   { to: '/flow-tests',   icon: FlaskConical,    label: 'Flow Tests',  group: 'ops'  },
   { to: '/reports',     icon: BarChart3,       label: 'Reports',     group: 'ops'  },
   { to: '/livestreams', icon: Radio,           label: 'Livestreams', group: 'ops'  },
+  { to: '/milk-quality', icon: Milk,          label: 'Milk Quality', group: 'ops'  },
   { to: '/carousels',   icon: Images,          label: 'Carousels',   group: 'ops'  },
   { to: '/onboarding',  icon: Sparkles,        label: 'Onboarding',  group: 'ops'  },
   { to: '/prices',      icon: IndianRupee,     label: 'Prices',      group: 'fin'  },

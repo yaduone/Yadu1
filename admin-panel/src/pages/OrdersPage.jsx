@@ -5,7 +5,7 @@ import LiveIndicator from '../components/LiveIndicator';
 import SearchField from '../components/SearchField';
 import LocationLink from '../components/LocationLink';
 import { matchesSearch } from '../utils/search';
-import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package, Copy, Share2 } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, CheckSquare, Milk, Package, Copy, Share2, Box } from 'lucide-react';
 
 const STATUS_BADGE = {
   delivered: 'badge badge-green',
@@ -125,6 +125,14 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('milk');
+  // Per-order "container handed over" choice, set by the delivery agent before
+  // confirming delivery. Order ids are unique per date, so this never leaks
+  // across days.
+  const [containerChoices, setContainerChoices] = useState({});
+
+  function setContainerChoice(orderId, value) {
+    setContainerChoices((prev) => ({ ...prev, [orderId]: value }));
+  }
 
   // `silent` drives background refreshes: no skeleton, and the operator's
   // checkbox selection survives so a bulk action isn't cleared mid-use.
@@ -170,9 +178,13 @@ export default function OrdersPage() {
   }
 
   async function markDelivered(orderId) {
+    const containerAssigned = containerChoices[orderId] === true;
     try {
-      await api.put(`/orders/admin/${orderId}/status`, { status: 'delivered' });
-      patchOrders([orderId], { status: 'delivered' });
+      await api.put(`/orders/admin/${orderId}/status`, {
+        status: 'delivered',
+        container_assigned: containerAssigned,
+      });
+      patchOrders([orderId], { status: 'delivered', container_assigned: containerAssigned });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed');
       loadOrders({ silent: true });
@@ -188,11 +200,18 @@ export default function OrdersPage() {
     if (!pendingIds.length) return;
     if (!window.confirm(`Mark ${pendingIds.length} orders as delivered?`)) return;
     const ids = pendingIds;
+    const idSet = new Set(ids);
     setSelectedOrders([]);
-    patchOrders(ids, { status: 'delivered' });
+    // Each order carries its own container choice, so patch them individually.
+    setOrders((prev) => prev.map((o) => (idSet.has(o.id)
+      ? { ...o, status: 'delivered', container_assigned: containerChoices[o.id] === true }
+      : o)));
     try {
       await Promise.all(
-        ids.map((id) => api.put(`/orders/admin/${id}/status`, { status: 'delivered' }))
+        ids.map((id) => api.put(`/orders/admin/${id}/status`, {
+          status: 'delivered',
+          container_assigned: containerChoices[id] === true,
+        }))
       );
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to update some orders');
@@ -397,6 +416,8 @@ export default function OrdersPage() {
                     : selectedOrders.filter((id) => id !== order.id)
                 )}
                 onDelivered={() => markDelivered(order.id)}
+                containerChoice={containerChoices[order.id] === true}
+                onContainerChange={(value) => setContainerChoice(order.id, value)}
               />
             ))}
           </div>
@@ -435,6 +456,8 @@ export default function OrdersPage() {
                         : selectedOrders.filter((id) => id !== order.id)
                     )}
                     onDelivered={() => markDelivered(order.id)}
+                    containerChoice={containerChoices[order.id] === true}
+                    onContainerChange={(value) => setContainerChoice(order.id, value)}
                   />
                 ))}
               </tbody>
@@ -539,7 +562,47 @@ function StatusBadge({ status }) {
   );
 }
 
-function OrderCard({ order, activeTab, selected, canMarkDelivered, onSelect, onDelivered }) {
+// Small switch the delivery agent flips when a container is handed over with
+// this delivery. The choice is held locally and saved together with "Delivered".
+function ContainerToggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      title={checked ? 'Container will be recorded as given' : 'Tap if a container is given'}
+      className="inline-flex items-center gap-1.5 select-none text-xs font-medium text-slate-600 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+    >
+      <span
+        className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+          checked ? 'bg-blue-600' : 'bg-slate-300'
+        }`}
+      >
+        <span
+          className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-3.5' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+      <Box size={12} className={checked ? 'text-blue-600' : 'text-slate-400'} />
+      Container
+    </button>
+  );
+}
+
+function ContainerBadge() {
+  return (
+    <span className="badge badge-blue flex items-center gap-1 w-fit" title="Container given with this delivery">
+      <Box size={12} />
+      Container
+    </span>
+  );
+}
+
+function OrderCard({
+  order, activeTab, selected, canMarkDelivered, onSelect, onDelivered, containerChoice, onContainerChange,
+}) {
   return (
     <div className={`card p-4 ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       <div className="flex items-start justify-between gap-2">
@@ -559,25 +622,31 @@ function OrderCard({ order, activeTab, selected, canMarkDelivered, onSelect, onD
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <StatusBadge status={order.status} />
+          {order.status === 'delivered' && order.container_assigned && <ContainerBadge />}
           <span className="text-sm font-bold text-slate-800">
             {money(getDisplayAmount(order, activeTab))}
           </span>
         </div>
       </div>
       {order.status === 'pending' && canMarkDelivered && (
-        <button
-          onClick={onDelivered}
-          className="btn btn-sm bg-emerald-600 text-white w-full justify-center mt-3"
-        >
-          <CheckCircle2 size={13} />
-          Mark Delivered
-        </button>
+        <div className="flex items-center gap-3 mt-3">
+          <ContainerToggle checked={containerChoice} onChange={onContainerChange} />
+          <button
+            onClick={onDelivered}
+            className="btn btn-sm bg-emerald-600 text-white flex-1 justify-center"
+          >
+            <CheckCircle2 size={13} />
+            Mark Delivered
+          </button>
+        </div>
       )}
     </div>
   );
 }
 
-function OrderRow({ order, activeTab, selected, canMarkDelivered, onSelect, onDelivered }) {
+function OrderRow({
+  order, activeTab, selected, canMarkDelivered, onSelect, onDelivered, containerChoice, onContainerChange,
+}) {
   return (
     <tr className={selected ? 'bg-blue-50/60' : ''}>
       <td className="text-center">
@@ -598,17 +667,23 @@ function OrderRow({ order, activeTab, selected, canMarkDelivered, onSelect, onDe
         {money(getDisplayAmount(order, activeTab))}
       </td>
       <td>
-        <StatusBadge status={order.status} />
+        <div className="flex flex-col gap-1">
+          <StatusBadge status={order.status} />
+          {order.status === 'delivered' && order.container_assigned && <ContainerBadge />}
+        </div>
       </td>
       <td>
         {order.status === 'pending' && canMarkDelivered && (
-          <button
-            onClick={onDelivered}
-            className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700"
-          >
-            <CheckCircle2 size={13} />
-            Delivered
-          </button>
+          <div className="flex items-center gap-3">
+            <ContainerToggle checked={containerChoice} onChange={onContainerChange} />
+            <button
+              onClick={onDelivered}
+              className="btn btn-sm bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              <CheckCircle2 size={13} />
+              Delivered
+            </button>
+          </div>
         )}
       </td>
     </tr>

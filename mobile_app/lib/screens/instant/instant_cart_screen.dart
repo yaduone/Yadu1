@@ -114,8 +114,8 @@ class _InstantCartScreenState extends State<InstantCartScreen> {
     );
   }
 
-  /// Back to the instant storefront to keep shopping. The store's floating
-  /// "Your Orders" badge is already showing the new order when they land.
+  /// Back to the products page to keep shopping. Its floating "Your Orders"
+  /// badge is already showing the new order when they land.
   void _backToStore() {
     Navigator.pop(context); // close the dialog
     Navigator.pop(context); // leave the cart

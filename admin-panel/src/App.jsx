@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import UsersPage from './pages/UsersPage';
+import UserDetailPage from './pages/UserDetailPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
 import ProductsPage from './pages/ProductsPage';
 import AreasPage from './pages/AreasPage';
@@ -27,6 +28,7 @@ import EmailAlertsPage from './pages/EmailAlertsPage';
 import CarouselsPage from './pages/CarouselsPage';
 import OnboardingPage from './pages/OnboardingPage';
 import PlaceOrderPage from './pages/PlaceOrderPage';
+import MilkQualityPage from './pages/MilkQualityPage';
 
 export default function App() {
   return (
@@ -44,6 +46,7 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="users/:userId" element={<UserDetailPage />} />
             <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="categories" element={<CategoriesPage />} />
@@ -55,6 +58,7 @@ export default function App() {
             <Route path="manifest-settings" element={<ManifestSettingsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="livestreams" element={<LivestreamsPage />} />
+            <Route path="milk-quality" element={<MilkQualityPage />} />
             <Route path="prices" element={<PricesPage />} />
             <Route path="charges" element={<ChargesPage />} />
             <Route path="email-alerts" element={<EmailAlertsPage />} />

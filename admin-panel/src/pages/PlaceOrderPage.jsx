@@ -692,14 +692,14 @@ function Thumb({ src }) {
 
 // ─── Subscription ────────────────────────────────────────────────────────────
 
-function SubscriptionPanel({ overview, onSaved, onError }) {
+export function SubscriptionPanel({ overview, onSaved, onError }) {
   const { subscription, schedule, customer } = overview;
   return (
     <div className="grid lg:grid-cols-2 gap-5 items-start">
       {/* Keyed on the saved values so the form resets to the server's state after every change. */}
       {subscription ? (
         <ManageSubscription
-          key={`${subscription.id}-${subscription.status}-${subscription.quantity_litres}-${subscription.delivery_slot}`}
+          key={`${subscription.id}-${subscription.status}-${subscription.quantity_litres}-${subscription.delivery_slot}-${subscription.milk_type}-${subscription.price_per_litre}`}
           overview={overview}
           onSaved={onSaved}
           onError={onError}
@@ -720,8 +720,8 @@ function SubscriptionPanel({ overview, onSaved, onError }) {
         <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
           <Info size={15} className="shrink-0 mt-0.5" />
           <span>
-            Pause, resume and cancel apply from <strong>{formatDate(schedule.target_date)}</strong>. Quantity and slot changes are
-            closed after the {schedule.cutoff_time} cutoff until midnight. {customer.name || 'The customer'} is notified of every change
+            Pause, resume and cancel apply from <strong>{formatDate(schedule.target_date)}</strong>. Quantity, slot, milk type and rate
+            changes are closed after the {schedule.cutoff_time} cutoff until midnight. {customer.name || 'The customer'} is notified of every change
             and sees it in the app straight away.
           </span>
         </div>
@@ -849,9 +849,14 @@ function CreateSubscription({ overview, onSaved, onError }) {
 }
 
 function ManageSubscription({ overview, onSaved, onError }) {
-  const { subscription: sub, schedule, customer } = overview;
+  const { subscription: sub, schedule, customer, prices } = overview;
   const [quantity, setQuantity] = useState(sub.quantity_litres);
   const [slot, setSlot] = useState(sub.delivery_slot);
+  const [milkType, setMilkType] = useState(sub.milk_type);
+  const [rate, setRate] = useState(String(sub.price_per_litre));
+  const listPrice = (type) => prices.find((p) => p.milk_type === type)?.price_per_litre;
+  const rateValue = Number(rate);
+  const rateValid = rate.trim() !== '' && Number.isFinite(rateValue) && rateValue > 0 && rateValue <= 10000;
   const [pending, setPending] = useState(null); // { action, label, body, message }
   const [submitting, setSubmitting] = useState(false);
 
@@ -885,7 +890,7 @@ function ManageSubscription({ overview, onSaved, onError }) {
             {sub.quantity_litres}L {MILK_LABELS[sub.milk_type] || sub.milk_type} · {SLOT_LABELS[sub.delivery_slot]}
           </p>
           <p className="text-xs text-slate-400 mt-0.5">
-            {rupees(sub.price_per_litre)}/L · started {formatDate(sub.start_date)}
+            {rupees(sub.price_per_litre)}/L{sub.price_overridden && ' (custom rate)'} · started {formatDate(sub.start_date)}
             {sub.created_by?.type === 'admin' && ' · set up by dairy'}
           </p>
         </div>
@@ -932,8 +937,67 @@ function ManageSubscription({ overview, onSaved, onError }) {
           </div>
         </div>
       </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <span className="text-xs font-medium text-slate-500">Milk type</span>
+          <div className="flex gap-2 mt-1">
+            <select className="select" value={milkType} disabled={editsLocked} onChange={(e) => setMilkType(e.target.value)}>
+              {listPrice(sub.milk_type) === undefined && (
+                <option value={sub.milk_type}>{MILK_LABELS[sub.milk_type] || sub.milk_type} (no list price)</option>
+              )}
+              {prices.map((p) => (
+                <option key={p.milk_type} value={p.milk_type}>{MILK_LABELS[p.milk_type] || p.milk_type} · {rupees(p.price_per_litre)}/L</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-secondary btn-sm disabled:opacity-40"
+              disabled={editsLocked || milkType === sub.milk_type || listPrice(milkType) === undefined}
+              onClick={() => ask(
+                'milk_type',
+                'Change milk type?',
+                `From ${MILK_LABELS[sub.milk_type] || sub.milk_type} to ${MILK_LABELS[milkType] || milkType} at the list price of ${rupees(listPrice(milkType))}/L, for every regular delivery from ${formatDate(schedule.target_date)}.${sub.price_overridden ? ' The custom rate is replaced by the list price; you can set a custom rate again afterwards.' : ''}`,
+                `Milk type set to ${MILK_LABELS[milkType] || milkType} — customer notified`,
+                { milk_type: milkType }
+              )}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+        <div>
+          <span className="text-xs font-medium text-slate-500">Rate for this customer (₹/L)</span>
+          <div className="flex gap-2 mt-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0.5"
+              step="0.5"
+              className="input"
+              value={rate}
+              disabled={editsLocked}
+              onChange={(e) => setRate(e.target.value)}
+              aria-label="Rate per litre"
+            />
+            <button
+              type="button"
+              className="btn-secondary btn-sm disabled:opacity-40"
+              disabled={editsLocked || !rateValid || rateValue === Number(sub.price_per_litre)}
+              onClick={() => ask(
+                'price',
+                'Change milk rate?',
+                `From ${rupees(sub.price_per_litre)}/L to ${rupees(rateValue)}/L for this customer only, for deliveries from ${formatDate(schedule.target_date)}. Deliveries already generated keep the old rate. List price for ${MILK_LABELS[sub.milk_type] || sub.milk_type} is ${rupees(listPrice(sub.milk_type))}/L.`,
+                `Rate set to ${rupees(rateValue)}/L — customer notified`,
+                { price_per_litre: Math.round(rateValue * 100) / 100 }
+              )}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
       {editsLocked && (
-        <p className="text-xs text-slate-400 flex items-center gap-1"><Lock size={11} /> Quantity and slot reopen at midnight (cutoff {schedule.cutoff_time} has passed).</p>
+        <p className="text-xs text-slate-400 flex items-center gap-1"><Lock size={11} /> Quantity, slot, milk type and rate reopen at midnight (cutoff {schedule.cutoff_time} has passed).</p>
       )}
 
       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
@@ -1058,7 +1122,7 @@ function NextDeliveryCard({ overview, onSaved, onError }) {
 
 // ─── Confirm dialog ──────────────────────────────────────────────────────────
 
-function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCancel, busy, danger = false }) {
+export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCancel, busy, danger = false }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-scale-in p-5">

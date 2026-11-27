@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import SearchField from '../components/SearchField';
 import { matchesSearch } from '../utils/search';
-import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Bell } from 'lucide-react';
+import { X, TrendingDown, TrendingUp, Wallet, Receipt, Ticket, Bell, FileText } from 'lucide-react';
+import DuesReportTab from './DuesReportTab';
 
 const METHOD_LABELS = { cash: 'Cash', upi: 'UPI', other: 'Other' };
 const METHOD_BADGE  = { cash: 'badge badge-green', upi: 'badge badge-blue', other: 'badge badge-gray' };
@@ -10,6 +11,12 @@ const TICKET_BADGE  = { open: 'badge badge-red', in_review: 'badge badge-yellow'
 
 export default function DuesPage() {
   const [tab, setTab] = useState('dues');
+  const [reportUserId, setReportUserId] = useState(null);
+
+  function openReport(userId) {
+    setReportUserId(userId);
+    setTab('report');
+  }
 
   return (
     <div className="space-y-5">
@@ -19,7 +26,7 @@ export default function DuesPage() {
           <p className="text-xs text-slate-400 mt-0.5">Track outstanding balances and support tickets</p>
         </div>
         <div className="flex gap-1 bg-slate-100 rounded-xl p-1 self-start sm:self-auto">
-          {[['dues', 'Due Amounts', Wallet], ['tickets', 'Tickets', Ticket]].map(([key, label, Icon]) => (
+          {[['dues', 'Due Amounts', Wallet], ['report', 'User Report', FileText], ['tickets', 'Tickets', Ticket]].map(([key, label, Icon]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -34,14 +41,16 @@ export default function DuesPage() {
         </div>
       </div>
 
-      {tab === 'dues' ? <DuesTab /> : <TicketsTab />}
+      {tab === 'dues' && <DuesTab onOpenReport={openReport} />}
+      {tab === 'report' && <DuesReportTab initialUserId={reportUserId} />}
+      {tab === 'tickets' && <TicketsTab />}
     </div>
   );
 }
 
 // ─── Dues Tab ─────────────────────────────────────────────────────────────────
 
-function DuesTab() {
+function DuesTab({ onOpenReport }) {
   const [dues, setDues]                   = useState([]);
   const [users, setUsers]                 = useState({});
   const [loading, setLoading]             = useState(true);
@@ -244,6 +253,14 @@ function DuesTab() {
                 {(selectedDue?.due_amount || 0) < 0 ? `+₹${Math.abs(selectedDue.due_amount).toFixed(2)}` : `₹${(selectedDue?.due_amount || 0).toFixed(2)}`}
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => onOpenReport(selected)}
+              className="btn btn-secondary btn-sm w-full justify-center"
+            >
+              <FileText size={13} /> Generate report (PDF / Excel / CSV)
+            </button>
 
             {/* Due reminder ping */}
             {(selectedDue?.due_amount || 0) > 0 && (

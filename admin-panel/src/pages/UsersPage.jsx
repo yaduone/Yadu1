@@ -7,7 +7,7 @@ import LocationLink from '../components/LocationLink';
 import {
   AlertTriangle, Trash2, Users, UserCheck, UserX, UserMinus,
   HelpCircle, ShieldAlert, ShoppingCart, ShoppingBag, X, Package, Milk, Loader2,
-  CalendarDays, ChevronLeft, ChevronRight, MapPin,
+  CalendarDays, ChevronLeft, ChevronRight, MapPin, Pencil,
 } from 'lucide-react';
 
 const STATUS_BADGE = {
@@ -252,7 +252,7 @@ function nonDeliveryReason(entry) {
   return 'Delivery was not completed';
 }
 
-function DeliveryCalendarModal({ user, onClose }) {
+export function DeliveryCalendarModal({ user, onClose }) {
   const [focusedMonth, setFocusedMonth] = useState(INITIAL_CALENDAR_MONTH);
   const [selectedDate, setSelectedDate] = useState('');
   const [result, setResult] = useState({ requestKey: '', data: null, error: '' });
@@ -590,12 +590,15 @@ export default function UsersPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-slate-800 text-sm truncate">
+                        <Link to={`/users/${user.id}`} className="font-semibold text-slate-800 text-sm truncate hover:text-blue-600">
                           {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
-                        </p>
+                        </Link>
                         <div className="flex items-center justify-end gap-1.5 shrink-0 flex-wrap max-w-[190px]">
                           {user.deletion_requested && (
                             <span className="badge badge-red">delete req</span>
+                          )}
+                          {user.instant_orders_blocked && (
+                            <span className="badge badge-red">instant off</span>
                           )}
                           {sub ? (
                             <span className={STATUS_BADGE[sub.status] || 'badge badge-gray'}>
@@ -605,6 +608,14 @@ export default function UsersPage() {
                             <span className="badge badge-gray">no sub</span>
                           )}
                           <CallInBadge user={user} />
+                          <Link
+                            to={`/users/${user.id}`}
+                            className="btn-icon text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                            title="View & edit user"
+                            aria-label={`View and edit ${user.name || user.phone || 'user'}`}
+                          >
+                            <Pencil size={14} />
+                          </Link>
                           <button
                             type="button"
                             onClick={() => setLocationUser(user)}
@@ -725,9 +736,9 @@ export default function UsersPage() {
                             </span>
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-800 text-sm">
+                            <Link to={`/users/${user.id}`} className="font-semibold text-slate-800 text-sm hover:text-blue-600">
                               {user.name || <span className="text-slate-400 italic font-normal">Incomplete</span>}
-                            </p>
+                            </Link>
                             <p className="text-[10px] text-slate-400 font-mono">{user.id.slice(0, 10)}…</p>
                           </div>
                         </div>
@@ -795,10 +806,21 @@ export default function UsersPage() {
                             <span className="badge badge-gray">no sub</span>
                           )}
                           <CallInBadge user={user} />
+                          {user.instant_orders_blocked && (
+                            <span className="badge badge-red">instant off</span>
+                          )}
                         </div>
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
+                          <Link
+                            to={`/users/${user.id}`}
+                            className="btn-icon text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                            title="View & edit user"
+                            aria-label={`View and edit ${user.name || user.phone || 'user'}`}
+                          >
+                            <Pencil size={14} />
+                          </Link>
                           <button
                             type="button"
                             onClick={() => setLocationUser(user)}

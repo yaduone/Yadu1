@@ -118,6 +118,7 @@ function serializeSubscription(sub) {
     milk_type: sub.milk_type,
     quantity_litres: sub.quantity_litres,
     price_per_litre: sub.price_per_litre,
+    price_overridden: !!sub.price_overridden,
     daily_value: +(Number(sub.quantity_litres) * Number(sub.price_per_litre)).toFixed(2),
     delivery_slot: sub.delivery_slot || 'morning',
     status: sub.status,
@@ -415,9 +416,11 @@ async function createSubscription(adminCtx, userId, body) {
   return { subscription: serializeSubscription(subscription) };
 }
 
-const SUBSCRIPTION_ACTIONS = ['pause', 'resume', 'cancel', 'quantity', 'slot'];
+const SUBSCRIPTION_ACTIONS = ['pause', 'resume', 'cancel', 'quantity', 'slot', 'price', 'milk_type'];
 
-async function updateSubscription(adminCtx, userId, subscriptionId, { action, quantity_litres, delivery_slot }) {
+async function updateSubscription(adminCtx, userId, subscriptionId, {
+  action, quantity_litres, delivery_slot, price_per_litre, milk_type,
+}) {
   if (!SUBSCRIPTION_ACTIONS.includes(action)) {
     throw httpError(`action must be one of ${SUBSCRIPTION_ACTIONS.join(', ')}`, 400);
   }
@@ -448,6 +451,12 @@ async function updateSubscription(adminCtx, userId, subscriptionId, { action, qu
     }
     case 'slot':
       result = await subscriptionService.updateDeliverySlot(subscriptionId, user.id, delivery_slot, options);
+      break;
+    case 'price':
+      result = await subscriptionService.updatePrice(subscriptionId, user.id, price_per_litre, options);
+      break;
+    case 'milk_type':
+      result = await subscriptionService.updateMilkType(subscriptionId, user.id, milk_type, options);
       break;
     default:
       throw httpError('Unsupported action', 400);

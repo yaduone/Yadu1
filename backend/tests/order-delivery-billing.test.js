@@ -102,6 +102,68 @@ describe('delivery status billing transaction', () => {
     expect(mockSendDeliveryNotification).toHaveBeenCalledTimes(1);
   });
 
+  test('records a container handed over at delivery', async () => {
+    mockTransaction.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        area_id: 'area-1',
+        user_id: 'user-1',
+        date: '2026-01-01',
+        total_amount: 125,
+        status: 'pending',
+      }),
+    });
+
+    const result = await updateOrderStatus('order-1', 'area-1', 'delivered', { containerAssigned: true });
+
+    expect(mockTransaction.update).toHaveBeenCalledWith(mockOrderRef, expect.objectContaining({
+      status: 'delivered',
+      container_assigned: true,
+      container_assigned_at: 'server-time',
+    }));
+    expect(result.container_assigned).toBe(true);
+  });
+
+  test('records no container when the toggle is off', async () => {
+    mockTransaction.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        area_id: 'area-1',
+        user_id: 'user-1',
+        date: '2026-01-01',
+        total_amount: 125,
+        status: 'pending',
+      }),
+    });
+
+    await updateOrderStatus('order-1', 'area-1', 'delivered');
+
+    expect(mockTransaction.update).toHaveBeenCalledWith(mockOrderRef, expect.objectContaining({
+      status: 'delivered',
+      container_assigned: false,
+      container_assigned_at: null,
+    }));
+  });
+
+  test('does not stamp container fields on a cancellation', async () => {
+    mockTransaction.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        area_id: 'area-1',
+        user_id: 'user-1',
+        date: '2026-01-01',
+        total_amount: 125,
+        status: 'pending',
+      }),
+    });
+
+    await updateOrderStatus('order-1', 'area-1', 'cancelled', { containerAssigned: true });
+
+    const [, update] = mockTransaction.update.mock.calls[0];
+    expect(update).not.toHaveProperty('container_assigned');
+    expect(update).not.toHaveProperty('container_assigned_at');
+  });
+
   test('does not bill an order already marked delivered', async () => {
     mockTransaction.get.mockResolvedValue({
       exists: true,

@@ -43,7 +43,8 @@ async function verifyUserToken(firebaseToken) {
   }
 
   const userDoc = userSnap.docs[0];
-  const userData = userDoc.data();
+  // The admin's reason for blocking instant orders is for admins only.
+  const { instant_block_reason: _hidden, ...userData } = userDoc.data();
   const isProfileComplete = !!(userData.name && userData.area_id && userData.address);
 
   return {
@@ -77,7 +78,7 @@ async function completeProfile(userId, { name, area_id, address }) {
   await db.collection('users').doc(userId).update(updateData);
 
   const updatedDoc = await db.collection('users').doc(userId).get();
-  const updatedData = updatedDoc.data();
+  const { instant_block_reason: _hidden, ...updatedData } = updatedDoc.data();
 
   // Log profile completion
   await logActivity({

@@ -1,12 +1,12 @@
 # Instant Delivery Feature
 
 A second, on-demand purchasing mode alongside the existing **Scheduled** (next-day cart) model.
-Users open an **Instant** tab on Home, browse a Blinkit/Zepto-style storefront, build a
-**separate persistent cart**, pick an optional delivery charge, and **confirm an order now**.
+Users add products to it from the single **Products** page (each product has a Scheduled and an
+Instant button), building a **separate persistent cart**, pick an optional delivery charge, and **confirm an order now**.
 When an admin marks an instant order **delivered**, its value (items + delivery charge) is added
 to the user's existing **due** balance — identical to scheduled orders.
 
-While Instant mode is active the app chrome turns **light purple**, and instant deliveries are
+Instant controls, the instant cart and order screens use **light purple**, and instant deliveries are
 shown in **purple** on the global delivery calendar.
 
 ---
@@ -57,25 +57,32 @@ Catalog is reused: `GET /api/products?availability=instant` returns instant-avai
 
 ## Mobile app
 
-- **Home**: a `Scheduled | Instant` segmented toggle (`ScheduleInstantToggle`). Switching to
-  Instant flips `InstantModeProvider` (purple chrome) and swaps the Home body for `InstantStoreScreen`.
-- **`InstantStoreScreen`**: carousel, category chips, 2-column product grid with `ADD` → `+/-`
-  steppers, a top **⚡ cart pill**, and a floating **View Cart** bar.
+- **Home** has no Scheduled/Instant toggle any more. A **Products** card sits directly under the
+  subscription card, showing whether scheduled and instant delivery are each taking orders.
+- **`ProductsScreen`** (`lib/screens/products/`) is the single catalogue: every admin-defined product
+  (`GET /api/products`) with two add controls — **Scheduled** (next delivery's pending cart, confirmed
+  from the Cart tab) and **Instant** (`InstantProvider` cart). Each control becomes a −/+ stepper once
+  added, and goes grey with a reason when the product's admin `availability` excludes that mode
+  ("Scheduled only" / "Instant only") or the mode isn't taking orders (instant window closed/paused,
+  next delivery not loaded or locked). Status chips at the top and the buttons both read
+  `DeliveryModeStatus` (`lib/utils/delivery_mode_status.dart`), so they never disagree.
+  Header: search, instant order history, scheduled cart, instant cart. A floating bar links to each cart
+  with items; the "Your Orders" badge tracks active instant orders.
+- **Product sheet**: admin photos, unit, category, description, and a "Delivery options" card with each
+  mode's price (`instant_price` when set) and live status, plus the same two add controls.
 - **`InstantCartScreen`**: line items with steppers, **delivery-charge chips** (Free/₹10…₹50),
-  a **charges breakdown** (items / delivery / to-pay), and **Confirm Order**.
-- **`InstantProvider`** mirrors `CartProvider` (server-backed cart, each mutation returns the fresh cart).
-- Bottom nav accent turns purple in instant mode; the global calendar shows a purple ⚡ marker on
-  days with instant orders and lists them in the day-detail sheet.
+  a **charges breakdown** (items / delivery / to-pay), and **Confirm Order**. Opened once per launch
+  over the products page.
+- The global calendar still shows a purple ⚡ marker on days with instant orders.
 
-Key files: `lib/theme/instant_theme.dart`, `lib/providers/instant_provider.dart`,
-`lib/providers/instant_mode_provider.dart`, `lib/screens/instant/`.
-
----
+Key files: `lib/screens/products/`, `lib/utils/delivery_mode_status.dart`,
+`lib/providers/instant_provider.dart`, `lib/screens/instant/` (cart, order status, history, active orders).
 
 ## Verify
 
 - **Backend**: `cd backend && npx jest` (incl. `tests/instant-order-billing.test.js`).
 - **Mobile**: `cd mobile_app && flutter analyze lib`.
-- **End-to-end**: admin sets a product to Instant/Both → app Instant tab → add items → set
+- **Products page**: `cd mobile_app && flutter test test/products_screen_test.dart`.
+- **End-to-end**: admin sets a product to Instant/Both → Home → Products → tap Instant on it → set
   delivery charge → Confirm → admin **Instant → Mark Delivered** → user's due increases and the
   day shows purple on the calendar.

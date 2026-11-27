@@ -17,7 +17,6 @@ import 'providers/subscription_provider.dart';
 import 'providers/cart_provider.dart';
 import 'providers/calendar_provider.dart';
 import 'providers/instant_provider.dart';
-import 'providers/instant_mode_provider.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/complete_profile_screen.dart';
@@ -26,6 +25,7 @@ import 'screens/instant/instant_cart_screen.dart';
 import 'screens/dues/due_screen.dart';
 import 'screens/livestream/livestream_screen.dart';
 import 'screens/notifications/notifications_screen.dart';
+import 'screens/products/products_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/subscription/subscription_screen.dart';
 import 'services/fcm_service.dart';
@@ -106,7 +106,6 @@ class DairyDeliveryApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
         ChangeNotifierProvider(create: (_) => InstantProvider()),
-        ChangeNotifierProvider(create: (_) => InstantModeProvider()),
       ],
       child: MaterialApp(
         navigatorKey: appNavigatorKey,
@@ -346,16 +345,17 @@ class _ProfileGateState extends State<_ProfileGate> {
     return HomeScreen(key: HomeScreen.globalKey);
   }
 
-  /// Lands the customer on the instant cart once per launch, with the instant
-  /// storefront underneath so backing out stays in Instant mode.
+  /// Lands the customer on the instant cart once per launch, with the
+  /// products page underneath so backing out keeps them shopping.
   void _openInstantCartOnStartup() {
     if (_instantCartOpened) return;
     _instantCartOpened = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<InstantModeProvider>().setInstant(true);
-      appNavigatorKey.currentState
-          ?.push(SlideUpRoute(page: const InstantCartScreen()));
+      final navigator = appNavigatorKey.currentState;
+      if (navigator == null) return;
+      navigator.push(SlideRightRoute(page: const ProductsScreen()));
+      navigator.push(SlideUpRoute(page: const InstantCartScreen()));
     });
   }
 }

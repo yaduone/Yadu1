@@ -1,10 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../theme/app_theme.dart';
-import '../../../theme/instant_theme.dart';
-import '../../../providers/instant_mode_provider.dart';
 import '../../../widgets/tappable.dart';
 
 class BottomNavCurvePainter extends CustomPainter {
@@ -68,9 +65,7 @@ class CurvedNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     const height = 62.0;
-    final accent = context.watch<InstantModeProvider>().isInstant
-        ? InstantColors.primary
-        : AppColors.primary;
+    const accent = AppColors.primary;
 
     return BottomAppBar(
       color: Colors.transparent,
